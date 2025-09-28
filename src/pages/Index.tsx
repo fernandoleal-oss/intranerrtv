@@ -12,7 +12,7 @@ const Index = () => {
       title: "Produção de filme",
       description: "Criar orçamento de FILME com cotações e comparador.",
       onStart: () => {
-        alert("🎬 Iniciando orçamento de Produção de Filme!\n\nEm breve você será direcionado para o wizard de criação.");
+        window.location.href = "/new/filme";
       },
     },
     {
@@ -20,7 +20,7 @@ const Index = () => {
       title: "Produção de áudio",
       description: "Criar orçamento de ÁUDIO com opções da produtora.",
       onStart: () => {
-        alert("🎧 Iniciando orçamento de Produção de Áudio!\n\nEm breve você será direcionado para o wizard de criação.");
+        window.location.href = "/new/audio";
       },
     },
     {
@@ -28,7 +28,7 @@ const Index = () => {
       title: "Compra de imagem",
       description: "Cadastrar imagens (Getty/Shutterstock/Personalizado).",
       onStart: () => {
-        alert("🖼️ Iniciando orçamento de Compra de Imagem!\n\nEm breve você será direcionado para o wizard de criação.");
+        window.location.href = "/new/imagem";
       },
     },
     {
@@ -36,7 +36,7 @@ const Index = () => {
       title: "Closed Caption",
       description: "Calcular versões de CC (R$ 900/versão).",
       onStart: () => {
-        alert("📝 Iniciando orçamento de Closed Caption!\n\nEm breve você será direcionado para o wizard de criação.");
+        window.location.href = "/new/cc";
       },
     },
   ];
