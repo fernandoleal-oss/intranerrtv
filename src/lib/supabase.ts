@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-// These would normally come from environment variables
-// In a real app, you would set these in your hosting platform
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-key'
+// For now using placeholder values - you'll need to connect to Supabase
+// Click the green Supabase button in the top right to connect properly
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
