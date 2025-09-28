@@ -1,0 +1,118 @@
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { supabase } from "../../lib/supabase";
+
+export default function PdfView() {
+  const { id } = useParams();
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    (async () => {
+      if (!id) return;
+      // pegue a última versão; ajuste consulta conforme seu schema
+      const { data: v } = await supabase
+        .from("versions")
+        .select("*, budgets:budget_id(display_id, tipo)")
+        .eq("budget_id", id)
+        .order("versao", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setData(v);
+    })();
+  }, [id]);
+
+  if (!data) return <div className="p-8 text-white/70">Carregando…</div>;
+
+  const payload = data.payload || {};
+  const fmt = (n: number) => (n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+
+  return (
+    <div className="bg-white text-zinc-900 min-h-screen py-8 print:py-0">
+      <div className="max-w-3xl mx-auto px-6 print:px-0">
+        <header className="flex items-center justify-between mb-6">
+          <div className="h-10 w-20 bg-zinc-200 rounded flex items-center justify-center text-xs">WE</div>
+          <div className="text-right">
+            <div className="text-sm">ID: {data.budgets?.display_id || id}</div>
+            <div className="text-sm">Tipo: {data.budgets?.tipo?.toUpperCase()}</div>
+            <div className="text-sm">Versão: v{data.versao}</div>
+          </div>
+        </header>
+
+        <h1 className="text-2xl font-semibold mb-4">Orçamento de Produção</h1>
+
+        {/* Cliente e Produto */}
+        {payload.cliente && (
+          <div className="mb-6">
+            <div><strong>Cliente:</strong> {payload.cliente}</div>
+            {payload.produto && <div><strong>Produto:</strong> {payload.produto}</div>}
+          </div>
+        )}
+
+        {/* Blocos por tipo */}
+        {payload.filme && (
+          <section className="mb-4">
+            <h2 className="font-medium mb-2">Produção de Filme</h2>
+            <div className="bg-zinc-50 p-3 rounded">
+              <div>Subtotal: R$ {fmt(payload.filme.subtotal || 0)}</div>
+            </div>
+          </section>
+        )}
+
+        {payload.audio && (
+          <section className="mb-4">
+            <h2 className="font-medium mb-2">Produção de Áudio</h2>
+            <div className="bg-zinc-50 p-3 rounded">
+              <div>Subtotal: R$ {fmt(payload.audio.subtotal || 0)}</div>
+            </div>
+          </section>
+        )}
+
+        {payload.cc && (
+          <section className="mb-4">
+            <h2 className="font-medium mb-2">Closed Caption</h2>
+            <div className="bg-zinc-50 p-3 rounded">
+              <div>Versões: {payload.cc.qtd || 0}</div>
+              <div>Total: R$ {fmt(payload.cc.total || 0)}</div>
+            </div>
+          </section>
+        )}
+
+        {payload.imagens && payload.imagens.items && payload.imagens.items.length > 0 && (
+          <section className="mb-4">
+            <h2 className="font-medium mb-2">Compra de Imagens</h2>
+            <div className="bg-zinc-50 p-3 rounded">
+              <div>Itens: {payload.imagens.items.length}</div>
+              <div>Total: R$ {fmt(payload.imagens.total || 0)}</div>
+            </div>
+          </section>
+        )}
+
+        {/* Total */}
+        <section className="mt-6 border-t pt-4">
+          {data.honorario_total > 0 && (
+            <div className="mb-2">Honorário: R$ {fmt(data.honorario_total)}</div>
+          )}
+          <div className="text-lg font-semibold">Total Geral: R$ {fmt(data.total_geral || payload.total || 0)}</div>
+        </section>
+
+        {/* Observações */}
+        <section className="mt-8 text-sm text-zinc-600 space-y-1">
+          <p><strong>Validade:</strong> 7 dias a partir da data deste orçamento.</p>
+          <p><strong>Inclui:</strong> os itens e serviços listados neste documento.</p>
+          <p><strong>Prazos:</strong> condicionados à aprovação do escopo com a produtora e à disponibilidade/agenda da produtora.</p>
+          <p><strong>Usos:</strong> conforme mídias, território e período informados neste orçamento.</p>
+          <p><strong>Alterações de escopo e/ou entregáveis geram nova versão deste orçamento.</strong></p>
+        </section>
+
+        <div className="mt-10 flex gap-3 print:hidden">
+          <button 
+            onClick={() => window.print()} 
+            className="rounded-md bg-black text-white px-4 py-2 hover:bg-gray-800"
+          >
+            Imprimir / Salvar PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

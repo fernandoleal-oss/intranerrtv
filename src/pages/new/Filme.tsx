@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
 import { PreviewSidebar } from '@/components/PreviewSidebar'
-import { createBudget, saveBudgetData } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -63,7 +63,7 @@ export default function NovoFilme() {
   useEffect(() => {
     if (!budgetId) return
     const timer = setTimeout(() => {
-      saveBudgetData(budgetId, data)
+      supabase.from('versions').update({ payload: data }).eq('budget_id', budgetId).eq('versao', 1)
     }, 1000)
     return () => clearTimeout(timer)
   }, [data, budgetId])
@@ -88,10 +88,11 @@ export default function NovoFilme() {
 
   const handleCreateBudget = async () => {
     try {
-      const result = await createBudget('filme')
-      setBudgetId(result.id)
+      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'filme' })
+      if (error) throw error
+      setBudgetId(budget.id)
       setStep(2)
-      toast({ title: 'Orçamento criado', description: `ID: ${result.display_id}` })
+      toast({ title: 'Orçamento criado', description: `ID: ${budget.display_id}` })
     } catch (error) {
       toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
     }
@@ -345,7 +346,7 @@ export default function NovoFilme() {
                 size="lg" 
                 className="w-full"
               >
-                Gerar PDF
+                Visualizar PDF
               </Button>
               <Button 
                 onClick={() => navigate(`/budget/${budgetId}`)} 
