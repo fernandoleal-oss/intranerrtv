@@ -11,14 +11,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export const AppHeader = () => {
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b glass-effect">
       <div className="container flex h-16 items-center justify-between px-6">
         {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+        <div className="flex items-center gap-3 group">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-foreground font-bold text-sm shadow-lg group-hover:shadow-xl transition-all duration-300">
             WE
           </div>
-          <span className="font-semibold text-lg">Proposals</span>
+          <div className="flex flex-col">
+            <span className="font-bold text-lg leading-none text-foreground">WE Proposals</span>
+            <span className="text-xs text-muted-foreground font-medium">Sistema de Orçamentos</span>
+          </div>
         </div>
 
         {/* User menu */}

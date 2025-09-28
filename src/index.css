@@ -1,69 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* WE Agency Design System - Professional & Clean
-All colors MUST be HSL. Inspired by we.com.br
-*/
-
 @layer base {
   :root {
-    /* WE Agency Brand Colors - Professional palette */
-    --background: 0 0% 99%;
-    --foreground: 222 15% 15%;
+    /* WE Agency Brand Colors - Modern & Professional */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222 15% 15%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 15% 15%;
+    --popover-foreground: 222 47% 11%;
     
-    /* Primary brand color - inspired by WE branding */
-    --primary: 222 25% 12%;
+    /* Primary: Deep professional blue */
+    --primary: 222 47% 11%;
     --primary-foreground: 0 0% 98%;
-    --primary-hover: 222 25% 8%;
+    --primary-hover: 222 47% 15%;
+    --primary-light: 222 47% 95%;
     
-    /* Secondary colors */
-    --secondary: 220 10% 96%;
-    --secondary-foreground: 222 15% 15%;
-    --secondary-hover: 220 10% 92%;
+    /* Secondary: Sophisticated gray-blue */
+    --secondary: 215 25% 27%;
+    --secondary-foreground: 0 0% 98%;
+    --secondary-hover: 215 25% 35%;
     
-    /* Muted colors for subtle elements */
-    --muted: 220 10% 96%;
-    --muted-foreground: 222 8% 50%;
+    /* Muted tones - warm grays */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
     
-    /* Accent color for highlights */
-    --accent: 220 10% 96%;
-    --accent-foreground: 222 15% 15%;
-    
-    /* Status colors */
+    /* Status colors with better contrast */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
-    --warning-foreground: 222 15% 15%;
+    --warning-foreground: 222 47% 11%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
     --info: 217 91% 60%;
     --info-foreground: 0 0% 98%;
     
-    /* Border and input colors */
+    /* Borders and inputs with subtle contrast */
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 222 25% 12%;
-    --radius: 0.5rem;
-
+    --ring: 222 47% 11%;
+    
+    /* Modern gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(222 47% 11%), hsl(222 47% 15%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 14% 98%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(220 14% 99%));
+    
+    /* Elegant shadows */
+    --shadow-sm: 0 2px 4px -1px hsl(220 14% 91% / 0.3);
+    --shadow-md: 0 4px 12px -2px hsl(220 14% 91% / 0.4);
+    --shadow-lg: 0 10px 25px -3px hsl(220 14% 91% / 0.5);
+    --shadow-xl: 0 25px 50px -12px hsl(220 14% 91% / 0.6);
+    --shadow-glow: 0 0 40px hsl(222 47% 11% / 0.1);
+    
+    --radius: 12px;
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -116,12 +118,55 @@ All colors MUST be HSL. Inspired by we.com.br
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground font-inter antialiased;
+  
+  html {
+    scroll-behavior: smooth;
   }
   
-  /* Smooth transitions for better UX */
-  *, *::before, *::after {
-    @apply transition-colors duration-200;
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    letter-spacing: -0.011em;
+  }
+}
+
+@layer components {
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+  
+  .shadow-elegant {
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .hover-lift:hover {
+    @apply -translate-y-2;
+    box-shadow: var(--shadow-xl);
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-lg bg-background/80 border border-border/50;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
   }
 }

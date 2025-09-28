@@ -39,32 +39,42 @@ const Index = () => {
       
       <main className="container mx-auto px-6 py-8 space-y-12">
         {/* Hero Section */}
-        <div className="text-center space-y-6 max-w-4xl mx-auto">
-          <div className="space-y-4">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground">
-              Sistema de Orçamentos
-            </h1>
-            <p className="text-xl text-muted-foreground leading-relaxed">
-              Crie, compare e exporte orçamentos de produção em minutos
-            </p>
+        <div className="text-center space-y-8 max-w-5xl mx-auto">
+          <div className="space-y-6 animate-fade-up">
+            <div className="space-y-4">
+              <h1 className="text-5xl font-bold tracking-tight text-gradient bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Sistema de Orçamentos WE
+              </h1>
+              <p className="text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto text-balance">
+                Crie, compare e exporte orçamentos de produção audiovisual com agilidade e precisão profissional
+              </p>
+            </div>
+            
+            {/* Global Search */}
+            <div className="pt-4">
+              <GlobalSearch />
+            </div>
           </div>
-          
-          {/* Global Search */}
-          <GlobalSearch />
         </div>
 
         {/* Budget Type Cards */}
-        <section className="space-y-6">
-          <h2 className="text-2xl font-semibold text-center">Escolha o tipo de orçamento</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <section className="space-y-8">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-bold text-foreground">Escolha o tipo de orçamento</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Selecione o tipo de produção para criar um orçamento detalhado e profissional
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 animate-fade-up">
             {budgetTypes.map((type, index) => (
-              <BudgetTypeCard
-                key={index}
-                icon={type.icon}
-                title={type.title}
-                description={type.description}
-                onStart={type.onStart}
-              />
+              <div key={index} className="animate-fade-up" style={{ animationDelay: `${index * 100}ms` }}>
+                <BudgetTypeCard
+                  icon={type.icon}
+                  title={type.title}
+                  description={type.description}
+                  onStart={type.onStart}
+                />
+              </div>
             ))}
           </div>
         </section>
