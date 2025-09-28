@@ -11,25 +11,33 @@ const Index = () => {
       icon: Film,
       title: "Produção de filme",
       description: "Criar orçamento de FILME com cotações e comparador.",
-      onStart: () => console.log("Starting film production budget"),
+      onStart: () => {
+        alert("🎬 Iniciando orçamento de Produção de Filme!\n\nEm breve você será direcionado para o wizard de criação.");
+      },
     },
     {
       icon: Headphones,
       title: "Produção de áudio",
       description: "Criar orçamento de ÁUDIO com opções da produtora.",
-      onStart: () => console.log("Starting audio production budget"),
+      onStart: () => {
+        alert("🎧 Iniciando orçamento de Produção de Áudio!\n\nEm breve você será direcionado para o wizard de criação.");
+      },
     },
     {
       icon: Image,
       title: "Compra de imagem",
       description: "Cadastrar imagens (Getty/Shutterstock/Personalizado).",
-      onStart: () => console.log("Starting image purchase budget"),
+      onStart: () => {
+        alert("🖼️ Iniciando orçamento de Compra de Imagem!\n\nEm breve você será direcionado para o wizard de criação.");
+      },
     },
     {
       icon: Subtitles,
       title: "Closed Caption",
       description: "Calcular versões de CC (R$ 900/versão).",
-      onStart: () => console.log("Starting closed caption budget"),
+      onStart: () => {
+        alert("📝 Iniciando orçamento de Closed Caption!\n\nEm breve você será direcionado para o wizard de criação.");
+      },
     },
   ];
 
@@ -65,7 +73,7 @@ const Index = () => {
               Selecione o tipo de produção para criar um orçamento detalhado e profissional
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 animate-fade-up">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 animate-fade-up" data-budget-cards>
             {budgetTypes.map((type, index) => (
               <div key={index} className="animate-fade-up" style={{ animationDelay: `${index * 100}ms` }}>
                 <BudgetTypeCard

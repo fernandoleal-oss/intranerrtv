@@ -44,12 +44,19 @@ export const AppHeader = () => {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => alert("⚙️ Configurações do Sistema\n\nAcesse configurações de perfil, preferências e integrações.")}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Configurações</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem 
+              className="text-destructive focus:text-destructive"
+              onClick={() => {
+                if (confirm("🔐 Tem certeza que deseja sair?\n\nVocê será desconectado do sistema.")) {
+                  alert("👋 Logout realizado com sucesso!\n\nObrigado por usar o WE Proposals.");
+                }
+              }}
+            >
               <LogOut className="mr-2 h-4 w-4" />
               <span>Sair</span>
             </DropdownMenuItem>

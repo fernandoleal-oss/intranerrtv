@@ -52,7 +52,13 @@ export const RecentBudgets = () => {
           <p className="text-muted-foreground mb-6 max-w-md">
             Comece criando seu primeiro orçamento usando um dos tipos disponíveis acima
           </p>
-          <Button className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90">
+          <Button 
+            className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
+            onClick={() => {
+              document.querySelector('[data-budget-cards]')?.scrollIntoView({ behavior: 'smooth' });
+              setTimeout(() => alert("👆 Escolha um dos tipos de orçamento acima para começar!"), 500);
+            }}
+          >
             Criar primeiro orçamento
           </Button>
         </CardContent>
@@ -71,6 +77,7 @@ export const RecentBudgets = () => {
           variant="outline" 
           size="sm"
           className="border-border/50 hover:border-primary/50 hover:bg-primary/5"
+          onClick={() => alert("📋 Dashboard de Orçamentos\n\nVocê será direcionado para a página com todos os orçamentos, filtros avançados e opções de gerenciamento.")}
         >
           Ver todos
         </Button>
@@ -135,6 +142,7 @@ export const RecentBudgets = () => {
                   size="sm" 
                   variant="outline" 
                   className="gap-2 border-border/50 hover:border-primary/50 hover:bg-primary/5"
+                  onClick={() => alert(`📄 Visualizando PDF do orçamento ${budget.id}\n\nEm breve será aberto o PDF gerado com todos os detalhes do orçamento.`)}
                 >
                   <Eye className="h-4 w-4" />
                   Ver PDF
@@ -142,6 +150,7 @@ export const RecentBudgets = () => {
                 <Button 
                   size="sm" 
                   className="flex-1 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
+                  onClick={() => alert(`✏️ Continuando orçamento ${budget.id}\n\nRedirecionando para o editor do orçamento onde você poderá fazer alterações e criar novas versões.`)}
                 >
                   Continuar
                 </Button>
