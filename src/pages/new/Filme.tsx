@@ -132,7 +132,7 @@ export default function NovoFilme() {
                 <Input
                   id="produtor"
                   value={data.produtor || ''}
-                  onChange={(e) => data.produtor = e.target.value }}
+                  onChange={(e) => data.produtor = e.target.value }
                   className="mt-1"
                 />
               </div>
