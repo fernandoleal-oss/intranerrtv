@@ -87,15 +87,15 @@ export default function NovoFilme() {
   }
 
   const handleCreateBudget = async () => {
-    try {
-      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'filme' })
-      if (error) throw error
-      setBudgetId(budget.id)
+   // try {
+    //  const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'filme' })
+    //  if (error) throw error
+     // setBudgetId(budget.id)
       setStep(2)
-      toast({ title: 'Orçamento criado', description: `ID: ${budget.display_id}` })
-    } catch (error) {
-      toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
-    }
+     // toast({ title: 'Orçamento criado', description: `ID: ${budget.display_id}` })
+    //} catch (error) {
+     // toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
+    //}
   }
 
   const addFilmeQuote = () => {
