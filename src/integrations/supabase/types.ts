@@ -14,13 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      budgets: {
+        Row: {
+          created_at: string | null
+          display_id: string | null
+          id: string
+          status: string | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_id?: string | null
+          id?: string
+          status?: string | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_id?: string | null
+          id?: string
+          status?: string | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      versions: {
+        Row: {
+          budget_id: string | null
+          created_at: string | null
+          honorario_total: number | null
+          id: string
+          payload: Json | null
+          total_geral: number | null
+          versao: number
+        }
+        Insert: {
+          budget_id?: string | null
+          created_at?: string | null
+          honorario_total?: number | null
+          id?: string
+          payload?: Json | null
+          total_geral?: number | null
+          versao?: number
+        }
+        Update: {
+          budget_id?: string | null
+          created_at?: string | null
+          honorario_total?: number | null
+          id?: string
+          payload?: Json | null
+          total_geral?: number | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "versions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_budget_with_version: {
+        Args: { p_tipo: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
