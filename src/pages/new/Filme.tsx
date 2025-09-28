@@ -176,7 +176,7 @@ export default function NovoFilme() {
                 />
               </div>
             </div>
-            <Button onClick={() => updateData(data.produto ) setStep(3);  } size="lg" className="w-full">
+            <Button onClick={() => updateData(data.produto ) } size="lg" className="w-full">
               Salvar e Continuar
             </Button>
           </motion.div>
