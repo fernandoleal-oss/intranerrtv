@@ -2,66 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* WE Agency Orçamentos - Design System
-Clean, modern, minimalist design inspired by we.com.br
+/* Design System - Clean base for starting fresh
 All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    /* Base colors - Clean and professional */
-    --background: 0 0% 99%;
-    --foreground: 210 15% 15%;
-
-    /* Card system */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    --card-foreground: 210 15% 15%;
-
-    /* Popover */
+    --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 15% 15%;
-
-    /* Primary - Professional blue */
-    --primary: 214 84% 56%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 214 84% 51%;
-    --primary-subtle: 214 100% 97%;
-
-    /* Secondary - Subtle gray */
-    --secondary: 210 6% 96%;
-    --secondary-foreground: 210 15% 20%;
-    --secondary-hover: 210 6% 93%;
-
-    /* Muted tones */
-    --muted: 210 6% 96%;
-    --muted-foreground: 210 8% 55%;
-
-    /* Accent - Corporate teal */
-    --accent: 180 50% 45%;
-    --accent-foreground: 0 0% 100%;
-    --accent-hover: 180 50% 40%;
-    --accent-subtle: 180 100% 97%;
-
-    /* Status colors */
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
-    --success-subtle: 142 100% 96%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --warning-subtle: 38 100% 97%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --destructive-subtle: 0 100% 97%;
-
-    /* Borders and inputs */
-    --border: 210 12% 88%;
-    --input: 210 12% 88%;
-    --ring: 214 84% 56%;
-
-    /* Component radius */
-    --radius: 0.375rem;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
 
@@ -81,48 +47,25 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Dark mode - Clean dark theme */
-    --background: 220 15% 8%;
-    --foreground: 210 10% 92%;
-
-    --card: 220 15% 10%;
-    --card-foreground: 210 10% 92%;
-
-    --popover: 220 15% 10%;
-    --popover-foreground: 210 10% 92%;
-
-    --primary: 214 84% 56%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 214 84% 61%;
-    --primary-subtle: 214 50% 15%;
-
-    --secondary: 220 8% 15%;
-    --secondary-foreground: 210 10% 85%;
-    --secondary-hover: 220 8% 18%;
-
-    --muted: 220 8% 15%;
-    --muted-foreground: 210 8% 60%;
-
-    --accent: 180 50% 50%;
-    --accent-foreground: 0 0% 100%;
-    --accent-hover: 180 50% 55%;
-    --accent-subtle: 180 30% 15%;
-
-    --success: 142 76% 45%;
-    --success-foreground: 0 0% 100%;
-    --success-subtle: 142 50% 15%;
-
-    --warning: 38 92% 60%;
-    --warning-foreground: 0 0% 100%;
-    --warning-subtle: 38 60% 15%;
-
-    --destructive: 0 72% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --destructive-subtle: 0 50% 15%;
-
-    --border: 220 8% 20%;
-    --input: 220 8% 20%;
-    --ring: 214 84% 56%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -138,38 +81,7 @@ All colors MUST be HSL.
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-}
-
-@layer components {
-  /* Status badge variants */
-  .status-draft {
-    @apply bg-muted text-muted-foreground border border-border;
-  }
-  
-  .status-sent {
-    @apply bg-primary-subtle text-primary border border-primary/20;
-  }
-  
-  .status-approved {
-    @apply bg-success-subtle text-success border border-success/20;
-  }
-
-  /* Card variants */
-  .card-hover {
-    @apply transition-all duration-200 hover:shadow-lg hover:shadow-black/5 hover:-translate-y-0.5;
-  }
-
-  /* Professional spacing */
-  .section-spacing {
-    @apply space-y-6;
-  }
-  
-  .form-spacing {
-    @apply space-y-4;
   }
 }

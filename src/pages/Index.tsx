@@ -1,27 +1,25 @@
-import { MainLayout } from "@/components/layout/MainLayout";
-import { DashboardStats } from "@/components/dashboard/DashboardStats";
-import { DashboardFilters } from "@/components/dashboard/DashboardFilters";
-import { BudgetTable } from "@/components/dashboard/BudgetTable";
-
 const Index = () => {
   return (
-    <MainLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Gerencie todos os orçamentos da agência em um só lugar
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center space-y-6 max-w-2xl mx-auto px-6">
+        <div className="space-y-4">
+          <h1 className="text-4xl font-bold tracking-tight">WE Agency</h1>
+          <h2 className="text-xl text-muted-foreground">
+            Sistema de Orçamentos Interno
+          </h2>
+          <p className="text-base text-muted-foreground leading-relaxed">
+            Plataforma para criar, versionar e gerenciar orçamentos de produção de filme, 
+            áudio, closed caption e compra de imagem.
           </p>
         </div>
-
-        <DashboardStats />
         
-        <div className="space-y-6">
-          <DashboardFilters />
-          <BudgetTable />
+        <div className="pt-4">
+          <p className="text-sm text-muted-foreground">
+            Pronto para começar a construção do sistema completo
+          </p>
         </div>
       </div>
-    </MainLayout>
+    </div>
   );
 };
 
