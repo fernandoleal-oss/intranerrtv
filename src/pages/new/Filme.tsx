@@ -162,7 +162,7 @@ export default function NovoFilme() {
                 <Input
                   id="cliente"
                   value={data.cliente || ''}
-                  onChange={(e) => updateData({ cliente: e.target.value })}
+              
                   className="mt-1"
                 />
               </div>
@@ -176,7 +176,7 @@ export default function NovoFilme() {
                 />
               </div>
             </div>
-            <Button onClick={() => setStep(3)} size="lg" className="w-full">
+            <Button onClick={() => updateData(data.produto ) setStep(3);  } size="lg" className="w-full">
               Salvar e Continuar
             </Button>
           </motion.div>
