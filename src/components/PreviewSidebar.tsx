@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion'
-
 interface PreviewData {
   filme?: { subtotal?: number }
   audio?: { subtotal?: number }
@@ -18,35 +16,33 @@ export function PreviewSidebar({ data }: PreviewSidebarProps) {
     new Intl.NumberFormat('pt-BR', { 
       style: 'currency', 
       currency: 'BRL' 
-    }).format(value)
+    }).format(value || 0)
 
   const Block = ({ title, items }: { title: string, items: { k: string; v: string | number }[] }) => (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-white/10 p-4 bg-white/5 backdrop-blur-sm"
-    >
-      <div className="text-xs uppercase tracking-wider text-white/60 mb-3 font-medium">
+    <div className="glass-effect rounded-xl p-4 space-y-3">
+      <h4 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
         {title}
-      </div>
-      <dl className="space-y-2">
+      </h4>
+      <div className="space-y-2">
         {items.map((item, i) => (
-          <div key={i} className="flex justify-between gap-4 text-sm">
-            <dt className="text-white/70">{item.k}</dt>
-            <dd className="text-white font-medium">{item.v}</dd>
+          <div key={i} className="flex justify-between items-center text-sm">
+            <span className="text-foreground/80">{item.k}</span>
+            <span className="font-medium text-foreground">
+              {typeof item.v === 'number' ? formatCurrency(item.v) : item.v}
+            </span>
           </div>
         ))}
-      </dl>
-    </motion.div>
+      </div>
+    </div>
   )
 
   return (
-    <aside className="w-full xl:w-96 shrink-0 space-y-4">
+    <aside className="w-full xl:w-80 space-y-4">
       {data.filme && (
         <Block 
           title="Filme" 
           items={[
-            { k: 'Subtotal', v: formatCurrency(data.filme.subtotal || 0) }
+            { k: 'Subtotal', v: data.filme.subtotal || 0 }
           ]} 
         />
       )}
@@ -55,7 +51,7 @@ export function PreviewSidebar({ data }: PreviewSidebarProps) {
         <Block 
           title="Áudio" 
           items={[
-            { k: 'Subtotal', v: formatCurrency(data.audio.subtotal || 0) }
+            { k: 'Subtotal', v: data.audio.subtotal || 0 }
           ]} 
         />
       )}
@@ -65,7 +61,7 @@ export function PreviewSidebar({ data }: PreviewSidebarProps) {
           title="Closed Caption" 
           items={[
             { k: 'Versões', v: data.cc.qtd || 0 },
-            { k: 'Total', v: formatCurrency(data.cc.total || 0) }
+            { k: 'Total', v: data.cc.total || 0 }
           ]} 
         />
       )}
@@ -75,7 +71,7 @@ export function PreviewSidebar({ data }: PreviewSidebarProps) {
           title="Imagens" 
           items={[
             { k: 'Itens', v: data.imagens.qtd || 0 },
-            { k: 'Total', v: formatCurrency(data.imagens.total || 0) }
+            { k: 'Total', v: data.imagens.total || 0 }
           ]} 
         />
       )}
@@ -84,17 +80,19 @@ export function PreviewSidebar({ data }: PreviewSidebarProps) {
         <Block 
           title="Honorários" 
           items={[
-            { k: 'Valor', v: formatCurrency(data.honorario) }
+            { k: 'Valor', v: data.honorario }
           ]} 
         />
       )}
       
-      <Block 
-        title="Total Geral" 
-        items={[
-          { k: 'Total', v: formatCurrency(data.total || 0) }
-        ]} 
-      />
+      <div className="glass-effect rounded-xl p-4 border border-primary/20">
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-semibold text-foreground">Total Geral</span>
+          <span className="text-lg font-bold text-primary">
+            {formatCurrency(data.total || 0)}
+          </span>
+        </div>
+      </div>
     </aside>
   )
 }
