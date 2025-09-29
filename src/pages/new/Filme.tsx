@@ -5,13 +5,14 @@ import { Stepper } from '@/components/Stepper'
 import { PreviewSidebar } from '@/components/PreviewSidebar'
 import { FormInput } from '@/components/FormInput'
 import { FormSelect } from '@/components/FormSelect'
+import { AutoSaveIndicator } from '@/components/ui/auto-save-indicator'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { useAutosave } from '@/hooks/useAutosave'
+import { useAutosaveWithStatus } from '@/hooks/useAutosaveWithStatus'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 
 const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Cotações', 'Revisão', 'Exportar']
@@ -62,10 +63,10 @@ export default function NovoFilme() {
     total: 0
   })
 
-  // Auto-save with debounce hook
-  useAutosave([data], () => {
+  // Auto-save with status indicator
+  const { status: saveStatus, lastSaved } = useAutosaveWithStatus([data], async () => {
     if (budgetId && Object.keys(data).length > 0) {
-      supabase.from('versions').update({ 
+      await supabase.from('versions').update({ 
         payload: data as any 
       }).eq('budget_id', budgetId).eq('versao', 1)
     }
@@ -418,6 +419,7 @@ export default function NovoFilme() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <AutoSaveIndicator status={saveStatus} lastSaved={lastSaved} />
       <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">

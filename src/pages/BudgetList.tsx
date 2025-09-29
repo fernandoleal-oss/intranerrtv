@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Eye, Edit, FileText, Calendar, DollarSign } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { LoadingState } from '@/components/ui/loading-spinner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { Eye, Edit, FileText, Calendar, DollarSign, Search, Plus, Filter } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface Budget {
@@ -25,6 +28,7 @@ export default function BudgetList() {
   const { toast } = useToast()
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     fetchBudgets()
@@ -97,8 +101,10 @@ export default function BudgetList() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-white">Carregando orçamentos...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="container mx-auto px-6 py-8">
+          <LoadingState message="Carregando orçamentos..." />
+        </div>
       </div>
     )
   }
@@ -106,28 +112,56 @@ export default function BudgetList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="container mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white">Meus Orçamentos</h1>
             <p className="text-white/70">Histórico e gerenciamento de orçamentos</p>
           </div>
-          <Button onClick={() => navigate('/')} variant="outline" className="text-white border-white/20 hover:bg-white/10">
-            Novo Orçamento
-          </Button>
-        </div>
-
-        {budgets.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-xl font-semibold text-white mb-2">Nenhum orçamento encontrado</h3>
-            <p className="text-white/70 mb-6">Crie seu primeiro orçamento para começar</p>
-            <Button onClick={() => navigate('/')} className="btn-gradient">
-              Criar Primeiro Orçamento
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40 w-4 h-4" />
+              <Input
+                placeholder="Buscar orçamentos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-64 dark-input"
+              />
+            </div>
+            <Button 
+              onClick={() => navigate('/')} 
+              className="btn-gradient gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Orçamento
             </Button>
           </div>
+        </div>
+
+        {budgets.filter(budget => 
+          budget.display_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          budget.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          budget.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          budget.product_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        ).length === 0 ? (
+          <EmptyState
+            emoji="📋"
+            title={searchTerm ? "Nenhum resultado encontrado" : "Nenhum orçamento encontrado"}
+            description={searchTerm ? "Tente buscar com outros termos" : "Crie seu primeiro orçamento para começar"}
+            action={{
+              label: searchTerm ? "Limpar busca" : "Criar Primeiro Orçamento",
+              onClick: () => searchTerm ? setSearchTerm('') : navigate('/')
+            }}
+          />
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {budgets.map((budget) => (
+            {budgets
+              .filter(budget => 
+                budget.display_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                budget.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                budget.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                budget.product_name?.toLowerCase().includes(searchTerm.toLowerCase())
+              )
+              .map((budget, index) => (
               <motion.div
                 key={budget.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -145,9 +179,7 @@ export default function BudgetList() {
                           <p className="text-white/60 text-sm capitalize">{budget.type}</p>
                         </div>
                       </div>
-                      <Badge className={getStatusColor(budget.status)}>
-                        {budget.status || 'Rascunho'}
-                      </Badge>
+                      <StatusBadge status={budget.status} />
                     </div>
                   </CardHeader>
 

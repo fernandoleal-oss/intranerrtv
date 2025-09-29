@@ -3,10 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FormInput } from '@/components/FormInput'
+import { FormSelect } from '@/components/FormSelect'
+import { LoadingState } from '@/components/ui/loading-spinner'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { useToast } from '@/hooks/use-toast'
-import { ArrowLeft, Save, Eye } from 'lucide-react'
+import { ArrowLeft, Save, Eye, FileText, AlertCircle } from 'lucide-react'
 import { useAutosave } from '@/hooks/useAutosave'
 
 interface BudgetData {
@@ -37,7 +40,7 @@ export default function BudgetEdit() {
     if (data?.version_id && Object.keys(formData).length > 0) {
       saveBudget(false)
     }
-  }, 3000)
+  })
 
   const fetchBudget = async () => {
     try {
@@ -133,35 +136,32 @@ export default function BudgetEdit() {
     })
   }
 
-  const renderField = (label: string, path: string, type = 'text', placeholder = '') => {
-    const value = path.split('.').reduce((obj, key) => obj?.[key], formData) || ''
-    
-    return (
-      <div>
-        <Label className="text-white">{label}</Label>
-        <Input
-          type={type}
-          value={value}
-          onChange={(e) => updateFormData(path, type === 'number' ? Number(e.target.value) : e.target.value)}
-          className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-          placeholder={placeholder}
-        />
-      </div>
-    )
-  }
+  // Remove função renderField não utilizada mais
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-white">Carregando orçamento...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="container mx-auto px-6 py-8">
+          <LoadingState message="Carregando orçamento..." />
+        </div>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-white">Orçamento não encontrado</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="container mx-auto px-6 py-8">
+          <EmptyState
+            icon={AlertCircle}
+            title="Orçamento não encontrado"
+            description="O orçamento que você está procurando não existe ou foi removido."
+            action={{
+              label: "Voltar para Lista",
+              onClick: () => navigate('/budgets')
+            }}
+          />
+        </div>
       </div>
     )
   }
@@ -183,26 +183,29 @@ export default function BudgetEdit() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-white">Editar Orçamento</h1>
-              <p className="text-white/70">{data.display_id} - {data.type}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-white/70">{data.display_id}</p>
+                <StatusBadge status={data.status} />
+                <span className="text-white/50 text-sm capitalize">• {data.type}</span>
+              </div>
             </div>
           </div>
           
           <div className="flex gap-2">
             <Button
-              onClick={() => saveBudget(true)}
+              onClick={() => navigate(`/budget/${data.id}/pdf`)}
               variant="outline"
-              className="text-white border-white/20 hover:bg-white/10"
+              className="text-white border-white/20 hover:bg-white/10 gap-2"
             >
-              <Save className="h-4 w-4 mr-2" />
-              Salvar
+              <FileText className="h-4 w-4" />
+              Ver PDF
             </Button>
             <Button
-              onClick={() => navigate(`/budget/${data.id}`)}
-              variant="outline"
-              className="text-white border-white/20 hover:bg-white/10"
+              onClick={() => saveBudget(true)}
+              className="btn-gradient gap-2"
             >
-              <Eye className="h-4 w-4 mr-2" />
-              Visualizar
+              <Save className="h-4 w-4" />
+              Salvar
             </Button>
           </div>
         </div>
@@ -211,36 +214,124 @@ export default function BudgetEdit() {
           {/* Left Column - Form Fields */}
           <div className="space-y-6">
             <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Informações Básicas</h3>
-              <div className="space-y-4">
-                {renderField('Produtor', 'produtor', 'text', 'Nome do produtor')}
-                {renderField('Email', 'email', 'email', 'email@exemplo.com')}
-                {renderField('Cliente', 'cliente', 'text', 'Nome do cliente')}
-                {renderField('Produto', 'produto', 'text', 'Nome do produto')}
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <span>📋</span> Informações Básicas
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormInput
+                  id="produtor"
+                  label="Produtor"
+                  value={formData.produtor || ''}
+                  onChange={(value) => updateFormData('produtor', value)}
+                  placeholder="Nome do produtor"
+                />
+                
+                <FormInput
+                  id="email"
+                  label="E-mail"
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(value) => updateFormData('email', value)}
+                  placeholder="email@exemplo.com"
+                />
+                
+                <FormInput
+                  id="cliente"
+                  label="Cliente"
+                  value={formData.cliente || ''}
+                  onChange={(value) => updateFormData('cliente', value)}
+                  placeholder="Nome do cliente"
+                />
+                
+                <FormInput
+                  id="produto"
+                  label="Produto"
+                  value={formData.produto || ''}
+                  onChange={(value) => updateFormData('produto', value)}
+                  placeholder="Nome do produto"
+                />
               </div>
             </div>
 
             {/* Type-specific fields */}
             {data.type === 'filme' && (
               <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Detalhes do Filme</h3>
-                <div className="space-y-4">
-                  {renderField('Job', 'job', 'text', 'Descrição do job')}
-                  {renderField('Mídias', 'midias', 'text', 'TV, Digital, etc.')}
-                  {renderField('Território', 'territorio', 'text', 'Nacional, Regional, etc.')}
-                  {renderField('Período', 'periodo', 'text', '12 meses, 6 meses, etc.')}
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <span>🎬</span> Detalhes do Filme
+                </h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormInput
+                    id="job"
+                    label="Job"
+                    value={formData.job || ''}
+                    onChange={(value) => updateFormData('job', value)}
+                    placeholder="Descrição do job"
+                  />
+                  
+                  <FormInput
+                    id="midias"
+                    label="Mídias"
+                    value={formData.midias || ''}
+                    onChange={(value) => updateFormData('midias', value)}
+                    placeholder="TV, Digital, etc."
+                  />
+                  
+                  <FormInput
+                    id="territorio"
+                    label="Território"
+                    value={formData.territorio || ''}
+                    onChange={(value) => updateFormData('territorio', value)}
+                    placeholder="Nacional, Regional, etc."
+                  />
+                  
+                  <FormInput
+                    id="periodo"
+                    label="Período"
+                    value={formData.periodo || ''}
+                    onChange={(value) => updateFormData('periodo', value)}
+                    placeholder="12 meses, 6 meses, etc."
+                  />
                 </div>
               </div>
             )}
 
             {data.type === 'audio' && (
               <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Detalhes do Áudio</h3>
-                <div className="space-y-4">
-                  {renderField('Tipo de Áudio', 'tipo_audio', 'text', 'Locução, Jingle, etc.')}
-                  {renderField('Duração', 'duracao', 'text', '30s, 60s, etc.')}
-                  {renderField('Meio de Uso', 'meio_uso', 'text', 'Rádio, TV, Digital')}
-                  {renderField('Praça', 'praca', 'text', 'Nacional, Regional')}
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <span>🎵</span> Detalhes do Áudio
+                </h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormInput
+                    id="tipo_audio"
+                    label="Tipo de Áudio"
+                    value={formData.tipo_audio || ''}
+                    onChange={(value) => updateFormData('tipo_audio', value)}
+                    placeholder="Locução, Jingle, etc."
+                  />
+                  
+                  <FormInput
+                    id="duracao"
+                    label="Duração"
+                    value={formData.duracao || ''}
+                    onChange={(value) => updateFormData('duracao', value)}
+                    placeholder="30s, 60s, etc."
+                  />
+                  
+                  <FormInput
+                    id="meio_uso"
+                    label="Meio de Uso"
+                    value={formData.meio_uso || ''}
+                    onChange={(value) => updateFormData('meio_uso', value)}
+                    placeholder="Rádio, TV, Digital"
+                  />
+                  
+                  <FormInput
+                    id="praca"
+                    label="Praça"
+                    value={formData.praca || ''}
+                    onChange={(value) => updateFormData('praca', value)}
+                    placeholder="Nacional, Regional"
+                  />
                 </div>
               </div>
             )}
