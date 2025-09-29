@@ -257,6 +257,201 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_events: {
+        Row: {
+          ap: string | null
+          cliente: string
+          created_at: string
+          descricao: string | null
+          fornecedor: string | null
+          honorario_agencia_cents: number
+          honorario_percent: number | null
+          id: string
+          imported_at: string
+          raw: Json | null
+          ref_month: string
+          total_cents: number
+          updated_at: string
+          valor_fornecedor_cents: number
+        }
+        Insert: {
+          ap?: string | null
+          cliente: string
+          created_at?: string
+          descricao?: string | null
+          fornecedor?: string | null
+          honorario_agencia_cents?: number
+          honorario_percent?: number | null
+          id?: string
+          imported_at?: string
+          raw?: Json | null
+          ref_month: string
+          total_cents?: number
+          updated_at?: string
+          valor_fornecedor_cents?: number
+        }
+        Update: {
+          ap?: string | null
+          cliente?: string
+          created_at?: string
+          descricao?: string | null
+          fornecedor?: string | null
+          honorario_agencia_cents?: number
+          honorario_percent?: number | null
+          id?: string
+          imported_at?: string
+          raw?: Json | null
+          ref_month?: string
+          total_cents?: number
+          updated_at?: string
+          valor_fornecedor_cents?: number
+        }
+        Relationships: []
+      }
+      finance_holidays: {
+        Row: {
+          created_at: string
+          description: string | null
+          holiday_date: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          holiday_date: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          holiday_date?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      finance_import_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          ref_month: string
+          rows_imported: number | null
+          rows_skipped: number | null
+          sheet_name: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          ref_month: string
+          rows_imported?: number | null
+          rows_skipped?: number | null
+          sheet_name?: string | null
+          started_at: string
+          status: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          ref_month?: string
+          rows_imported?: number | null
+          rows_skipped?: number | null
+          sheet_name?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      finance_reports_annual: {
+        Row: {
+          by_client: Json
+          by_supplier: Json
+          created_at: string
+          html_url: string | null
+          id: string
+          json_url: string | null
+          kpis: Json
+          pdf_url: string | null
+          trends: Json
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          by_client?: Json
+          by_supplier?: Json
+          created_at?: string
+          html_url?: string | null
+          id?: string
+          json_url?: string | null
+          kpis?: Json
+          pdf_url?: string | null
+          trends?: Json
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          by_client?: Json
+          by_supplier?: Json
+          created_at?: string
+          html_url?: string | null
+          id?: string
+          json_url?: string | null
+          kpis?: Json
+          pdf_url?: string | null
+          trends?: Json
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      finance_reports_monthly: {
+        Row: {
+          by_client: Json
+          by_supplier: Json
+          created_at: string
+          html_url: string | null
+          id: string
+          json_url: string | null
+          kpis: Json
+          pdf_url: string | null
+          ref_month: string
+          trends: Json
+          updated_at: string
+        }
+        Insert: {
+          by_client?: Json
+          by_supplier?: Json
+          created_at?: string
+          html_url?: string | null
+          id?: string
+          json_url?: string | null
+          kpis?: Json
+          pdf_url?: string | null
+          ref_month: string
+          trends?: Json
+          updated_at?: string
+        }
+        Update: {
+          by_client?: Json
+          by_supplier?: Json
+          created_at?: string
+          html_url?: string | null
+          id?: string
+          json_url?: string | null
+          kpis?: Json
+          pdf_url?: string | null
+          ref_month?: string
+          trends?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           client_id: string
