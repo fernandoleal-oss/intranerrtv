@@ -127,22 +127,26 @@ export default function NovoFilme() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="produtor">Nome do Produtor</Label>
+                <Label htmlFor="produtor" className="dark-label">Nome do Produtor</Label>
                 <Input
                   id="produtor"
+                  key="filme-produtor-input"
                   value={data.produtor || ''}
                   onChange={(e) => updateData({ produtor: e.target.value })}
-                  className="mt-1"
+                  className="dark-input"
+                  placeholder="Nome completo do produtor"
                 />
               </div>
               <div>
-                <Label htmlFor="email">E-mail</Label>
+                <Label htmlFor="email" className="dark-label">E-mail</Label>
                 <Input
                   id="email"
+                  key="filme-email-input"
                   type="email"
                   value={data.email || ''}
                   onChange={(e) => updateData({ email: e.target.value })}
-                  className="mt-1"
+                  className="dark-input"
+                  placeholder="email@exemplo.com"
                 />
               </div>
             </div>
