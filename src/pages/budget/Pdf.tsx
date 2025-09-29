@@ -13,7 +13,7 @@ export default function PdfView() {
       // pegue a última versão; ajuste consulta conforme seu schema
       const { data: v } = await supabase
         .from("versions")
-        .select("*, budgets:budget_id(display_id, tipo)")
+        .select("*, budgets:budget_id(display_id, type)")
         .eq("budget_id", id)
         .order("versao", { ascending: false })
         .limit(1)
@@ -44,7 +44,7 @@ export default function PdfView() {
           </div>
           <div className="text-right text-sm">
             <div className="font-semibold">ID: {data.budgets?.display_id || id}</div>
-            <div>Tipo: {data.budgets?.tipo?.toUpperCase()}</div>
+            <div>Tipo: {data.budgets?.type?.toUpperCase()}</div>
             <div>Versão: v{data.versao}</div>
             <div className="text-zinc-500">Data: {new Date().toLocaleDateString('pt-BR')}</div>
           </div>

@@ -175,9 +175,9 @@ export default function NovoAudio() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="tipo_audio">Tipo de Áudio</Label>
+                <Label htmlFor="tipo_audio" className="dark-label">Tipo de Áudio</Label>
                 <Select value={data.tipo_audio} onValueChange={(value) => updateData({ tipo_audio: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -189,9 +189,9 @@ export default function NovoAudio() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="duracao">Duração</Label>
+                <Label htmlFor="duracao" className="dark-label">Duração</Label>
                 <Select value={data.duracao} onValueChange={(value) => updateData({ duracao: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione a duração" />
                   </SelectTrigger>
                   <SelectContent>
@@ -204,9 +204,9 @@ export default function NovoAudio() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="meio_uso">Meio de Uso</Label>
+                <Label htmlFor="meio_uso" className="dark-label">Meio de Uso</Label>
                 <Select value={data.meio_uso} onValueChange={(value) => updateData({ meio_uso: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione o meio" />
                   </SelectTrigger>
                   <SelectContent>
@@ -218,9 +218,9 @@ export default function NovoAudio() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="praca">Praça</Label>
+                <Label htmlFor="praca" className="dark-label">Praça</Label>
                 <Select value={data.praca} onValueChange={(value) => updateData({ praca: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione a praça" />
                   </SelectTrigger>
                   <SelectContent>

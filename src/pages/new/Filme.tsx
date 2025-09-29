@@ -161,21 +161,25 @@ export default function NovoFilme() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="cliente">Cliente</Label>
+                <Label htmlFor="cliente" className="dark-label">Cliente</Label>
                 <Input
                   id="cliente"
+                  key="filme-cliente-input"
                   value={data.cliente || ''}
                   onChange={(e) => updateData({ cliente: e.target.value })}
-                  className="mt-1"
+                  className="dark-input"
+                  placeholder="Nome do cliente"
                 />
               </div>
               <div>
-                <Label htmlFor="produto">Produto</Label>
+                <Label htmlFor="produto" className="dark-label">Produto</Label>
                 <Input
                   id="produto"
+                  key="filme-produto-input"
                   value={data.produto || ''}
                   onChange={(e) => updateData({ produto: e.target.value })}
-                  className="mt-1"
+                  className="dark-input"
+                  placeholder="Nome do produto"
                 />
               </div>
             </div>
@@ -190,18 +194,20 @@ export default function NovoFilme() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="job">Job</Label>
+                <Label htmlFor="job" className="dark-label">Job</Label>
                 <Input
                   id="job"
+                  key="filme-job-input"
                   value={data.job || ''}
                   onChange={(e) => updateData({ job: e.target.value })}
-                  className="mt-1"
+                  className="dark-input"
+                  placeholder="Descrição do job"
                 />
               </div>
               <div>
-                <Label htmlFor="midias">Mídias</Label>
+                <Label htmlFor="midias" className="dark-label">Mídias</Label>
                 <Select value={data.midias} onValueChange={(value) => updateData({ midias: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione as mídias" />
                   </SelectTrigger>
                   <SelectContent>
@@ -213,9 +219,9 @@ export default function NovoFilme() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="territorio">Território</Label>
+                <Label htmlFor="territorio" className="dark-label">Território</Label>
                 <Select value={data.territorio} onValueChange={(value) => updateData({ territorio: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione o território" />
                   </SelectTrigger>
                   <SelectContent>
@@ -226,9 +232,9 @@ export default function NovoFilme() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="periodo">Período</Label>
+                <Label htmlFor="periodo" className="dark-label">Período</Label>
                 <Select value={data.periodo} onValueChange={(value) => updateData({ periodo: value })}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="dark-input">
                     <SelectValue placeholder="Selecione o período" />
                   </SelectTrigger>
                   <SelectContent>
@@ -351,17 +357,27 @@ export default function NovoFilme() {
             
             <div className="space-y-3">
               <Button 
-                onClick={() => navigate(`/budget/${budgetId}/pdf`)} 
+                onClick={() => {
+                  if (budgetId) {
+                    navigate(`/budget/${budgetId}/pdf`)
+                  }
+                }} 
                 size="lg" 
-                className="w-full"
+                className="w-full btn-gradient"
+                disabled={!budgetId}
               >
                 Visualizar PDF
               </Button>
               <Button 
-                onClick={() => navigate(`/budget/${budgetId}`)} 
+                onClick={() => {
+                  if (budgetId) {
+                    navigate(`/budget/${budgetId}`)
+                  }
+                }} 
                 variant="outline"
                 size="lg" 
-                className="w-full"
+                className="w-full nav-button"
+                disabled={!budgetId}
               >
                 Visualizar Orçamento
               </Button>
