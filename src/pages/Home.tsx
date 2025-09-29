@@ -260,6 +260,16 @@ export default function Home() {
                 </Button>
               )}
               
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/financeiro')}
+                className="gap-2"
+              >
+                <DollarSign className="w-4 h-4" />
+                Financeiro
+              </Button>
+              
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${profile?.name || profile?.email}`} />

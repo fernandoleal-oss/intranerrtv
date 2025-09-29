@@ -13,6 +13,7 @@ import NovaImagem from '@/pages/new/Imagem'
 import PdfView from '@/pages/budget/Pdf'
 import BudgetList from '@/pages/BudgetList'
 import BudgetEdit from '@/pages/budget/Edit'
+import Finance from '@/pages/Finance'
 
 const queryClient = new QueryClient()
 
@@ -115,6 +116,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PdfView />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/financeiro"
+              element={
+                <ProtectedRoute>
+                  <Finance />
                 </ProtectedRoute>
               }
             />
