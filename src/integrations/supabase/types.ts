@@ -332,6 +332,7 @@ export type Database = {
           motivo_nova_versao: string | null
           payload: Json | null
           total_geral: number | null
+          updated_at: string | null
           versao: number
         }
         Insert: {
@@ -343,6 +344,7 @@ export type Database = {
           motivo_nova_versao?: string | null
           payload?: Json | null
           total_geral?: number | null
+          updated_at?: string | null
           versao?: number
         }
         Update: {
@@ -354,6 +356,7 @@ export type Database = {
           motivo_nova_versao?: string | null
           payload?: Json | null
           total_geral?: number | null
+          updated_at?: string | null
           versao?: number
         }
         Relationships: [
