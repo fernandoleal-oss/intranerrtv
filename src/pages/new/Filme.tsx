@@ -69,7 +69,7 @@ export default function NovoFilme() {
         payload: data as any 
       }).eq('budget_id', budgetId).eq('versao', 1)
     }
-  }, 3000)
+  })
 
   const updateData = useCallback((updates: Partial<FilmeData>) => {
     setData(prev => {
@@ -144,29 +144,24 @@ export default function NovoFilme() {
         return (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="space-y-4">
-              <div>
-                <Label htmlFor="produtor" className="dark-label">Nome do Produtor</Label>
-                <Input
-                  id="produtor"
-                  key="filme-produtor-input"
-                  value={data.produtor || ''}
-                  onChange={(e) => updateData({ produtor: e.target.value })}
-                  className="dark-input"
-                  placeholder="Nome completo do produtor"
-                />
-              </div>
-              <div>
-                <Label htmlFor="email" className="dark-label">E-mail</Label>
-                <Input
-                  id="email"
-                  key="filme-email-input"
-                  type="email"
-                  value={data.email || ''}
-                  onChange={(e) => updateData({ email: e.target.value })}
-                  className="dark-input"
-                  placeholder="email@exemplo.com"
-                />
-              </div>
+              <FormInput
+                id="produtor"
+                label="Nome do Produtor"
+                value={data.produtor || ''}
+                onChange={(value) => updateData({ produtor: value })}
+                placeholder="Nome completo do produtor"
+                required
+              />
+              
+              <FormInput
+                id="email"
+                label="E-mail"
+                type="email"
+                value={data.email || ''}
+                onChange={(value) => updateData({ email: value })}
+                placeholder="email@exemplo.com"
+                required
+              />
             </div>
             <Button onClick={handleCreateBudget} size="lg" className="w-full">
               Continuar
@@ -220,57 +215,53 @@ export default function NovoFilme() {
         return (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="job" className="dark-label">Job</Label>
-                <Input
-                  id="job"
-                  key="filme-job-input"
-                  value={data.job || ''}
-                  onChange={(e) => updateData({ job: e.target.value })}
-                  className="dark-input"
-                  placeholder="Descrição do job"
-                />
-              </div>
-              <div>
-                <Label htmlFor="midias" className="dark-label">Mídias</Label>
-                <Select value={data.midias} onValueChange={(value) => updateData({ midias: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione as mídias" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas as mídias</SelectItem>
-                    <SelectItem value="tv_aberta">TV aberta</SelectItem>
-                    <SelectItem value="tv_fechada">TV fechada</SelectItem>
-                    <SelectItem value="sociais">Redes sociais</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="territorio" className="dark-label">Território</Label>
-                <Select value={data.territorio} onValueChange={(value) => updateData({ territorio: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione o território" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nacional">Nacional</SelectItem>
-                    <SelectItem value="sao_paulo">São Paulo</SelectItem>
-                    <SelectItem value="regional">Regional</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="periodo" className="dark-label">Período</Label>
-                <Select value={data.periodo} onValueChange={(value) => updateData({ periodo: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione o período" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="12_meses">12 meses</SelectItem>
-                    <SelectItem value="6_meses">6 meses</SelectItem>
-                    <SelectItem value="3_meses">3 meses</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormInput
+                id="job"
+                label="Job"
+                value={data.job || ''}
+                onChange={(value) => updateData({ job: value })}
+                placeholder="Descrição do job"
+              />
+              
+              <FormSelect
+                id="midias"
+                label="Mídias"
+                value={data.midias || ''}
+                onChange={(value) => updateData({ midias: value })}
+                options={[
+                  { value: 'todas', label: 'Todas as mídias' },
+                  { value: 'tv_aberta', label: 'TV aberta' },
+                  { value: 'tv_fechada', label: 'TV fechada' },
+                  { value: 'sociais', label: 'Redes sociais' }
+                ]}
+                placeholder="Selecione as mídias"
+              />
+              
+              <FormSelect
+                id="territorio"
+                label="Território"
+                value={data.territorio || ''}
+                onChange={(value) => updateData({ territorio: value })}
+                options={[
+                  { value: 'nacional', label: 'Nacional' },
+                  { value: 'sao_paulo', label: 'São Paulo' },
+                  { value: 'regional', label: 'Regional' }
+                ]}
+                placeholder="Selecione o território"
+              />
+              
+              <FormSelect
+                id="periodo"
+                label="Período"
+                value={data.periodo || ''}
+                onChange={(value) => updateData({ periodo: value })}
+                options={[
+                  { value: '12_meses', label: '12 meses' },
+                  { value: '6_meses', label: '6 meses' },
+                  { value: '3_meses', label: '3 meses' }
+                ]}
+                placeholder="Selecione o período"
+              />
             </div>
             <Button onClick={() => setStep(4)} size="lg" className="w-full">
               Salvar e Continuar

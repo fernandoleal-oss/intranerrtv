@@ -19,7 +19,9 @@ import {
   Calendar,
   Users,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  FileText,
+  Eye
 } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/integrations/supabase/client'
@@ -391,6 +393,97 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Recent Budgets History */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-bold text-foreground">Histórico de Orçamentos</h3>
+              <p className="text-muted-foreground">Últimos orçamentos criados e editados</p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => navigate('/budgets')}
+            >
+              <Filter className="w-4 h-4" />
+              Ver Todos
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {recentBudgets.length === 0 ? (
+              <Card className="glass-card">
+                <CardContent className="p-8 text-center">
+                  <div className="w-16 h-16 bg-muted/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-foreground mb-2">Nenhum orçamento encontrado</h4>
+                  <p className="text-muted-foreground">Crie seu primeiro orçamento usando as opções acima</p>
+                </CardContent>
+              </Card>
+            ) : (
+              recentBudgets.map((budget, index) => (
+                <Card key={budget.id} className="glass-card hover-lift cursor-pointer group">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {budget.display_id}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {budget.type?.toUpperCase()}
+                          </Badge>
+                          <Badge 
+                            variant={budget.status === 'aprovado' ? 'default' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {budget.status}
+                          </Badge>
+                          {budget.has_data && (
+                            <Badge variant="outline" className="text-green-500 border-green-500/30 bg-green-500/10 text-xs">
+                              ✓ Preenchido
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          <span className="mr-4">
+                            {getTypeIcon(budget.type)} {new Date(budget.updated_at).toLocaleDateString('pt-BR')}
+                          </span>
+                          {budget.total_value > 0 && (
+                            <span className="font-semibold text-success">
+                              {formatCurrency(budget.total_value)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/budget/${budget.id}/pdf`)}
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/budget/${budget.id}/edit`)}
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </section>
+
         {/* Recent Campaigns Dashboard */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
@@ -405,15 +498,6 @@ export default function Home() {
                   className="pl-10 w-64"
                 />
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2"
-                onClick={() => navigate('/budgets')}
-              >
-                <Filter className="w-4 h-4" />
-                Ver Histórico
-              </Button>
             </div>
           </div>
 

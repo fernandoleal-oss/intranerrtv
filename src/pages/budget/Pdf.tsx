@@ -33,12 +33,12 @@ export default function PdfView() {
   return (
     <div className="bg-white text-zinc-900 min-h-screen py-8 print:py-0">
       {/* Navigation Buttons - Hide on Print */}
-      <div className="print:hidden mb-6">
+      <div className="no-print mb-6">
         <div className="max-w-3xl mx-auto px-6 flex gap-3">
           <Button 
             onClick={() => navigate('/')}
             variant="outline"
-            className="gap-2"
+            className="gap-2 nav-button"
           >
             <Home className="h-4 w-4" />
             Página Inicial
@@ -46,7 +46,7 @@ export default function PdfView() {
           <Button 
             onClick={() => navigate(`/budget/${id}/edit`)}
             variant="outline"
-            className="gap-2"
+            className="gap-2 nav-button"
           >
             <Edit className="h-4 w-4" />
             Editar Orçamento
@@ -61,23 +61,23 @@ export default function PdfView() {
       </div>
       
       <div className="max-w-3xl mx-auto px-6 print:px-0">
-        <header className="flex items-center justify-between mb-8 print:mb-6">
+        <header className="pdf-header flex items-center justify-between mb-8 print:mb-6 p-6 rounded-lg">
           <div className="flex items-center gap-6">
-            <div className="bg-black p-3 rounded-lg">
+            <div className="bg-white p-3 rounded-lg">
               <img src={logoWE} alt="WE Logo" className="h-12 w-auto" />
             </div>
-            <div className="text-sm text-zinc-700">
+            <div className="text-sm text-white">
               <div className="font-semibold">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
               <div>CNPJ: 05.265.118/0001-65</div>
               <div>R. Chilon, 381 - Vila Olímpia</div>
               <div>São Paulo - SP, 04552-030</div>
             </div>
           </div>
-          <div className="text-right text-sm">
+          <div className="text-right text-sm text-white">
             <div className="font-semibold">ID: {data.budgets?.display_id || id}</div>
             <div>Tipo: {data.budgets?.type?.toUpperCase()}</div>
             <div>Versão: v{data.versao}</div>
-            <div className="text-zinc-500">Data: {new Date().toLocaleDateString('pt-BR')}</div>
+            <div className="text-white/70">Data: {new Date().toLocaleDateString('pt-BR')}</div>
           </div>
         </header>
 
@@ -147,13 +147,13 @@ export default function PdfView() {
           <p><strong>Alterações de escopo e/ou entregáveis geram nova versão deste orçamento.</strong></p>
         </section>
 
-        <div className="mt-10 flex gap-3 print:hidden">
-          <button 
+        <div className="mt-10 flex gap-3 no-print">
+          <Button 
             onClick={() => window.print()} 
-            className="rounded-md bg-black text-white px-4 py-2 hover:bg-gray-800"
+            className="btn-gradient"
           >
             Imprimir / Salvar PDF
-          </button>
+          </Button>
         </div>
       </div>
     </div>

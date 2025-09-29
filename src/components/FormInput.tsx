@@ -21,6 +21,10 @@ export const FormInput = memo(function FormInput({
   placeholder = '',
   required = false 
 }: FormInputProps) {
+  const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(e.target.value)
+  }, [onChange])
+
   return (
     <div className="space-y-2">
       <Label htmlFor={id} className="dark-label text-sm font-medium">
@@ -31,7 +35,7 @@ export const FormInput = memo(function FormInput({
         id={id}
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleChange}
         className="dark-input focus-ring"
         placeholder={placeholder}
         autoComplete="off"

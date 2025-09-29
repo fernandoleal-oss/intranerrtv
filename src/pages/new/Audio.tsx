@@ -57,7 +57,7 @@ export default function NovoAudio() {
         payload: data as any 
       }).eq('budget_id', budgetId).eq('versao', 1)
     }
-  }, 3000)
+  })
 
   const updateData = useCallback((updates: Partial<AudioData>) => {
     setData(prev => {

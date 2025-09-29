@@ -26,17 +26,21 @@ export const FormSelect = memo(function FormSelect({
   placeholder = 'Selecione uma opção',
   required = false 
 }: FormSelectProps) {
+  const handleValueChange = React.useCallback((newValue: string) => {
+    onChange(newValue)
+  }, [onChange])
+
   return (
     <div className="space-y-2">
       <Label htmlFor={id} className="dark-label text-sm font-medium">
         {label}
         {required && <span className="text-destructive ml-1">*</span>}
       </Label>
-      <Select value={value} onValueChange={onChange}>
+      <Select value={value} onValueChange={handleValueChange}>
         <SelectTrigger className="dark-input focus-ring">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="dark-form-bg border-border/30">
+        <SelectContent className="dark-form-bg border-border/30 z-50 bg-background">
           {options.map((option) => (
             <SelectItem 
               key={option.value} 
