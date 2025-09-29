@@ -1,13 +1,25 @@
-import { useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/components/AuthProvider'
-import { Chrome, Shield } from 'lucide-react'
+import { Shield, Lock, User, Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
-  const { user, loading, signInWithGoogle } = useAuth()
+  const navigate = useNavigate()
+  const { user, loading, signInWithEmail, signUpWithEmail } = useAuth()
+  const [showPassword, setShowPassword] = useState(false)
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: '',
+    confirmPassword: ''
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) {
     return (
@@ -22,6 +34,36 @@ export default function Login() {
 
   if (user) {
     return <Navigate to="/" replace />
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    const { error } = await signInWithEmail(formData.email, formData.password)
+    
+    if (!error) {
+      navigate('/')
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isSubmitting) return
+
+    if (formData.password !== formData.confirmPassword) {
+      return
+    }
+
+    setIsSubmitting(true)
+    const { error } = await signUpWithEmail(formData.email, formData.password, formData.name)
+    setIsSubmitting(false)
+  }
+
+  const updateFormData = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   return (
@@ -48,6 +90,161 @@ export default function Login() {
           </CardHeader>
 
           <CardContent className="space-y-6">
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Entrar</TabsTrigger>
+                <TabsTrigger value="register">Cadastrar</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="login" className="space-y-4">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="usuario@we.com.br"
+                      value={formData.email}
+                      onChange={(e) => updateFormData('email', e.target.value)}
+                      required
+                      className="focus-ring"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={(e) => updateFormData('password', e.target.value)}
+                        required
+                        className="focus-ring pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    type="submit"
+                    className="w-full btn-gradient"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Entrando...
+                      </div>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4 mr-2" />
+                        Entrar
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="register" className="space-y-4">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome completo</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Seu nome"
+                      value={formData.name}
+                      onChange={(e) => updateFormData('name', e.target.value)}
+                      required
+                      className="focus-ring"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email">E-mail</Label>
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="usuario@we.com.br"
+                      value={formData.email}
+                      onChange={(e) => updateFormData('email', e.target.value)}
+                      required
+                      className="focus-ring"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password">Senha</Label>
+                    <div className="relative">
+                      <Input
+                        id="register-password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={(e) => updateFormData('password', e.target.value)}
+                        required
+                        minLength={6}
+                        className="focus-ring pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Confirmar senha</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={formData.confirmPassword}
+                      onChange={(e) => updateFormData('confirmPassword', e.target.value)}
+                      required
+                      className="focus-ring"
+                    />
+                    {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                      <p className="text-sm text-destructive">As senhas não coincidem</p>
+                    )}
+                  </div>
+                  
+                  <Button
+                    type="submit"
+                    className="w-full btn-gradient"
+                    disabled={isSubmitting || formData.password !== formData.confirmPassword}
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Criando conta...
+                      </div>
+                    ) : (
+                      <>
+                        <User className="w-4 h-4 mr-2" />
+                        Criar conta
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+
             <div className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-4 border border-border/50">
                 <div className="flex items-start gap-3">
@@ -62,15 +259,6 @@ export default function Login() {
                   </div>
                 </div>
               </div>
-
-              <Button
-                onClick={signInWithGoogle}
-                size="lg"
-                className="w-full h-12 gap-3 font-medium"
-              >
-                <Chrome className="w-5 h-5" />
-                Entrar com Google
-              </Button>
             </div>
 
             <div className="text-center">

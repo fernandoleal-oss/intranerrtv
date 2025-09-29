@@ -16,7 +16,8 @@ interface AuthContextType {
   session: Session | null
   profile: Profile | null
   loading: boolean
-  signInWithGoogle: () => Promise<void>
+  signInWithEmail: (email: string, password: string) => Promise<{ error: any }>
+  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
 }
 
@@ -79,16 +80,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const signInWithGoogle = async () => {
+  const signInWithEmail = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`,
-          queryParams: {
-            hd: 'we.com.br' // Restrict to @we.com.br domain
-          }
-        }
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       })
 
       if (error) {
@@ -97,13 +93,69 @@ export function AuthProvider({ children }: AuthProviderProps) {
           description: error.message,
           variant: 'destructive'
         })
+        return { error }
       }
+
+      toast({
+        title: 'Login realizado',
+        description: 'Bem-vindo ao sistema!'
+      })
+      return { error: null }
     } catch (error) {
       toast({
         title: 'Erro no login',
-        description: 'Falha ao conectar com Google',
+        description: 'Falha ao fazer login',
         variant: 'destructive'
       })
+      return { error }
+    }
+  }
+
+  const signUpWithEmail = async (email: string, password: string, name: string) => {
+    try {
+      // Validate @we.com.br domain
+      if (!email.endsWith('@we.com.br')) {
+        toast({
+          title: 'Email inválido',
+          description: 'Apenas emails @we.com.br são permitidos',
+          variant: 'destructive'
+        })
+        return { error: { message: 'Domínio não autorizado' } }
+      }
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            name: name,
+            full_name: name
+          }
+        }
+      })
+
+      if (error) {
+        toast({
+          title: 'Erro no cadastro',
+          description: error.message,
+          variant: 'destructive'
+        })
+        return { error }
+      }
+
+      toast({
+        title: 'Cadastro realizado',
+        description: 'Verifique seu email para confirmar a conta'
+      })
+      return { error: null }
+    } catch (error) {
+      toast({
+        title: 'Erro no cadastro',
+        description: 'Falha ao criar conta',
+        variant: 'destructive'
+      })
+      return { error }
     }
   }
 
@@ -128,7 +180,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     profile,
     loading,
-    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
     signOut
   }
 
