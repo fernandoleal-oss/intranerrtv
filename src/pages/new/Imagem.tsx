@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
 import { PreviewSidebar } from '@/components/PreviewSidebar'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/integrations/supabase/client'
 import { parseImageLink, ParsedImage } from '@/lib/parseImageLink'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,7 +48,7 @@ export default function NovaImagem() {
   const { useAutosave } = require('@/hooks/useAutosave')
   useAutosave([data], () => {
     if (budgetId) {
-      supabase.from('versions').update({ payload: data }).eq('budget_id', budgetId).eq('versao', 1)
+      supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
     }
   }, 2000)
 
@@ -62,7 +62,7 @@ export default function NovaImagem() {
 
   const handleCreateBudget = async () => {
     try {
-      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'imagem' })
+      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_type: 'imagem' }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
       if (error) throw error
       setBudgetId(budget.id)
       setStep(2)
