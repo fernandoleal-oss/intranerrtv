@@ -45,12 +45,12 @@ export default function NovaImagem() {
     total: 0
   })
 
-  // Auto-save with debounce hook
+  // Auto-save with debounce hook (increased delay to prevent frequent calls)
   useAutosave([data], () => {
     if (budgetId) {
       supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
     }
-  }, 2000)
+  }, 5000)
 
   const updateData = (updates: Partial<ImagemData>) => {
     setData(prev => {
@@ -229,43 +229,47 @@ export default function NovaImagem() {
                     <div className="flex-1 grid md:grid-cols-2 gap-3">
                        <div>
                           <Label className="dark-label">ID da Imagem</Label>
-                          <Input
-                            value={item.image_id}
-                            onChange={(e) => updateItem(index, { image_id: e.target.value })}
-                            className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                            placeholder="Ex: 123456789"
-                          />
+                           <Input
+                             key={`imagem-id-${index}`}
+                             value={item.image_id}
+                             onChange={(e) => updateItem(index, { image_id: e.target.value })}
+                             className="dark-input"
+                             placeholder="Ex: 123456789"
+                           />
                        </div>
                        <div>
                           <Label className="dark-label">Resumo/Descrição</Label>
-                          <Input
-                            value={item.resumo}
-                            onChange={(e) => updateItem(index, { resumo: e.target.value })}
-                            className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                            placeholder="Descreva a imagem"
-                          />
+                           <Input
+                             key={`imagem-resumo-${index}`}
+                             value={item.resumo}
+                             onChange={(e) => updateItem(index, { resumo: e.target.value })}
+                             className="dark-input"
+                             placeholder="Descreva a imagem"
+                           />
                        </div>
                        <div>
                           <Label className="dark-label">Uso (mídias/território/período)</Label>
-                          <Input
-                            value={item.uso}
-                            onChange={(e) => updateItem(index, { uso: e.target.value })}
-                            className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                            placeholder="Ex.: TV Nacional 12 meses"
-                          />
+                           <Input
+                             key={`imagem-uso-${index}`}
+                             value={item.uso}
+                             onChange={(e) => updateItem(index, { uso: e.target.value })}
+                             className="dark-input"
+                             placeholder="Ex.: TV Nacional 12 meses"
+                           />
                        </div>
                       <div>
                          <Label className="dark-label">Valor (R$)</Label>
                          <div className="flex gap-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.valor}
-                              onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
-                              className="mt-1 flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                              placeholder="0,00"
-                            />
+                             <Input
+                               key={`imagem-valor-${index}`}
+                               type="number"
+                               min="0"
+                               step="0.01"
+                               value={item.valor}
+                               onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
+                               className="dark-input flex-1"
+                               placeholder="0,00"
+                             />
                           <Button
                             onClick={() => removeItem(index)}
                             variant="ghost"

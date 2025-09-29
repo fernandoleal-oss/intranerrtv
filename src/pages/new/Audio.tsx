@@ -48,12 +48,12 @@ export default function NovoAudio() {
     total: 0
   })
 
-  // Auto-save with debounce hook
+  // Auto-save with debounce hook (increased delay to prevent frequent calls)
   useAutosave([data], () => {
     if (budgetId) {
       supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
     }
-  }, 2000)
+  }, 5000)
 
   const updateData = (updates: Partial<AudioData>) => {
     setData(prev => {
@@ -246,43 +246,47 @@ export default function NovoAudio() {
                   <div className="grid md:grid-cols-2 gap-3">
                      <div>
                         <Label className="dark-label">Produtora</Label>
-                        <Input
-                          value={quote.produtora}
-                          onChange={(e) => updateAudioQuote(index, { produtora: e.target.value })}
-                          className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                          placeholder="Digite o nome da produtora"
-                        />
+                         <Input
+                           key={`audio-produtora-${index}`}
+                           value={quote.produtora}
+                           onChange={(e) => updateAudioQuote(index, { produtora: e.target.value })}
+                           className="dark-input"
+                           placeholder="Digite o nome da produtora"
+                         />
                      </div>
                      <div>
                         <Label className="dark-label">Valor (R$)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={quote.valor}
-                          onChange={(e) => updateAudioQuote(index, { valor: Number(e.target.value) })}
-                          className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                          placeholder="0,00"
-                        />
+                         <Input
+                           key={`audio-valor-${index}`}
+                           type="number"
+                           min="0"
+                           step="0.01"
+                           value={quote.valor}
+                           onChange={(e) => updateAudioQuote(index, { valor: Number(e.target.value) })}
+                           className="dark-input"
+                           placeholder="0,00"
+                         />
                      </div>
                   </div>
                    <div>
                       <Label className="dark-label">Descritivo do Serviço</Label>
-                      <Input
-                        value={quote.descritivo}
-                        onChange={(e) => updateAudioQuote(index, { descritivo: e.target.value })}
-                        className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                        placeholder="Ex.: Locução masculina, trilha sonora original..."
-                      />
+                       <Input
+                         key={`audio-descritivo-${index}`}
+                         value={quote.descritivo}
+                         onChange={(e) => updateAudioQuote(index, { descritivo: e.target.value })}
+                         className="dark-input"
+                         placeholder="Ex.: Locução masculina, trilha sonora original..."
+                       />
                    </div>
                    <div>
                       <Label className="dark-label">Opções/Observações</Label>
-                      <Input
-                        value={quote.opcoes}
-                        onChange={(e) => updateAudioQuote(index, { opcoes: e.target.value })}
-                        className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                        placeholder="Ex.: 3 opções de locutores, revisões incluídas..."
-                      />
+                       <Input
+                         key={`audio-opcoes-${index}`}
+                         value={quote.opcoes}
+                         onChange={(e) => updateAudioQuote(index, { opcoes: e.target.value })}
+                         className="dark-input"
+                         placeholder="Ex.: 3 opções de locutores, revisões incluídas..."
+                       />
                    </div>
                   <div className="flex justify-end">
                     <Button
