@@ -223,14 +223,18 @@ export default function PdfView() {
                 Compra de Imagens
               </h2>
               <div className="bg-muted/20 p-3 rounded">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="text-sm text-muted-foreground">Itens:</span>
-                    <span className="font-medium ml-2">{payload.imagens.items.length}</span>
-                  </div>
-                  <div>
-                    <span className="text-sm text-muted-foreground">Total:</span>
-                    <span className="font-bold ml-2">R$ {fmt(payload.imagens.total || 0)}</span>
+                <div className="space-y-2 mb-3">
+                  {payload.imagens.items.map((item: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center py-1 border-b border-border/50 last:border-0">
+                      <span className="text-sm">{item.descricao}</span>
+                      <span className="font-medium">R$ {fmt(item.valor || 0)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-2 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Total de Imagens:</span>
+                    <span className="font-bold">R$ {fmt(payload.imagens.total || 0)}</span>
                   </div>
                 </div>
               </div>
