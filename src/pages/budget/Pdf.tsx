@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Edit, Home } from "lucide-react";
 import logoWE from "@/assets/Logo_WE.png";
 
 export default function PdfView() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
@@ -29,6 +32,34 @@ export default function PdfView() {
 
   return (
     <div className="bg-white text-zinc-900 min-h-screen py-8 print:py-0">
+      {/* Navigation Buttons - Hide on Print */}
+      <div className="print:hidden mb-6">
+        <div className="max-w-3xl mx-auto px-6 flex gap-3">
+          <Button 
+            onClick={() => navigate('/')}
+            variant="outline"
+            className="gap-2"
+          >
+            <Home className="h-4 w-4" />
+            Página Inicial
+          </Button>
+          <Button 
+            onClick={() => navigate(`/budget/${id}/edit`)}
+            variant="outline"
+            className="gap-2"
+          >
+            <Edit className="h-4 w-4" />
+            Editar Orçamento
+          </Button>
+          <Button 
+            onClick={() => window.print()}
+            className="gap-2 btn-gradient ml-auto"
+          >
+            Imprimir PDF
+          </Button>
+        </div>
+      </div>
+      
       <div className="max-w-3xl mx-auto px-6 print:px-0">
         <header className="flex items-center justify-between mb-8 print:mb-6">
           <div className="flex items-center gap-6">

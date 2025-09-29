@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
@@ -55,7 +55,7 @@ export default function NovoAudio() {
     }
   }, 5000)
 
-  const updateData = (updates: Partial<AudioData>) => {
+  const updateData = useCallback((updates: Partial<AudioData>) => {
     setData(prev => {
       const newData = { ...prev, ...updates }
       const audioSubtotal = (newData.quotes_audio || []).reduce((sum, q) => sum + (q.valor - q.desconto), 0)
@@ -65,7 +65,7 @@ export default function NovoAudio() {
         total: audioSubtotal
       }
     })
-  }
+  }, [])
 
   const handleCreateBudget = async () => {
     try {
@@ -90,11 +90,19 @@ export default function NovoAudio() {
     updateData({ quotes_audio: [...data.quotes_audio, newQuote] })
   }
 
-  const updateAudioQuote = (index: number, updates: Partial<AudioQuote>) => {
-    const quotes = [...data.quotes_audio]
-    quotes[index] = { ...quotes[index], ...updates }
-    updateData({ quotes_audio: quotes })
-  }
+  const updateAudioQuote = useCallback((index: number, updates: Partial<AudioQuote>) => {
+    setData(prev => {
+      const quotes = [...prev.quotes_audio]
+      quotes[index] = { ...quotes[index], ...updates }
+      const audioSubtotal = quotes.reduce((sum, q) => sum + (q.valor - q.desconto), 0)
+      return {
+        ...prev,
+        quotes_audio: quotes,
+        audio: { subtotal: audioSubtotal },
+        total: audioSubtotal
+      }
+    })
+  }, [])
 
   const removeAudioQuote = (index: number) => {
     const quotes = data.quotes_audio.filter((_, i) => i !== index)

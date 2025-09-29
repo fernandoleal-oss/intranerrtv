@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
@@ -52,13 +52,13 @@ export default function NovaImagem() {
     }
   }, 5000)
 
-  const updateData = (updates: Partial<ImagemData>) => {
+  const updateData = useCallback((updates: Partial<ImagemData>) => {
     setData(prev => {
       const newData = { ...prev, ...updates }
-      const total = newData.items.reduce((sum, item) => sum + (item.valor || 0), 0)
+      const total = (newData.items || []).reduce((sum, item) => sum + (item.valor || 0), 0)
       return { ...newData, total }
     })
-  }
+  }, [])
 
   const handleCreateBudget = async () => {
     try {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
@@ -67,10 +67,10 @@ export default function NovoFilme() {
     }
   }, 5000)
 
-  const updateData = (updates: Partial<FilmeData>) => {
+  const updateData = useCallback((updates: Partial<FilmeData>) => {
     setData(prev => {
       const newData = { ...prev, ...updates }
-      // Recalculate totals
+      // Recalculate totals only when needed
       const filmeSubtotal = (newData.quotes_film || []).reduce((sum, q) => sum + (q.valor - q.desconto), 0)
       const audioSubtotal = (newData.quotes_audio || []).reduce((sum, q) => sum + (q.valor - q.desconto), 0)
       const honorario = filmeSubtotal * ((newData.honorario_perc || 0) / 100)
@@ -83,7 +83,7 @@ export default function NovoFilme() {
         total
       }
     })
-  }
+  }, [])
 
   const handleCreateBudget = async () => {
     try {
@@ -109,11 +109,25 @@ export default function NovoFilme() {
     updateData({ quotes_film: [...(data.quotes_film || []), newQuote] })
   }
 
-  const updateFilmeQuote = (index: number, updates: Partial<typeof data.quotes_film[0]>) => {
-    const quotes = [...(data.quotes_film || [])]
-    quotes[index] = { ...quotes[index], ...updates }
-    updateData({ quotes_film: quotes })
-  }
+  const updateFilmeQuote = useCallback((index: number, updates: Partial<typeof data.quotes_film[0]>) => {
+    setData(prev => {
+      const quotes = [...(prev.quotes_film || [])]
+      quotes[index] = { ...quotes[index], ...updates }
+      
+      // Recalculate totals
+      const filmeSubtotal = quotes.reduce((sum, q) => sum + (q.valor - q.desconto), 0)
+      const honorario = filmeSubtotal * ((prev.honorario_perc || 0) / 100)
+      const audioSubtotal = (prev.quotes_audio || []).reduce((sum, q) => sum + (q.valor - q.desconto), 0)
+      const total = filmeSubtotal + audioSubtotal + honorario
+      
+      return {
+        ...prev,
+        quotes_film: quotes,
+        filme: { subtotal: filmeSubtotal },
+        total
+      }
+    })
+  }, [])
 
   const removeFilmeQuote = (index: number) => {
     const quotes = data.quotes_film?.filter((_, i) => i !== index) || []
