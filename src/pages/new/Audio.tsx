@@ -429,7 +429,10 @@ export default function NovoAudio() {
           </div>
 
           {/* Preview Sidebar */}
-          <PreviewSidebar data={data} />
+          <PreviewSidebar data={{ 
+            audio: { subtotal: data.total }, 
+            total: data.total 
+          }} />
         </div>
       </div>
     </div>

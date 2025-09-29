@@ -329,7 +329,10 @@ export default function NovoCC() {
           </div>
 
           {/* Preview Sidebar */}
-          <PreviewSidebar data={data} />
+          <PreviewSidebar data={{ 
+            cc: { qtd: data.qtd_versoes || 0, total: data.total || 0 }, 
+            total: data.total || 0 
+          }} />
         </div>
       </div>
     </div>

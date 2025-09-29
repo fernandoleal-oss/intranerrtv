@@ -445,7 +445,11 @@ export default function NovoFilme() {
           </div>
 
           {/* Preview Sidebar */}
-          <PreviewSidebar data={data} />
+          <PreviewSidebar data={{ 
+            filme: data.filme, 
+            audio: data.audio, 
+            total: data.total 
+          }} />
         </div>
       </div>
     </div>
