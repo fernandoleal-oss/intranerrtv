@@ -223,6 +223,15 @@
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
+
+    /* Preservar cores do cabeçalho preto no PDF */
+    header,
+    .bg-black {
+      background-color: #000 !important;
+      color: #fff !important;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
   }
 
   .pdf-header {

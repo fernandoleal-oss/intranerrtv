@@ -59,6 +59,30 @@ interface BudgetForm {
     honorarios: number
     total_geral: number
   }
+  financeiro?: {
+    fornecedor_razao: string
+    fornecedor_cnpj: string
+    fornecedor_endereco: string
+    dados_bancarios: {
+      banco: string
+      agencia: string
+      conta: string
+      pix?: string
+    }
+    condicoes_pagamento: string // Ex: '30 dias', '45 dias', '60 dias'
+    centro_de_custo?: string
+    numero_ap?: string
+    numero_oc?: string
+    data_entrega?: string
+    instrucoes_nf?: string
+    itens_oc?: Array<{
+      descricao: string
+      qtde: number
+      un: string
+      vl_unit: number
+      vl_total: number
+    }>
+  }
 }
 
 interface BudgetState {

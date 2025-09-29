@@ -41,7 +41,7 @@ export default function PdfView() {
     <div className="bg-white text-zinc-900 min-h-screen py-8 print:py-0">
       {/* Navigation Buttons - Hide on Print */}
       <div className="no-print mb-6">
-        <div className="max-w-3xl mx-auto px-6 flex gap-3">
+        <div className="max-w-4xl mx-auto px-6 flex gap-3">
           <Button 
             onClick={() => navigate('/')}
             variant="outline"
@@ -67,78 +67,116 @@ export default function PdfView() {
         </div>
       </div>
       
-      <div className="max-w-3xl mx-auto px-6 print:px-0">
-        <header className="pdf-header flex items-center justify-between mb-8 print:mb-6 p-6 rounded-lg">
-          <div className="flex items-center gap-6">
-            <div className="bg-white p-3 rounded-lg">
-              <img src={logoWE} alt="WE Logo" className="h-12 w-auto" />
+      <div className="max-w-4xl mx-auto px-6 print:px-0">
+        {/* Cabeçalho Corporativo (estilo AP) */}
+        <header className="bg-black text-white p-6 rounded-lg mb-6 print:rounded-none">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-6">
+              <div className="bg-white p-2 rounded">
+                <img src={logoWE} alt="WE Logo" className="h-10 w-auto" />
+              </div>
+              <div className="text-xs leading-relaxed">
+                <div className="font-bold text-sm">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
+                <div>CNPJ: 05.265.118/0001-65</div>
+                <div>R. Chilon, 381 - Vila Olímpia, São Paulo - SP, 04552-030</div>
+              </div>
             </div>
-            <div className="text-sm text-white">
-              <div className="font-semibold">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
-              <div>CNPJ: 05.265.118/0001-65</div>
-              <div>R. Chilon, 381 - Vila Olímpia</div>
-              <div>São Paulo - SP, 04552-030</div>
+            <div className="text-right text-xs">
+              <div className="font-bold text-sm mb-1">Orçamento {data.budgets?.display_id || id}</div>
+              <div>Versão: v{data.versao}</div>
+              <div className="mt-2 text-white/80">
+                Data: {payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}
+              </div>
             </div>
           </div>
-          <div className="text-right text-sm text-white">
-            <div className="font-semibold">ID: {data.budgets?.display_id || id}</div>
-            <div>Tipo: {data.budgets?.type?.toUpperCase()}</div>
-            <div>Versão: v{data.versao}</div>
-            <div className="text-white/70">Data: {payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</div>
+          
+          {/* Bloco superior estilo AP */}
+          <div className="border-t border-white/20 pt-4 mt-4">
+            <div className="grid grid-cols-4 gap-x-4 gap-y-2 text-xs">
+              <div>
+                <span className="text-white/60 block">Agência</span>
+                <span className="font-semibold">AGÊNCIA WE</span>
+              </div>
+              <div>
+                <span className="text-white/60 block">Cliente</span>
+                <span className="font-semibold">{payload.cliente || '—'}</span>
+              </div>
+              <div>
+                <span className="text-white/60 block">Produto</span>
+                <span className="font-semibold">{payload.produto || '—'}</span>
+              </div>
+              <div>
+                <span className="text-white/60 block">Job</span>
+                <span className="font-semibold">{payload.job || '—'}</span>
+              </div>
+              <div>
+                <span className="text-white/60 block">Competência</span>
+                <span className="font-semibold">
+                  {payload.data_orcamento 
+                    ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                    : new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                  }
+                </span>
+              </div>
+              <div>
+                <span className="text-white/60 block">Tipo Orçamento</span>
+                <span className="font-semibold">{data.budgets?.type?.toUpperCase()}</span>
+              </div>
+            </div>
           </div>
         </header>
 
-        {/* Sumário inicial do orçamento */}
-        <section className="mb-8 p-6 bg-slate-50 rounded-lg border">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Identificação do Orçamento</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <div>
-                <span className="text-sm font-medium text-slate-600">Cliente:</span>
-                <div className="text-slate-900">{payload.cliente || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Produto:</span>
-                <div className="text-slate-900">{payload.produto || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Job:</span>
-                <div className="text-slate-900">{payload.job || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Mídias:</span>
-                <div className="text-slate-900">{payload.midias || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Território:</span>
-                <div className="text-slate-900">{payload.territorio || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Período:</span>
-                <div className="text-slate-900">{payload.periodo || '—'}</div>
-              </div>
+        {/* Sumário Detalhado (estilo AP) */}
+        <section className="mb-6 p-6 bg-slate-50 rounded-lg border border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-300 pb-2">
+            Detalhamento do Projeto
+          </h2>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Cliente:</span>
+              <span className="text-slate-900">{payload.cliente || '—'}</span>
             </div>
-            <div className="space-y-3">
-              <div>
-                <span className="text-sm font-medium text-slate-600">Entregáveis:</span>
-                <div className="text-slate-900">{payload.entregaveis || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Adaptações de formatos:</span>
-                <div className="text-slate-900">{payload.adaptacoes || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Data do orçamento:</span>
-                <div className="text-slate-900">{payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Exclusividade de elenco:</span>
-                <div className="text-slate-900">{payload.exclusividade_elenco || '—'}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-600">Áudio:</span>
-                <div className="text-slate-900">{payload.audio || payload.tipo_audio || '—'}</div>
-              </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Produto:</span>
+              <span className="text-slate-900">{payload.produto || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Job:</span>
+              <span className="text-slate-900">{payload.job || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Mídias:</span>
+              <span className="text-slate-900">{payload.midias || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Território:</span>
+              <span className="text-slate-900">{payload.territorio || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Período:</span>
+              <span className="text-slate-900">{payload.periodo || '—'}</span>
+            </div>
+            <div className="flex col-span-2">
+              <span className="font-semibold text-slate-700 w-40">Entregáveis:</span>
+              <span className="text-slate-900">{payload.entregaveis || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Adaptações:</span>
+              <span className="text-slate-900">{payload.adaptacoes || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Data Orçamento:</span>
+              <span className="text-slate-900">
+                {payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : '—'}
+              </span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Exclusividade Elenco:</span>
+              <span className="text-slate-900">{payload.exclusividade_elenco || '—'}</span>
+            </div>
+            <div className="flex">
+              <span className="font-semibold text-slate-700 w-40">Áudio:</span>
+              <span className="text-slate-900">{payload.audio || payload.tipo_audio || '—'}</span>
             </div>
           </div>
         </section>
@@ -316,15 +354,37 @@ export default function PdfView() {
           </div>
         </section>
 
-        {/* Observações e Termos */}
-        <section className="mt-8 p-4 bg-muted/10 rounded-lg border-l-4 border-primary">
-          <h3 className="font-semibold mb-3">Termos e Condições</h3>
-          <div className="text-sm space-y-2 text-muted-foreground leading-relaxed">
-            <p><strong>Validade:</strong> 7 dias a partir da data deste orçamento.</p>
-            <p><strong>Inclui:</strong> os itens e serviços listados neste documento.</p>
-            <p><strong>Prazos:</strong> condicionados à aprovação do escopo com a produtora e à disponibilidade/agenda da produtora.</p>
-            <p><strong>Usos:</strong> conforme mídias, território e período informados neste orçamento.</p>
-            <p><strong>Importante:</strong> Alterações de escopo e/ou entregáveis geram nova versão deste orçamento.</p>
+        {/* Observações e Termos (estilo AP/OC) */}
+        <section className="mt-8 space-y-4">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <h3 className="font-bold text-amber-900 mb-2">Observações</h3>
+            <div className="text-sm text-amber-800 space-y-1">
+              <p><strong>Território:</strong> {payload.territorio || 'Conforme especificado'}</p>
+              <p><strong>Período:</strong> {payload.periodo || 'Conforme especificado'}</p>
+              <p><strong>Mídia:</strong> {payload.midias || 'Conforme especificado'}</p>
+              <p><strong>Validade do orçamento:</strong> 7 dias a partir da data de emissão</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <h3 className="font-bold text-slate-900 mb-3">Termos e Condições</h3>
+            <div className="text-sm text-slate-700 space-y-2 leading-relaxed">
+              <p><strong>Inclui:</strong> Os itens e serviços discriminados neste documento.</p>
+              <p><strong>Prazos:</strong> Condicionados à aprovação do escopo e disponibilidade dos fornecedores.</p>
+              <p><strong>Usos:</strong> Conforme mídias, território e período informados neste orçamento.</p>
+              <p><strong>Alterações:</strong> Mudanças de escopo e/ou entregáveis geram nova versão deste orçamento.</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-bold text-blue-900 mb-3">Instruções para Faturamento</h3>
+            <div className="text-sm text-blue-800 space-y-2">
+              <p>• Enviar Nota Fiscal para: <strong>checking@we.com.br</strong></p>
+              <p>• Constar número da AP/OC no corpo da Nota Fiscal</p>
+              <p>• Dados bancários devem estar corretos e atualizados</p>
+              <p>• Condições de pagamento: Conforme acordado (30/45/60 dias)</p>
+              <p>• Para dúvidas sobre faturamento, contatar o departamento financeiro</p>
+            </div>
           </div>
         </section>
 

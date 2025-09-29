@@ -2,11 +2,15 @@ import React, { memo, useCallback, useEffect } from 'react'
 import { FormInput } from '@/components/FormInput'
 import { FormSelect } from '@/components/FormSelect'
 import { FormTextarea } from '@/components/FormTextarea'
+import { ClientProductAutocomplete } from '@/components/ClientProductAutocomplete'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { AutosaveIndicator } from '@/components/AutosaveIndicator'
 import { useAutosaveWithStatus } from '@/hooks/useAutosaveWithStatus'
 import { useBudget } from '@/contexts/BudgetContext'
 import { supabase } from '@/integrations/supabase/client'
+import { Save } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface BudgetFormProps {
   budgetId?: string
@@ -59,21 +63,60 @@ export const BudgetForm = memo(function BudgetForm({
   versionId, 
   budgetType 
 }: BudgetFormProps) {
-  const { state, setFormField, calculateTotals } = useBudget()
+  const { state, dispatch, setFormField, calculateTotals } = useBudget()
   const { form } = state
+  const { toast } = useToast()
+
+  // Função de salvamento manual
+  const handleManualSave = useCallback(async () => {
+    try {
+      if (versionId) {
+        const { error } = await supabase
+          .from('versions')
+          .update({ 
+            payload: form as any,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', versionId)
+        
+        if (error) throw error
+        
+        toast({
+          title: 'Salvo com sucesso',
+          description: 'As alterações foram salvas.',
+        })
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar',
+        description: 'Não foi possível salvar as alterações.',
+        variant: 'destructive'
+      })
+    }
+  }, [versionId, form, toast])
 
   // Autosave com status visual
-  const { status, saveNow } = useAutosaveWithStatus([form], async () => {
-    if (versionId) {
-      await supabase
-        .from('versions')
-        .update({ 
-          payload: form as any,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', versionId)
+  const { status, saveNow } = useAutosaveWithStatus([form], handleManualSave, 1000)
+
+  // Carregar dados iniciais do orçamento
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (versionId) {
+        const { data } = await supabase
+          .from('versions')
+          .select('payload')
+          .eq('id', versionId)
+          .single()
+        
+        if (data?.payload && typeof data.payload === 'object') {
+          dispatch({ type: 'SET_FORM', payload: data.payload as any })
+        }
+      }
     }
-  }, 800)
+    
+    loadInitialData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [versionId])
 
   // Recalcular totais quando dados relevantes mudarem
   useEffect(() => {
@@ -100,9 +143,19 @@ export const BudgetForm = memo(function BudgetForm({
 
   return (
     <div className="space-y-6 form-container">
-      {/* Indicador de Autosave */}
-      <div className="fixed top-4 right-4 z-50">
-        <AutosaveIndicator status={status} />
+      {/* Header Sticky com Salvar e Autosave */}
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border py-4 -mx-6 px-6 mb-6">
+        <div className="flex items-center justify-between">
+          <AutosaveIndicator status={status} />
+          <Button
+            onClick={handleManualSave}
+            className="btn-gradient gap-2"
+            size="default"
+          >
+            <Save className="h-4 w-4" />
+            Salvar
+          </Button>
+        </div>
       </div>
 
       {/* Identificação do Orçamento */}
@@ -112,21 +165,19 @@ export const BudgetForm = memo(function BudgetForm({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
-            <FormInput
-              id="cliente"
+            <ClientProductAutocomplete
+              type="client"
               label="Cliente"
               value={form.identificacao.cliente}
               onChange={(value) => handleIdentificacaoChange('cliente', value)}
-              placeholder="Nome do cliente"
               required
             />
             
-            <FormInput
-              id="produto"
+            <ClientProductAutocomplete
+              type="product"
               label="Produto"
               value={form.identificacao.produto}
               onChange={(value) => handleIdentificacaoChange('produto', value)}
-              placeholder="Nome do produto ou serviço"
               required
             />
             
