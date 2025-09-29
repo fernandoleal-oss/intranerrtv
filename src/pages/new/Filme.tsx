@@ -59,14 +59,13 @@ export default function NovoFilme() {
     total: 0
   })
 
-  // Auto-save
-  useEffect(() => {
-    if (!budgetId) return
-    const timer = setTimeout(() => {
+  // Auto-save with debounce hook
+  const { useAutosave } = require('@/hooks/useAutosave')
+  useAutosave([data], () => {
+    if (budgetId) {
       supabase.from('versions').update({ payload: data }).eq('budget_id', budgetId).eq('versao', 1)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [data, budgetId])
+    }
+  }, 2000)
 
   const updateData = (updates: Partial<FilmeData>) => {
     setData(prev => {
@@ -87,15 +86,15 @@ export default function NovoFilme() {
   }
 
   const handleCreateBudget = async () => {
-   // try {
-    //  const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'filme' })
-    //  if (error) throw error
-     // setBudgetId(budget.id)
+    try {
+      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'filme' })
+      if (error) throw error
+      setBudgetId(budget.id)
       setStep(2)
-     // toast({ title: 'Orçamento criado', description: `ID: ${budget.display_id}` })
-    //} catch (error) {
-     // toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
-    //}
+      toast({ title: 'Orçamento criado', description: `ID: ${budget.display_id}` })
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
+    }
   }
 
   const addFilmeQuote = () => {
@@ -258,34 +257,34 @@ export default function NovoFilme() {
                 <div key={index} className="p-4 border rounded-lg space-y-3">
                   <div className="grid md:grid-cols-3 gap-3">
                      <div>
-                       <Label>Produtora</Label>
-                       <Input
-                         value={quote.produtora}
-                         onChange={(e) => updateFilmeQuote(index, { produtora: e.target.value })}
-                         className="mt-1"
-                         key={`produtora-${index}`}
-                       />
+                        <Label className="text-white">Produtora</Label>
+                        <Input
+                          value={quote.produtora}
+                          onChange={(e) => updateFilmeQuote(index, { produtora: e.target.value })}
+                          className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          placeholder="Digite o nome da produtora"
+                        />
                      </div>
                      <div>
-                       <Label>Escopo</Label>
-                       <Input
-                         value={quote.escopo}
-                         onChange={(e) => updateFilmeQuote(index, { escopo: e.target.value })}
-                         className="mt-1"
-                         key={`escopo-${index}`}
-                       />
+                        <Label className="text-white">Escopo</Label>
+                        <Input
+                          value={quote.escopo}
+                          onChange={(e) => updateFilmeQuote(index, { escopo: e.target.value })}
+                          className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          placeholder="Ex: Filme 30s com elenco"
+                        />
                      </div>
                      <div>
-                       <Label>Valor (R$)</Label>
-                       <Input
-                         type="number"
-                         min="0"
-                         step="0.01"
-                         value={quote.valor}
-                         onChange={(e) => updateFilmeQuote(index, { valor: Number(e.target.value) })}
-                         className="mt-1"
-                         key={`valor-${index}`}
-                       />
+                        <Label className="text-white">Valor (R$)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={quote.valor}
+                          onChange={(e) => updateFilmeQuote(index, { valor: Number(e.target.value) })}
+                          className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          placeholder="0,00"
+                        />
                      </div>
                   </div>
                   <div className="flex justify-end">

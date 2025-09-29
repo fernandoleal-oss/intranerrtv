@@ -367,9 +367,14 @@ export default function Home() {
                   className="pl-10 w-64"
                 />
               </div>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={() => navigate('/budgets')}
+              >
                 <Filter className="w-4 h-4" />
-                Filtros
+                Ver Histórico
               </Button>
             </div>
           </div>

@@ -11,6 +11,8 @@ import NovoAudio from '@/pages/new/Audio'
 import NovoCC from '@/pages/new/CC'
 import NovaImagem from '@/pages/new/Imagem'
 import PdfView from '@/pages/budget/Pdf'
+import BudgetList from '@/pages/BudgetList'
+import BudgetEdit from '@/pages/BudgetEdit'
 
 const queryClient = new QueryClient()
 
@@ -81,6 +83,30 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <NovaImagem />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/budgets"
+              element={
+                <ProtectedRoute>
+                  <BudgetList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/budget/:id"
+              element={
+                <ProtectedRoute>
+                  <BudgetList />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/budget/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <BudgetEdit />
                 </ProtectedRoute>
               }
             />

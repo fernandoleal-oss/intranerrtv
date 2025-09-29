@@ -44,14 +44,13 @@ export default function NovaImagem() {
     total: 0
   })
 
-  // Auto-save
-  useEffect(() => {
-    if (!budgetId) return
-    const timer = setTimeout(() => {
+  // Auto-save with debounce hook
+  const { useAutosave } = require('@/hooks/useAutosave')
+  useAutosave([data], () => {
+    if (budgetId) {
       supabase.from('versions').update({ payload: data }).eq('budget_id', budgetId).eq('versao', 1)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [data, budgetId])
+    }
+  }, 2000)
 
   const updateData = (updates: Partial<ImagemData>) => {
     setData(prev => {
@@ -229,45 +228,44 @@ export default function NovaImagem() {
                     )}
                     <div className="flex-1 grid md:grid-cols-2 gap-3">
                        <div>
-                         <Label>ID da Imagem</Label>
-                         <Input
-                           value={item.image_id}
-                           onChange={(e) => updateItem(index, { image_id: e.target.value })}
-                           className="mt-1"
-                           key={`image_id-${index}`}
-                         />
+                          <Label className="text-white">ID da Imagem</Label>
+                          <Input
+                            value={item.image_id}
+                            onChange={(e) => updateItem(index, { image_id: e.target.value })}
+                            className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                            placeholder="Ex: 123456789"
+                          />
                        </div>
                        <div>
-                         <Label>Resumo/Descrição</Label>
-                         <Input
-                           value={item.resumo}
-                           onChange={(e) => updateItem(index, { resumo: e.target.value })}
-                           className="mt-1"
-                           key={`resumo-${index}`}
-                         />
+                          <Label className="text-white">Resumo/Descrição</Label>
+                          <Input
+                            value={item.resumo}
+                            onChange={(e) => updateItem(index, { resumo: e.target.value })}
+                            className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                            placeholder="Descreva a imagem"
+                          />
                        </div>
                        <div>
-                         <Label>Uso (mídias/território/período)</Label>
-                         <Input
-                           value={item.uso}
-                           onChange={(e) => updateItem(index, { uso: e.target.value })}
-                           className="mt-1"
-                           placeholder="Ex.: TV Nacional 12 meses"
-                           key={`uso-${index}`}
-                         />
+                          <Label className="text-white">Uso (mídias/território/período)</Label>
+                          <Input
+                            value={item.uso}
+                            onChange={(e) => updateItem(index, { uso: e.target.value })}
+                            className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                            placeholder="Ex.: TV Nacional 12 meses"
+                          />
                        </div>
                       <div>
-                        <Label>Valor (R$)</Label>
-                        <div className="flex gap-2">
-                           <Input
-                             type="number"
-                             min="0"
-                             step="0.01"
-                             value={item.valor}
-                             onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
-                             className="mt-1 flex-1"
-                             key={`valor-${index}`}
-                           />
+                         <Label className="text-white">Valor (R$)</Label>
+                         <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.valor}
+                              onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
+                              className="mt-1 flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                              placeholder="0,00"
+                            />
                           <Button
                             onClick={() => removeItem(index)}
                             variant="ghost"
