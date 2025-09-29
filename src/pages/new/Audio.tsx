@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { useAutosave } from '@/hooks/useAutosave'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 
 const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Cotações', 'Revisão', 'Exportar']
@@ -48,7 +49,6 @@ export default function NovoAudio() {
   })
 
   // Auto-save with debounce hook
-  const { useAutosave } = require('@/hooks/useAutosave')
   useAutosave([data], () => {
     if (budgetId) {
       supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
