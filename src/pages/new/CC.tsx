@@ -37,14 +37,14 @@ export default function NovoCC() {
     total: 900
   })
 
-  // Auto-save
-  useEffect(() => {
-    if (!budgetId) return
-    const timer = setTimeout(() => {
-      supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [data, budgetId])
+  // Auto-save with debounce hook
+  useAutosave([data], () => {
+    if (budgetId && Object.keys(data).length > 0) {
+      supabase.from('versions').update({ 
+        payload: data as any 
+      }).eq('budget_id', budgetId).eq('versao', 1)
+    }
+  }, 3000)
 
   const updateData = (updates: Partial<CCData>) => {
     setData(prev => {

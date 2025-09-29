@@ -60,12 +60,14 @@ export default function NovoFilme() {
     total: 0
   })
 
-  // Auto-save with debounce hook (increased delay to prevent frequent calls)
+  // Auto-save with debounce hook
   useAutosave([data], () => {
-    if (budgetId) {
-      supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
+    if (budgetId && Object.keys(data).length > 0) {
+      supabase.from('versions').update({ 
+        payload: data as any 
+      }).eq('budget_id', budgetId).eq('versao', 1)
     }
-  }, 5000)
+  }, 3000)
 
   const updateData = useCallback((updates: Partial<FilmeData>) => {
     setData(prev => {

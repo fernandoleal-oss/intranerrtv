@@ -48,6 +48,7 @@ export default function Home() {
   const navigate = useNavigate()
   const { profile, signOut } = useAuth()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [recentBudgets, setRecentBudgets] = useState<any[]>([])
   const [stats, setStats] = useState<DashboardStats>({
     total_campaigns: 0,
     active_budgets: 0,
@@ -79,6 +80,21 @@ export default function Home() {
         .order('updated_at', { ascending: false })
         .limit(10)
 
+      // Fetch recent budgets for history
+      const { data: budgetsData } = await supabase
+        .from('budgets')
+        .select(`
+          id,
+          display_id,
+          type,
+          status,
+          created_at,
+          updated_at,
+          versions!inner(total_geral, payload)
+        `)
+        .order('updated_at', { ascending: false })
+        .limit(5)
+
       const processedCampaigns = campaignsData?.map(campaign => ({
         id: campaign.id,
         name: campaign.name,
@@ -92,6 +108,18 @@ export default function Home() {
       })) || []
 
       setCampaigns(processedCampaigns)
+      
+      // Set recent budgets for history section
+      setRecentBudgets(budgetsData?.map(budget => ({
+        id: budget.id,
+        display_id: budget.display_id,
+        type: budget.type,
+        status: budget.status || 'rascunho',
+        created_at: budget.created_at,
+        updated_at: budget.updated_at,
+        total_value: budget.versions?.[0]?.total_geral || 0,
+        has_data: Object.keys(budget.versions?.[0]?.payload || {}).length > 0
+      })) || [])
 
       // Calculate stats
       const totalCampaigns = campaignsData?.length || 0
@@ -168,6 +196,16 @@ export default function Home() {
         {labels[status as keyof typeof labels]}
       </Badge>
     )
+  }
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'filme': return '🎬'
+      case 'audio': return '🎵'
+      case 'imagem': return '🖼️'
+      case 'cc': return '📝'
+      default: return '📄'
+    }
   }
 
   const formatCurrency = (value: number) =>
@@ -435,6 +473,69 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
+        </section>
+
+        {/* Recent Budgets History */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-foreground">Orçamentos Recentes</h3>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => navigate('/budgets')}
+            >
+              Ver Todos
+            </Button>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentBudgets.map((budget) => (
+              <Card key={budget.id} className="glass-card hover-lift cursor-pointer" onClick={() => navigate(`/budget/${budget.id}`)}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{getTypeIcon(budget.type)}</span>
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">{budget.display_id}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{budget.type}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {getStatusBadge(budget.status)}
+                      {budget.has_data && (
+                        <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20">
+                          Preenchido
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span>Criado:</span>
+                      <span>{formatDate(budget.created_at)}</span>
+                    </div>
+                    {budget.total_value > 0 && (
+                      <div className="flex items-center justify-between font-medium text-foreground">
+                        <span>Total:</span>
+                        <span>{formatCurrency(budget.total_value)}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-1 mt-3">
+                    <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); navigate(`/budget/${budget.id}/edit`) }}>
+                      Editar
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); navigate(`/budget/${budget.id}/pdf`) }}>
+                      PDF
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </section>
       </main>
     </div>
