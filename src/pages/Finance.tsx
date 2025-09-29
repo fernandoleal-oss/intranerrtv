@@ -1,53 +1,27 @@
 import { useMemo, useState } from "react"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts"
 import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Calendar,
-  FileText,
-  Users,
-  ChevronLeft,
-  ChevronRight,
-  Printer,
-  Download,
+  TrendingUp, TrendingDown, DollarSign, Calendar, FileText, Users,
+  ChevronLeft, ChevronRight, Printer, Download,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 
-/* =============================================================================
-   MOCK DATA (substituir pelos dados reais do Supabase quando conectar)
-============================================================================= */
+/* ============================================================
+   MOCK DATA (mesmos seus dados). Cada item representa UM MÊS.
+   Índices 0..5 => Jan..Jun. Se depois vier Jul..Dez, agregação já funciona.
+============================================================ */
 const monthlyData = [
   { month: "Jan", fornecedor: 145000, honorario: 21750, total: 166750 },
   { month: "Fev", fornecedor: 178000, honorario: 26700, total: 204700 },
@@ -80,62 +54,92 @@ const pieData = [
   { name: "Outros", value: 10, color: "hsl(var(--chart-4))" },
 ]
 
-/* =============================================================================
+/* ============================================================
    HELPERS
-============================================================================= */
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-    value || 0
-  )
+============================================================ */
+type Granularity = "monthly" | "quarterly" | "semiannual" | "annual"
+type PeriodPoint = { label: string; fornecedor: number; honorario: number; total: number; startIdx: number; endIdx: number }
+
+const formatCurrency = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0)
 
 const pctDelta = (curr?: number, prev?: number) => {
   if (prev == null || prev === 0 || curr == null) return null
   return ((curr - prev) / prev) * 100
 }
 
-/* =============================================================================
-   KPI CARD (reusable)
-============================================================================= */
-type KpiProps = {
+/** Divide o ano em grupos conforme granularidade e soma os meses disponíveis. */
+function aggregateByGranularity(data: typeof monthlyData, granularity: Granularity): PeriodPoint[] {
+  if (!data?.length) return []
+
+  const lastIndex = data.length - 1
+  const pushSum = (label: string, startIdx: number, endIdx: number, list: PeriodPoint[]) => {
+    const slice = data.slice(startIdx, Math.min(endIdx, lastIndex) + 1)
+    if (!slice.length) return
+    const fornecedor = slice.reduce((a, b) => a + (b.fornecedor || 0), 0)
+    const honorario = slice.reduce((a, b) => a + (b.honorario || 0), 0)
+    const total = slice.reduce((a, b) => a + (b.total || 0), 0)
+    list.push({ label, fornecedor, honorario, total, startIdx, endIdx: Math.min(endIdx, lastIndex) })
+  }
+
+  const result: PeriodPoint[] = []
+
+  if (granularity === "monthly") {
+    data.forEach((m, i) =>
+      result.push({ label: m.month, fornecedor: m.fornecedor, honorario: m.honorario, total: m.total, startIdx: i, endIdx: i })
+    )
+    return result
+  }
+
+  if (granularity === "quarterly") {
+    // T1: 0-2, T2: 3-5, T3: 6-8, T4: 9-11  (usamos apenas o que existir)
+    pushSum("T1", 0, 2, result)
+    pushSum("T2", 3, 5, result)
+    pushSum("T3", 6, 8, result)
+    pushSum("T4", 9, 11, result)
+    return result
+  }
+
+  if (granularity === "semiannual") {
+    // S1: 0-5, S2: 6-11
+    pushSum("S1", 0, 5, result)
+    pushSum("S2", 6, 11, result)
+    return result
+  }
+
+  // annual
+  pushSum("Anual", 0, 11, result)
+  return result
+}
+
+/* ============================================================
+   KPI Card (reutilizável)
+============================================================ */
+function KpiCard({
+  label, value, prevValue, icon, currency = true, highlight = false,
+}: {
   label: string
   value: number | string
   prevValue?: number
   icon: React.ReactNode
   currency?: boolean
   highlight?: boolean
-}
-function KpiCard({
-  label,
-  value,
-  prevValue,
-  icon,
-  currency = true,
-  highlight = false,
-}: KpiProps) {
+}) {
   const delta = typeof value === "number" ? pctDelta(value, prevValue) : null
   const positive = (delta ?? 0) >= 0
 
   return (
     <Card className={highlight ? "border-primary/30" : "glass-effect"}>
       <CardHeader className="pb-3">
-        <CardTitle
-          className={`text-sm font-medium flex items-center gap-2 ${
-            highlight ? "text-primary" : ""
-          }`}
-        >
+        <CardTitle className={`text-sm font-medium flex items-center gap-2 ${highlight ? "text-primary" : ""}`}>
           {icon}
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div
-          className={`text-2xl font-bold ${
-            highlight ? "text-primary" : ""
-          } leading-tight`}
-        >
+        <div className={`text-2xl font-bold ${highlight ? "text-primary" : ""} leading-tight`}>
           {typeof value === "number" && currency ? formatCurrency(value) : value}
         </div>
-
         {delta !== null ? (
           <div className="flex items-center text-xs text-muted-foreground mt-1">
             {positive ? (
@@ -143,7 +147,7 @@ function KpiCard({
             ) : (
               <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
             )}
-            {`${positive ? "+" : ""}${Math.abs(delta).toFixed(1)}% vs. mês anterior`}
+            {`${positive ? "+" : ""}${Math.abs(delta).toFixed(1)}% vs período anterior`}
           </div>
         ) : (
           <div className="text-xs text-muted-foreground mt-1">—</div>
@@ -153,83 +157,64 @@ function KpiCard({
   )
 }
 
-/* =============================================================================
+/* ============================================================
    PAGE
-============================================================================= */
+============================================================ */
 export default function Finance() {
-  const [view, setView] = useState<"monthly" | "annual">("monthly")
   const [year, setYear] = useState("2024")
-  const months = useMemo(() => monthlyData.map((d) => d.month), [])
-  const [monthIdx, setMonthIdx] = useState(monthlyData.length - 1)
+  const [granularity, setGranularity] = useState<Granularity>("monthly")
+  const [periodIdx, setPeriodIdx] = useState(aggregateByGranularity(monthlyData, "monthly").length - 1)
   const [comparePrev, setComparePrev] = useState(true)
 
-  const curr = monthlyData[monthIdx]
-  const prev = monthlyData[monthIdx - 1]
+  // Série agregada conforme granularidade
+  const series = useMemo(() => aggregateByGranularity(monthlyData, granularity), [granularity])
+  const period = series[periodIdx] // atual
+  const prev = series[periodIdx - 1] // anterior (pode ser undefined)
 
-  // KPIs dinâmicos (mês selecionado)
-  const kpis = useMemo(() => {
-    const eventosCount = clientData.reduce((a, b) => a + (b.eventos || 0), 0) // mock
-    const clientesAtivos = clientData.length // mock
-    const ticketMedio = curr?.total ? curr.total / Math.max(1, eventosCount) : 0
-    const margem =
-      curr?.total ? Math.round(((curr.honorario || 0) / curr.total) * 100) : 0
+  // Garantir que o índice sempre é válido ao trocar granularidade
+  if (periodIdx > series.length - 1) setPeriodIdx(series.length - 1)
 
-    return {
-      totalFornecedor: curr?.fornecedor || 0,
-      totalHonorario: curr?.honorario || 0,
-      totalGeral: curr?.total || 0,
-      avgHonorario: margem,
-      eventosCount,
-      clientesAtivos,
-      ticketMedio,
-    }
-  }, [curr])
+  // KPIs do período selecionado (notar que eventos/cliente são mocks)
+  const eventosCount = clientData.reduce((a, b) => a + (b.eventos || 0), 0)
+  const clientesAtivos = clientData.length
+  const ticketMedio = period ? (period.total || 0) / Math.max(1, eventosCount) : 0
+  const margemPct = period?.total ? Math.round(((period.honorario || 0) / period.total) * 100) : 0
 
-  // Dataset comparativo (mês atual vs anterior)
+  // Dataset comparativo para o gráfico de barras
   const compareData = useMemo(
     () => [
-      {
-        metric: "Total",
-        atual: curr?.total || 0,
-        anterior: prev?.total || 0,
-      },
-      {
-        metric: "Fornecedor",
-        atual: curr?.fornecedor || 0,
-        anterior: prev?.fornecedor || 0,
-      },
-      {
-        metric: "Honorário",
-        atual: curr?.honorario || 0,
-        anterior: prev?.honorario || 0,
-      },
+      { metric: "Total", atual: period?.total || 0, anterior: prev?.total || 0 },
+      { metric: "Fornecedor", atual: period?.fornecedor || 0, anterior: prev?.fornecedor || 0 },
+      { metric: "Honorário", atual: period?.honorario || 0, anterior: prev?.honorario || 0 },
     ],
-    [curr, prev]
+    [period, prev]
   )
 
-  const goPrev = () => setMonthIdx((i) => Math.max(0, i - 1))
-  const goNext = () =>
-    setMonthIdx((i) => Math.min(monthlyData.length - 1, i + 1))
+  const goPrev = () => setPeriodIdx((i) => Math.max(0, i - 1))
+  const goNext = () => setPeriodIdx((i) => Math.min(series.length - 1, i + 1))
+
+  // Labels de período para o select central
+  const periodLabels = series.map((s) => s.label)
 
   return (
     <div className="min-h-screen bg-background p-6 space-y-6">
-      {/* Sticky Filter Bar */}
+      {/* Barra de filtros */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3 mb-2">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Relatórios Financeiros</h1>
-            <p className="text-muted-foreground">
-              Análise de faturamento e honorários
-            </p>
+            <p className="text-muted-foreground">Análise de faturamento e honorários</p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            <Select value={view} onValueChange={(v) => setView(v as any)}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Visão" />
+            <Select value={granularity} onValueChange={(v) => setGranularity(v as Granularity)}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Granularidade" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="monthly">Mensal</SelectItem>
+                <SelectItem value="quarterly">Trimestral</SelectItem>
+                <SelectItem value="semiannual">Semestral</SelectItem>
                 <SelectItem value="annual">Anual</SelectItem>
               </SelectContent>
             </Select>
@@ -244,28 +229,18 @@ export default function Finance() {
               </SelectContent>
             </Select>
 
+            {/* Navegação de período (adapta o label) */}
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goPrev}
-                disabled={monthIdx === 0}
-                aria-label="Mês anterior"
-              >
+              <Button variant="outline" size="icon" onClick={goPrev} disabled={periodIdx === 0} aria-label="Período anterior">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
-              <Select
-                value={months[monthIdx]}
-                onValueChange={(v) =>
-                  setMonthIdx(Math.max(0, months.indexOf(v)))
-                }
-              >
+              <Select value={period?.label} onValueChange={(v) => setPeriodIdx(Math.max(0, periodLabels.indexOf(v)))}>
                 <SelectTrigger className="w-28">
-                  <SelectValue placeholder="Mês" />
+                  <SelectValue placeholder="Período" />
                 </SelectTrigger>
                 <SelectContent>
-                  {months.map((m) => (
+                  {periodLabels.map((m) => (
                     <SelectItem key={m} value={m}>
                       {m}
                     </SelectItem>
@@ -277,21 +252,17 @@ export default function Finance() {
                 variant="outline"
                 size="icon"
                 onClick={goNext}
-                disabled={monthIdx === months.length - 1}
-                aria-label="Próximo mês"
+                disabled={periodIdx === series.length - 1}
+                aria-label="Próximo período"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
             <div className="flex items-center gap-2 pl-2">
-              <Switch
-                id="comparePrev"
-                checked={comparePrev}
-                onCheckedChange={setComparePrev}
-              />
+              <Switch id="comparePrev" checked={comparePrev} onCheckedChange={setComparePrev} />
               <label htmlFor="comparePrev" className="text-sm">
-                Comparar com mês anterior
+                Comparar com período anterior
               </label>
             </div>
 
@@ -299,23 +270,21 @@ export default function Finance() {
               <Printer className="h-4 w-4 mr-2" />
               Exportar PDF
             </Button>
+
             <Button
               variant="outline"
               onClick={() => {
-                // Export simples dos KPIs do mês (placeholder)
                 const rows = [
-                  ["Mês", months[monthIdx]],
-                  ["Total", kpis.totalGeral],
-                  ["Fornecedor", kpis.totalFornecedor],
-                  ["Honorários", kpis.totalHonorario],
-                  ["Margem (%)", kpis.avgHonorario],
+                  ["Período", period?.label ?? "-"],
+                  ["Total", period?.total ?? 0],
+                  ["Fornecedor", period?.fornecedor ?? 0],
+                  ["Honorários", period?.honorario ?? 0],
+                  ["Margem (%)", margemPct],
                 ]
-                const csv =
-                  "data:text/csv;charset=utf-8," +
-                  rows.map((r) => r.join(";")).join("\n")
+                const csv = "data:text/csv;charset=utf-8," + rows.map((r) => r.join(";")).join("\n")
                 const a = document.createElement("a")
                 a.href = encodeURI(csv)
-                a.download = `relatorio_${months[monthIdx]}_${year}.csv`
+                a.download = `relatorio_${period?.label}_${year}.csv`
                 a.click()
               }}
             >
@@ -326,11 +295,11 @@ export default function Finance() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs do período selecionado */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KpiCard
           label="Valor Fornecedor"
-          value={kpis.totalFornecedor}
+          value={period?.fornecedor || 0}
           prevValue={prev?.fornecedor}
           icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
         />
@@ -343,27 +312,19 @@ export default function Finance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(kpis.totalHonorario)}
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(period?.honorario || 0)}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1 gap-2">
-              <Badge variant="secondary" className="text-xs">
-                {kpis.avgHonorario}% média
-              </Badge>
+              <Badge variant="secondary" className="text-xs">{margemPct}% média</Badge>
               {prev ? (
-                pctDelta(kpis.totalHonorario, prev.honorario)! >= 0 ? (
+                pctDelta(period?.honorario, prev.honorario)! >= 0 ? (
                   <span className="flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                    {`${pctDelta(kpis.totalHonorario, prev.honorario)!.toFixed(
-                      1
-                    )}%`}
+                    {`${pctDelta(period?.honorario, prev.honorario)!.toFixed(1)}%`}
                   </span>
                 ) : (
                   <span className="flex items-center">
                     <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
-                    {`${Math.abs(
-                      pctDelta(kpis.totalHonorario, prev.honorario)!
-                    ).toFixed(1)}%`}
+                    {`${Math.abs(pctDelta(period?.honorario, prev.honorario)!).toFixed(1)}%`}
                   </span>
                 )
               ) : (
@@ -375,7 +336,7 @@ export default function Finance() {
 
         <KpiCard
           label="Total Geral"
-          value={kpis.totalGeral}
+          value={period?.total || 0}
           prevValue={prev?.total}
           icon={<DollarSign className="h-4 w-4 text-primary" />}
           highlight
@@ -389,8 +350,8 @@ export default function Finance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{kpis.eventosCount}</div>
-            <div className="text-xs text-muted-foreground mt-1">no período</div>
+            <div className="text-2xl font-bold">{eventosCount}</div>
+            <div className="text-xs text-muted-foreground mt-1">no período (mock)</div>
           </CardContent>
         </Card>
 
@@ -402,77 +363,49 @@ export default function Finance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{kpis.clientesAtivos}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              neste período
-            </div>
+            <div className="text-2xl font-bold">{clientesAtivos}</div>
+            <div className="text-xs text-muted-foreground mt-1">neste período (mock)</div>
           </CardContent>
         </Card>
 
         <KpiCard
           label="Ticket Médio"
-          value={kpis.ticketMedio}
+          value={ticketMedio}
           icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
         />
       </div>
 
-      {/* Charts */}
+      {/* Gráficos de tendência (sempre mostramos a série do ano conforme granularidade) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Tendência Mensal */}
         <Card className="glass-effect">
           <CardHeader>
-            <CardTitle>Evolução Mensal</CardTitle>
-            <CardDescription>Faturamento e honorários por mês</CardDescription>
+            <CardTitle>Evolução por {granularity === "monthly" ? "mês" : granularity === "quarterly" ? "trimestre" : granularity === "semiannual" ? "semestre" : "ano"}</CardTitle>
+            <CardDescription>Faturamento e honorários agregados</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyData}>
+              <LineChart data={series}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+                <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
+                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
                   formatter={(value: number) => formatCurrency(value)}
                 />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="total"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  name="Total"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="fornecedor"
-                  stroke="hsl(var(--chart-2))"
-                  strokeWidth={2}
-                  name="Fornecedor"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="honorario"
-                  stroke="hsl(var(--chart-3))"
-                  strokeWidth={2}
-                  name="Honorário"
-                />
+                <Line type="monotone" dataKey="total" stroke="hsl(var(--primary))" strokeWidth={2} name="Total" />
+                <Line type="monotone" dataKey="fornecedor" stroke="hsl(var(--chart-2))" strokeWidth={2} name="Fornecedor" />
+                <Line type="monotone" dataKey="honorario" stroke="hsl(var(--chart-3))" strokeWidth={2} name="Honorário" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Comparativo Mês Atual x Anterior */}
+        {/* Comparativo período atual x anterior */}
         <Card className="glass-effect">
           <CardHeader>
-            <CardTitle>Comparativo Mês Atual × Anterior</CardTitle>
-            <CardDescription>
-              Total, fornecedor e honorários ({months[monthIdx]}
-              {prev ? ` vs ${months[monthIdx - 1]}` : ""})
-            </CardDescription>
+            <CardTitle>Comparativo {period?.label}{prev ? ` × ${prev.label}` : ""}</CardTitle>
+            <CardDescription>Total, fornecedor e honorários</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -481,29 +414,19 @@ export default function Finance() {
                 <XAxis dataKey="metric" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
+                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
                   formatter={(value: number) => formatCurrency(value)}
                 />
                 <Legend />
-                <Bar dataKey="atual" name="Mês atual" fill="hsl(var(--primary))" />
-                {comparePrev && (
-                  <Bar
-                    dataKey="anterior"
-                    name="Mês anterior"
-                    fill="hsl(var(--chart-2))"
-                  />
-                )}
+                <Bar dataKey="atual" name="Período atual" fill="hsl(var(--primary))" />
+                {comparePrev && <Bar dataKey="anterior" name="Período anterior" fill="hsl(var(--chart-2))" />}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Distribuição por Categoria */}
+      {/* Distribuição por categoria */}
       <Card className="glass-effect">
         <CardHeader>
           <CardTitle>Distribuição por Categoria</CardTitle>
@@ -517,30 +440,19 @@ export default function Finance() {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) =>
-                  `${name} ${(percent * 100).toFixed(0)}%`
-                }
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 outerRadius={110}
-                fill="#8884d8"
                 dataKey="value"
               >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
+                {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
-              />
+              <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
             </PieChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Tables */}
+      {/* Listas */}
       <Tabs defaultValue="clients" className="space-y-4">
         <TabsList>
           <TabsTrigger value="clients">Por Cliente</TabsTrigger>
@@ -556,26 +468,19 @@ export default function Finance() {
             <CardContent>
               <div className="space-y-4">
                 {clientData.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors"
-                  >
+                  <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                         {idx + 1}
                       </div>
                       <div>
                         <div className="font-semibold">{item.cliente}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {item.eventos} eventos
-                        </div>
+                        <div className="text-sm text-muted-foreground">{item.eventos} eventos</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-bold">{formatCurrency(item.total)}</div>
-                      <div className="text-sm text-muted-foreground">
-                        Hon: {formatCurrency(item.honorario)}
-                      </div>
+                      <div className="text-sm text-muted-foreground">Hon: {formatCurrency(item.honorario)}</div>
                     </div>
                   </div>
                 ))}
@@ -593,25 +498,20 @@ export default function Finance() {
             <CardContent>
               <div className="space-y-4">
                 {supplierData.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors"
-                  >
+                  <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
                         {idx + 1}
                       </div>
                       <div>
                         <div className="font-semibold">{item.fornecedor}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {item.eventos} eventos
-                        </div>
+                        <div className="text-sm text-muted-foreground">{item.eventos} eventos</div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-bold">{formatCurrency(item.total)}</div>
                       <div className="text-sm text-muted-foreground">
-                        Ticket: {formatCurrency(item.total / item.eventos)}
+                        Ticket: {formatCurrency(item.total / Math.max(1, item.eventos))}
                       </div>
                     </div>
                   </div>
