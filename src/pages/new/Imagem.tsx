@@ -228,7 +228,7 @@ export default function NovaImagem() {
                     )}
                     <div className="flex-1 grid md:grid-cols-2 gap-3">
                        <div>
-                          <Label className="text-white">ID da Imagem</Label>
+                          <Label className="dark-label">ID da Imagem</Label>
                           <Input
                             value={item.image_id}
                             onChange={(e) => updateItem(index, { image_id: e.target.value })}
@@ -237,7 +237,7 @@ export default function NovaImagem() {
                           />
                        </div>
                        <div>
-                          <Label className="text-white">Resumo/Descrição</Label>
+                          <Label className="dark-label">Resumo/Descrição</Label>
                           <Input
                             value={item.resumo}
                             onChange={(e) => updateItem(index, { resumo: e.target.value })}
@@ -246,7 +246,7 @@ export default function NovaImagem() {
                           />
                        </div>
                        <div>
-                          <Label className="text-white">Uso (mídias/território/período)</Label>
+                          <Label className="dark-label">Uso (mídias/território/período)</Label>
                           <Input
                             value={item.uso}
                             onChange={(e) => updateItem(index, { uso: e.target.value })}
@@ -255,7 +255,7 @@ export default function NovaImagem() {
                           />
                        </div>
                       <div>
-                         <Label className="text-white">Valor (R$)</Label>
+                         <Label className="dark-label">Valor (R$)</Label>
                          <div className="flex gap-2">
                             <Input
                               type="number"

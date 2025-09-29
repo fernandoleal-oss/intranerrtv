@@ -245,7 +245,7 @@ export default function NovoAudio() {
                 <div key={index} className="p-4 border border-white/20 rounded-lg bg-white/5 space-y-3">
                   <div className="grid md:grid-cols-2 gap-3">
                      <div>
-                        <Label className="text-white">Produtora</Label>
+                        <Label className="dark-label">Produtora</Label>
                         <Input
                           value={quote.produtora}
                           onChange={(e) => updateAudioQuote(index, { produtora: e.target.value })}
@@ -254,7 +254,7 @@ export default function NovoAudio() {
                         />
                      </div>
                      <div>
-                        <Label className="text-white">Valor (R$)</Label>
+                        <Label className="dark-label">Valor (R$)</Label>
                         <Input
                           type="number"
                           min="0"
@@ -267,7 +267,7 @@ export default function NovoAudio() {
                      </div>
                   </div>
                    <div>
-                      <Label className="text-white">Descritivo do Serviço</Label>
+                      <Label className="dark-label">Descritivo do Serviço</Label>
                       <Input
                         value={quote.descritivo}
                         onChange={(e) => updateAudioQuote(index, { descritivo: e.target.value })}
@@ -276,7 +276,7 @@ export default function NovoAudio() {
                       />
                    </div>
                    <div>
-                      <Label className="text-white">Opções/Observações</Label>
+                      <Label className="dark-label">Opções/Observações</Label>
                       <Input
                         value={quote.opcoes}
                         onChange={(e) => updateAudioQuote(index, { opcoes: e.target.value })}

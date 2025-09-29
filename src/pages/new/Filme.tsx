@@ -257,7 +257,7 @@ export default function NovoFilme() {
                 <div key={index} className="p-4 border rounded-lg space-y-3">
                   <div className="grid md:grid-cols-3 gap-3">
                      <div>
-                        <Label className="text-white">Produtora</Label>
+                        <Label className="dark-label">Produtora</Label>
                         <Input
                           value={quote.produtora}
                           onChange={(e) => updateFilmeQuote(index, { produtora: e.target.value })}
@@ -266,7 +266,7 @@ export default function NovoFilme() {
                         />
                      </div>
                      <div>
-                        <Label className="text-white">Escopo</Label>
+                        <Label className="dark-label">Escopo</Label>
                         <Input
                           value={quote.escopo}
                           onChange={(e) => updateFilmeQuote(index, { escopo: e.target.value })}
@@ -275,7 +275,7 @@ export default function NovoFilme() {
                         />
                      </div>
                      <div>
-                        <Label className="text-white">Valor (R$)</Label>
+                        <Label className="dark-label">Valor (R$)</Label>
                         <Input
                           type="number"
                           min="0"
