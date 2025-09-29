@@ -1,55 +1,129 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
-@tailwind components;
+@tailwind components;  
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Onnasis-inspired dark theme */
-    --background: 222 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142 76% 36%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 32% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 32% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 142 76% 36%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
-    --ring: 142 76% 36%;
-    --chart-1: 142 76% 36%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* WE Brand Colors - Professional & Modern */
+    --background: 0 0% 100%;
+    --foreground: 221 39% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    
+    /* WE Primary - Deep Blue */
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 221 100% 70%;
+    
+    /* Secondary & Accents */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 221 39% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 15% 95%;
+    --accent-foreground: 221 39% 11%;
+    
+    /* Status Colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 98%;
+    
+    /* Interface */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221 83% 53%;
     --radius: 0.75rem;
-
-    /* Custom gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(142 76% 42%));
-    --gradient-background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 197, 94, 0.1), transparent);
-    --gradient-card: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+    
+    /* Glass & Effects */
+    --glass-bg: 0 0% 100% / 0.05;
+    --glass-border: 0 0% 100% / 0.1;
+    --backdrop-blur: blur(12px);
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted)));
     
     /* Shadows */
-    --shadow-elegant: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
-    --shadow-glow: 0 0 40px rgba(34, 197, 94, 0.15);
+    --shadow-elegant: 0 10px 30px -10px hsl(var(--primary) / 0.3);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.4);
+    --shadow-soft: 0 2px 10px -2px hsl(221 39% 11% / 0.1);
+    
+    /* Charts */
+    --chart-1: 221 83% 53%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 271 81% 56%;
+    --chart-5: 0 84% 60%;
+    
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 221 39% 11%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 220 15% 95%;
+    --sidebar-accent-foreground: 221 39% 11%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 221 83% 53%;
+  }
 
-    --sidebar-background: 222 84% 4.9%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 142 76% 36%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 217 32% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 32% 17%;
-    --sidebar-ring: 142 76% 36%;
+  .dark {
+    /* Dark Theme - Sophisticated */
+    --background: 221 39% 11%;
+    --foreground: 0 0% 95%;
+    --card: 224 36% 14%;
+    --card-foreground: 0 0% 95%;
+    --popover: 224 36% 14%;
+    --popover-foreground: 0 0% 95%;
+    
+    /* Primary stays vibrant in dark */
+    --primary: 221 83% 65%;
+    --primary-foreground: 221 39% 11%;
+    --primary-glow: 221 100% 80%;
+    
+    /* Dark Secondaries */
+    --secondary: 224 36% 18%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 224 36% 16%;
+    --muted-foreground: 220 9% 65%;
+    --accent: 224 36% 20%;
+    --accent-foreground: 0 0% 95%;
+    
+    /* Dark Status */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 76% 45%;
+    --warning: 38 92% 60%;
+    
+    /* Dark Interface */
+    --border: 224 36% 22%;
+    --input: 224 36% 18%;
+    --ring: 221 83% 65%;
+    
+    /* Dark Glass Effects */
+    --glass-bg: 0 0% 100% / 0.02;
+    --glass-border: 0 0% 100% / 0.05;
+    
+    /* Dark Shadows */
+    --shadow-elegant: 0 10px 30px -10px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.3);
+    --shadow-soft: 0 2px 10px -2px hsl(0 0% 0% / 0.3);
+    
+    /* Dark Sidebar */
+    --sidebar-background: 221 39% 11%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 221 83% 65%;
+    --sidebar-primary-foreground: 221 39% 11%;
+    --sidebar-accent: 224 36% 20%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 224 36% 22%;
+    --sidebar-ring: 221 83% 65%;
   }
 }
 
@@ -65,27 +139,76 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    letter-spacing: -0.011em;
-    background-image: var(--gradient-background);
-    background-attachment: fixed;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
 @layer components {
-  .card-gradient {
-    background: var(--gradient-card);
-    backdrop-filter: blur(16px);
+  /* Glass Card Effect */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-md border border-border/50;
+    box-shadow: var(--shadow-soft);
   }
   
-  .shadow-elegant {
-    box-shadow: var(--shadow-elegant);
+  .glass-effect {
+    @apply bg-background/5 backdrop-blur-md border border-white/10;
   }
   
-  .shadow-glow {
+  /* Modern Button Variants */
+  .btn-gradient {
+    background: var(--gradient-primary);
+    @apply text-primary-foreground border-0 shadow-lg hover:shadow-xl transition-all duration-300;
+  }
+  
+  .btn-gradient:hover {
     box-shadow: var(--shadow-glow);
+    transform: translateY(-1px);
   }
   
+  /* Status Badges */
+  .badge-success {
+    @apply bg-success/10 text-success border-success/20;
+  }
+  
+  .badge-warning {
+    @apply bg-warning/10 text-warning border-warning/20;
+  }
+  
+  .badge-error {
+    @apply bg-destructive/10 text-destructive border-destructive/20;
+  }
+  
+  /* Interactive Elements */
+  .interactive-hover {
+    @apply transition-all duration-200 hover:scale-[1.02] hover:shadow-md;
+  }
+  
+  .hover-lift {
+    @apply transition-transform duration-200 hover:-translate-y-0.5;
+  }
+  
+  /* WE Brand Specific */
+  .we-gradient {
+    background: var(--gradient-primary);
+  }
+  
+  .we-text-primary {
+    @apply text-primary font-semibold;
+  }
+  
+  /* Smooth Transitions */
+  .smooth-transition {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  /* Focus States */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2;
+  }
+}
+
+@layer utilities {
+  /* Text Utilities */
   .text-gradient {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -93,81 +216,31 @@
     background-clip: text;
   }
   
-  .hover-lift {
-    @apply transition-all duration-300 ease-out;
-  }
-  
-  .hover-lift:hover {
-    @apply -translate-y-2;
-    box-shadow: var(--shadow-glow);
-  }
-  
-  .glass-effect {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-}
-
-@layer utilities {
   .text-balance {
     text-wrap: balance;
   }
-}
-
-@layer base {
-  * {
-    @apply border-border;
+  
+  /* Layout Utilities */
+  .safe-area {
+    @apply px-4 sm:px-6 lg:px-8;
   }
   
-  html {
-    scroll-behavior: smooth;
+  /* Animation Utilities */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
   }
   
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    letter-spacing: -0.011em;
-  }
-}
-
-@layer components {
-  .card-gradient {
-    background: var(--gradient-card);
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
   }
   
-  .shadow-elegant {
-    box-shadow: var(--shadow-lg);
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
   }
   
-  .shadow-glow {
-    box-shadow: var(--shadow-glow);
-  }
-  
-  .text-gradient {
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  .hover-lift {
-    @apply transition-all duration-300 ease-out;
-  }
-  
-  .hover-lift:hover {
-    @apply -translate-y-2;
-    box-shadow: var(--shadow-xl);
-  }
-  
-  .glass-effect {
-    @apply backdrop-blur-lg bg-background/80 border border-border/50;
-  }
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  @keyframes glow {
+    from { box-shadow: var(--shadow-soft); }
+    to { box-shadow: var(--shadow-glow); }
   }
 }
