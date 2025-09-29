@@ -1,30 +1,36 @@
-import React, { memo } from 'react'
-import { Input } from '@/components/ui/input'
+import React, { memo, useCallback } from 'react'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 
-interface FormInputProps {
+interface FormTextareaProps {
   id: string
   label: string
   value: string
   onChange: (value: string) => void
-  type?: string
   placeholder?: string
   required?: boolean
+  rows?: number
+  onBlur?: () => void
 }
 
-export const FormInput = memo(function FormInput({ 
+export const FormTextarea = memo(function FormTextarea({ 
   id, 
   label, 
   value, 
   onChange, 
-  type = 'text', 
   placeholder = '',
-  required = false 
-}: FormInputProps) {
-  const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  required = false,
+  rows = 3,
+  onBlur
+}: FormTextareaProps) {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     e.persist() // Ensure event doesn't get pooled
     onChange(e.target.value)
   }, [onChange])
+
+  const handleBlur = useCallback(() => {
+    onBlur?.()
+  }, [onBlur])
 
   return (
     <div className="space-y-2">
@@ -32,15 +38,14 @@ export const FormInput = memo(function FormInput({
         {label}
         {required && <span className="text-destructive ml-1">*</span>}
       </Label>
-      <Input
+      <Textarea
         id={id}
-        type={type}
         value={value}
         onChange={handleChange}
-        className="dark-input focus-ring"
+        onBlur={handleBlur}
+        className="dark-input focus-ring resize-none"
         placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
+        rows={rows}
       />
     </div>
   )

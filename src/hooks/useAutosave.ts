@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 
-export function useAutosave<T>(deps: T[], fn: () => void, delay = 1200) {
+export function useAutosave<T>(deps: T[], fn: () => Promise<void> | void, delay = 1200) {
   const timeoutRef = useRef<number>();
   const lastSavedRef = useRef<string>();
   const fnRef = useRef(fn);
@@ -11,7 +11,7 @@ export function useAutosave<T>(deps: T[], fn: () => void, delay = 1200) {
     fnRef.current = fn;
   }, [fn]);
   
-  const debouncedSave = useCallback(() => {
+  const debouncedSave = useCallback(async () => {
     // Skip autosave on initial mount
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -22,11 +22,17 @@ export function useAutosave<T>(deps: T[], fn: () => void, delay = 1200) {
     
     // Only save if the state has actually changed and has meaningful data
     if (lastSavedRef.current !== currentState && deps && deps.length > 0) {
-      const hasData = deps.some(dep => dep && typeof dep === 'object' && Object.keys(dep).length > 0);
+      const hasData = deps.some(dep => {
+        if (dep && typeof dep === 'object') {
+          return Object.keys(dep).length > 0;
+        }
+        return Boolean(dep);
+      });
+      
       if (hasData) {
         lastSavedRef.current = currentState;
         try {
-          fnRef.current();
+          await fnRef.current();
         } catch (error) {
           console.warn('Autosave failed:', error);
         }

@@ -40,7 +40,7 @@ export const FormSelect = memo(function FormSelect({
         <SelectTrigger className="dark-input focus-ring">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="dark-form-bg border-border/30 z-50 bg-background">
+        <SelectContent className="dark-form-bg border-border/30 z-50 bg-background/95 backdrop-blur-sm">
           {options.map((option) => (
             <SelectItem 
               key={option.value} 

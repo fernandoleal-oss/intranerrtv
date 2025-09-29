@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAutosaveWithStatus } from '@/hooks/useAutosaveWithStatus'
+import { AutosaveIndicator } from '@/components/AutosaveIndicator'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 
 const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Cotações', 'Revisão', 'Exportar']
@@ -64,7 +65,7 @@ export default function NovoFilme() {
   })
 
   // Auto-save with status indicator
-  const { status: saveStatus, lastSaved } = useAutosaveWithStatus([data], async () => {
+  const { status: saveStatus } = useAutosaveWithStatus([data], async () => {
     if (budgetId && Object.keys(data).length > 0) {
       await supabase.from('versions').update({ 
         payload: data as any 
@@ -419,7 +420,9 @@ export default function NovoFilme() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <AutoSaveIndicator status={saveStatus} lastSaved={lastSaved} />
+      <div className="fixed top-4 right-4 z-50">
+        <AutosaveIndicator status={saveStatus} />
+      </div>
       <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">

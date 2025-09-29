@@ -84,9 +84,64 @@ export default function PdfView() {
             <div className="font-semibold">ID: {data.budgets?.display_id || id}</div>
             <div>Tipo: {data.budgets?.type?.toUpperCase()}</div>
             <div>Versão: v{data.versao}</div>
-            <div className="text-white/70">Data: {new Date().toLocaleDateString('pt-BR')}</div>
+            <div className="text-white/70">Data: {payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</div>
           </div>
         </header>
+
+        {/* Sumário inicial do orçamento */}
+        <section className="mb-8 p-6 bg-slate-50 rounded-lg border">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Identificação do Orçamento</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div>
+                <span className="text-sm font-medium text-slate-600">Cliente:</span>
+                <div className="text-slate-900">{payload.cliente || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Produto:</span>
+                <div className="text-slate-900">{payload.produto || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Job:</span>
+                <div className="text-slate-900">{payload.job || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Mídias:</span>
+                <div className="text-slate-900">{payload.midias || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Território:</span>
+                <div className="text-slate-900">{payload.territorio || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Período:</span>
+                <div className="text-slate-900">{payload.periodo || '—'}</div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <span className="text-sm font-medium text-slate-600">Entregáveis:</span>
+                <div className="text-slate-900">{payload.entregaveis || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Adaptações de formatos:</span>
+                <div className="text-slate-900">{payload.adaptacoes || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Data do orçamento:</span>
+                <div className="text-slate-900">{payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Exclusividade de elenco:</span>
+                <div className="text-slate-900">{payload.exclusividade_elenco || '—'}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-600">Áudio:</span>
+                <div className="text-slate-900">{payload.audio || payload.tipo_audio || '—'}</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className="mb-6">
           <h1 className="text-2xl font-semibold mb-2">Orçamento de Produção</h1>

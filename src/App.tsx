@@ -12,7 +12,7 @@ import NovoCC from '@/pages/new/CC'
 import NovaImagem from '@/pages/new/Imagem'
 import PdfView from '@/pages/budget/Pdf'
 import BudgetList from '@/pages/BudgetList'
-import BudgetEdit from '@/pages/BudgetEdit'
+import BudgetEdit from '@/pages/budget/Edit'
 
 const queryClient = new QueryClient()
 

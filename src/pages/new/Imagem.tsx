@@ -133,23 +133,23 @@ export default function NovaImagem() {
                 <Label htmlFor="produtor" className="dark-label">Nome do Produtor</Label>
                 <Input
                   id="produtor"
-                  key="imagem-produtor-input"
                   value={data.produtor || ''}
                   onChange={(e) => updateData({ produtor: e.target.value })}
-                  className="dark-input"
+                  className="dark-input focus-ring"
                   placeholder="Nome completo do produtor"
+                  autoComplete="off"
                 />
               </div>
               <div>
                 <Label htmlFor="email" className="dark-label">E-mail</Label>
                 <Input
                   id="email"
-                  key="imagem-email-input"
                   type="email"
                   value={data.email || ''}
                   onChange={(e) => updateData({ email: e.target.value })}
-                  className="dark-input"
+                  className="dark-input focus-ring"
                   placeholder="email@exemplo.com"
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -238,46 +238,46 @@ export default function NovaImagem() {
                        <div>
                           <Label className="dark-label">ID da Imagem</Label>
                            <Input
-                             key={`imagem-id-${index}`}
-                             value={item.image_id}
-                             onChange={(e) => updateItem(index, { image_id: e.target.value })}
-                             className="dark-input"
-                             placeholder="Ex: 123456789"
-                           />
-                       </div>
+                              value={item.image_id}
+                              onChange={(e) => updateItem(index, { image_id: e.target.value })}
+                              className="dark-input focus-ring"
+                              placeholder="Ex: 123456789"
+                              autoComplete="off"
+                            />
+                        </div>
+                        <div>
+                           <Label className="dark-label">Resumo/Descrição</Label>
+                            <Input
+                              value={item.resumo}
+                              onChange={(e) => updateItem(index, { resumo: e.target.value })}
+                              className="dark-input focus-ring"
+                              placeholder="Descreva a imagem"
+                              autoComplete="off"
+                            />
+                        </div>
+                        <div>
+                           <Label className="dark-label">Uso (mídias/território/período)</Label>
+                            <Input
+                              value={item.uso}
+                              onChange={(e) => updateItem(index, { uso: e.target.value })}
+                              className="dark-input focus-ring"
+                              placeholder="Ex.: TV Nacional 12 meses"
+                              autoComplete="off"
+                            />
+                        </div>
                        <div>
-                          <Label className="dark-label">Resumo/Descrição</Label>
-                           <Input
-                             key={`imagem-resumo-${index}`}
-                             value={item.resumo}
-                             onChange={(e) => updateItem(index, { resumo: e.target.value })}
-                             className="dark-input"
-                             placeholder="Descreva a imagem"
-                           />
-                       </div>
-                       <div>
-                          <Label className="dark-label">Uso (mídias/território/período)</Label>
-                           <Input
-                             key={`imagem-uso-${index}`}
-                             value={item.uso}
-                             onChange={(e) => updateItem(index, { uso: e.target.value })}
-                             className="dark-input"
-                             placeholder="Ex.: TV Nacional 12 meses"
-                           />
-                       </div>
-                      <div>
-                         <Label className="dark-label">Valor (R$)</Label>
-                         <div className="flex gap-2">
-                             <Input
-                               key={`imagem-valor-${index}`}
-                               type="number"
-                               min="0"
-                               step="0.01"
-                               value={item.valor}
-                               onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
-                               className="dark-input flex-1"
-                               placeholder="0,00"
-                             />
+                          <Label className="dark-label">Valor (R$)</Label>
+                          <div className="flex gap-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.valor}
+                                onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
+                                className="dark-input focus-ring flex-1"
+                                placeholder="0,00"
+                                autoComplete="off"
+                              />
                           <Button
                             onClick={() => removeItem(index)}
                             variant="ghost"
