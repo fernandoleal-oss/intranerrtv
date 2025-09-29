@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
 import { PreviewSidebar } from '@/components/PreviewSidebar'
+import { FormInput } from '@/components/FormInput'
+import { FormSelect } from '@/components/FormSelect'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -174,32 +176,41 @@ export default function NovoFilme() {
 
       case 2:
         return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="cliente" className="dark-label">Cliente</Label>
-                <Input
-                  id="cliente"
-                  key="filme-cliente-input"
-                  value={data.cliente || ''}
-                  onChange={(e) => updateData({ cliente: e.target.value })}
-                  className="dark-input"
-                  placeholder="Nome do cliente"
-                />
-              </div>
-              <div>
-                <Label htmlFor="produto" className="dark-label">Produto</Label>
-                <Input
-                  id="produto"
-                  key="filme-produto-input"
-                  value={data.produto || ''}
-                  onChange={(e) => updateData({ produto: e.target.value })}
-                  className="dark-input"
-                  placeholder="Nome do produto"
-                />
-              </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="space-y-8"
+          >
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold text-foreground">Cliente & Produto</h2>
+              <p className="text-muted-foreground">Identifique o cliente e produto para este orçamento</p>
             </div>
-            <Button onClick={() => setStep(3)} size="lg" className="w-full">
+            
+            <div className="space-y-6">
+              <FormInput
+                id="cliente"
+                label="Nome do Cliente"
+                value={data.cliente || ''}
+                onChange={(value) => updateData({ cliente: value })}
+                placeholder="Razão social ou nome fantasia"
+                required
+              />
+              
+              <FormInput
+                id="produto"
+                label="Produto/Serviço"
+                value={data.produto || ''}
+                onChange={(value) => updateData({ produto: value })}
+                placeholder="Nome do produto ou serviço"
+                required
+              />
+            </div>
+            
+            <Button 
+              onClick={() => setStep(3)} 
+              size="lg" 
+              className="w-full btn-gradient text-lg py-6"
+            >
               Salvar e Continuar
             </Button>
           </motion.div>
