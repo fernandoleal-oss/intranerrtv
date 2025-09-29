@@ -257,33 +257,36 @@ export default function NovoFilme() {
               {data.quotes_film?.map((quote, index) => (
                 <div key={index} className="p-4 border rounded-lg space-y-3">
                   <div className="grid md:grid-cols-3 gap-3">
-                    <div>
-                      <Label>Produtora</Label>
-                      <Input
-                        value={quote.produtora}
-                        onChange={(e) => updateFilmeQuote(index, { produtora: e.target.value })}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label>Escopo</Label>
-                      <Input
-                        value={quote.escopo}
-                        onChange={(e) => updateFilmeQuote(index, { escopo: e.target.value })}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label>Valor (R$)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={quote.valor}
-                        onChange={(e) => updateFilmeQuote(index, { valor: Number(e.target.value) })}
-                        className="mt-1"
-                      />
-                    </div>
+                     <div>
+                       <Label>Produtora</Label>
+                       <Input
+                         value={quote.produtora}
+                         onChange={(e) => updateFilmeQuote(index, { produtora: e.target.value })}
+                         className="mt-1"
+                         key={`produtora-${index}`}
+                       />
+                     </div>
+                     <div>
+                       <Label>Escopo</Label>
+                       <Input
+                         value={quote.escopo}
+                         onChange={(e) => updateFilmeQuote(index, { escopo: e.target.value })}
+                         className="mt-1"
+                         key={`escopo-${index}`}
+                       />
+                     </div>
+                     <div>
+                       <Label>Valor (R$)</Label>
+                       <Input
+                         type="number"
+                         min="0"
+                         step="0.01"
+                         value={quote.valor}
+                         onChange={(e) => updateFilmeQuote(index, { valor: Number(e.target.value) })}
+                         className="mt-1"
+                         key={`valor-${index}`}
+                       />
+                     </div>
                   </div>
                   <div className="flex justify-end">
                     <Button

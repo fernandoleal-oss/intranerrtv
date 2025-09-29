@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "../../integrations/supabase/client";
+import logoWE from "@/assets/Logo_WE.png";
 
 export default function PdfView() {
   const { id } = useParams();
@@ -29,12 +30,23 @@ export default function PdfView() {
   return (
     <div className="bg-white text-zinc-900 min-h-screen py-8 print:py-0">
       <div className="max-w-3xl mx-auto px-6 print:px-0">
-        <header className="flex items-center justify-between mb-6">
-          <div className="h-10 w-20 bg-zinc-200 rounded flex items-center justify-center text-xs">WE</div>
-          <div className="text-right">
-            <div className="text-sm">ID: {data.budgets?.display_id || id}</div>
-            <div className="text-sm">Tipo: {data.budgets?.tipo?.toUpperCase()}</div>
-            <div className="text-sm">Versão: v{data.versao}</div>
+        <header className="flex items-center justify-between mb-8 print:mb-6">
+          <div className="flex items-center gap-6">
+            <div className="bg-black p-3 rounded-lg">
+              <img src={logoWE} alt="WE Logo" className="h-12 w-auto" />
+            </div>
+            <div className="text-sm text-zinc-700">
+              <div className="font-semibold">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
+              <div>CNPJ: 05.265.118/0001-65</div>
+              <div>R. Chilon, 381 - Vila Olímpia</div>
+              <div>São Paulo - SP, 04552-030</div>
+            </div>
+          </div>
+          <div className="text-right text-sm">
+            <div className="font-semibold">ID: {data.budgets?.display_id || id}</div>
+            <div>Tipo: {data.budgets?.tipo?.toUpperCase()}</div>
+            <div>Versão: v{data.versao}</div>
+            <div className="text-zinc-500">Data: {new Date().toLocaleDateString('pt-BR')}</div>
           </div>
         </header>
 

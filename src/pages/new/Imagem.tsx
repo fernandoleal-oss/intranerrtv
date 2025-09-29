@@ -228,42 +228,46 @@ export default function NovaImagem() {
                       />
                     )}
                     <div className="flex-1 grid md:grid-cols-2 gap-3">
-                      <div>
-                        <Label>ID da Imagem</Label>
-                        <Input
-                          value={item.image_id}
-                          onChange={(e) => updateItem(index, { image_id: e.target.value })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label>Resumo/Descrição</Label>
-                        <Input
-                          value={item.resumo}
-                          onChange={(e) => updateItem(index, { resumo: e.target.value })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label>Uso (mídias/território/período)</Label>
-                        <Input
-                          value={item.uso}
-                          onChange={(e) => updateItem(index, { uso: e.target.value })}
-                          className="mt-1"
-                          placeholder="Ex.: TV Nacional 12 meses"
-                        />
-                      </div>
+                       <div>
+                         <Label>ID da Imagem</Label>
+                         <Input
+                           value={item.image_id}
+                           onChange={(e) => updateItem(index, { image_id: e.target.value })}
+                           className="mt-1"
+                           key={`image_id-${index}`}
+                         />
+                       </div>
+                       <div>
+                         <Label>Resumo/Descrição</Label>
+                         <Input
+                           value={item.resumo}
+                           onChange={(e) => updateItem(index, { resumo: e.target.value })}
+                           className="mt-1"
+                           key={`resumo-${index}`}
+                         />
+                       </div>
+                       <div>
+                         <Label>Uso (mídias/território/período)</Label>
+                         <Input
+                           value={item.uso}
+                           onChange={(e) => updateItem(index, { uso: e.target.value })}
+                           className="mt-1"
+                           placeholder="Ex.: TV Nacional 12 meses"
+                           key={`uso-${index}`}
+                         />
+                       </div>
                       <div>
                         <Label>Valor (R$)</Label>
                         <div className="flex gap-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.valor}
-                            onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
-                            className="mt-1 flex-1"
-                          />
+                           <Input
+                             type="number"
+                             min="0"
+                             step="0.01"
+                             value={item.valor}
+                             onChange={(e) => updateItem(index, { valor: Number(e.target.value) })}
+                             className="mt-1 flex-1"
+                             key={`valor-${index}`}
+                           />
                           <Button
                             onClick={() => removeItem(index)}
                             variant="ghost"

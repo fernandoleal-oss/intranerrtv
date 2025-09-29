@@ -245,44 +245,48 @@ export default function NovoAudio() {
               {data.quotes_audio.map((quote, index) => (
                 <div key={index} className="p-4 border border-white/20 rounded-lg bg-white/5 space-y-3">
                   <div className="grid md:grid-cols-2 gap-3">
-                    <div>
-                      <Label>Produtora</Label>
-                      <Input
-                        value={quote.produtora}
-                        onChange={(e) => updateAudioQuote(index, { produtora: e.target.value })}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label>Valor (R$)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={quote.valor}
-                        onChange={(e) => updateAudioQuote(index, { valor: Number(e.target.value) })}
-                        className="mt-1"
-                      />
-                    </div>
+                     <div>
+                       <Label>Produtora</Label>
+                       <Input
+                         value={quote.produtora}
+                         onChange={(e) => updateAudioQuote(index, { produtora: e.target.value })}
+                         className="mt-1"
+                         key={`produtora-${index}`}
+                       />
+                     </div>
+                     <div>
+                       <Label>Valor (R$)</Label>
+                       <Input
+                         type="number"
+                         min="0"
+                         step="0.01"
+                         value={quote.valor}
+                         onChange={(e) => updateAudioQuote(index, { valor: Number(e.target.value) })}
+                         className="mt-1"
+                         key={`valor-${index}`}
+                       />
+                     </div>
                   </div>
-                  <div>
-                    <Label>Descritivo do Serviço</Label>
-                    <Input
-                      value={quote.descritivo}
-                      onChange={(e) => updateAudioQuote(index, { descritivo: e.target.value })}
-                      className="mt-1"
-                      placeholder="Ex.: Locução masculina, trilha sonora original..."
-                    />
-                  </div>
-                  <div>
-                    <Label>Opções/Observações</Label>
-                    <Input
-                      value={quote.opcoes}
-                      onChange={(e) => updateAudioQuote(index, { opcoes: e.target.value })}
-                      className="mt-1"
-                      placeholder="Ex.: 3 opções de locutores, revisões incluídas..."
-                    />
-                  </div>
+                   <div>
+                     <Label>Descritivo do Serviço</Label>
+                     <Input
+                       value={quote.descritivo}
+                       onChange={(e) => updateAudioQuote(index, { descritivo: e.target.value })}
+                       className="mt-1"
+                       placeholder="Ex.: Locução masculina, trilha sonora original..."
+                       key={`descritivo-${index}`}
+                     />
+                   </div>
+                   <div>
+                     <Label>Opções/Observações</Label>
+                     <Input
+                       value={quote.opcoes}
+                       onChange={(e) => updateAudioQuote(index, { opcoes: e.target.value })}
+                       className="mt-1"
+                       placeholder="Ex.: 3 opções de locutores, revisões incluídas..."
+                       key={`opcoes-${index}`}
+                     />
+                   </div>
                   <div className="flex justify-end">
                     <Button
                       onClick={() => removeAudioQuote(index)}
