@@ -387,6 +387,10 @@ export type Database = {
           | { p_tipo: string }
         Returns: Json
       }
+      create_simple_budget: {
+        Args: { p_type: Database["public"]["Enums"]["budget_type"] }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["user_role"]

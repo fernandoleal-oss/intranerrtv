@@ -59,7 +59,7 @@ export default function NovoCC() {
 
   const handleCreateBudget = async () => {
     try {
-      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_type: 'cc' }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
+      const { data: budget, error } = await supabase.rpc('create_simple_budget', { p_type: 'cc' }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
       // Budget created successfully
       
       if (error) throw error

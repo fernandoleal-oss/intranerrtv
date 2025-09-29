@@ -62,7 +62,7 @@ export default function NovaImagem() {
 
   const handleCreateBudget = async () => {
     try {
-      const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_type: 'imagem' }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
+      const { data: budget, error } = await supabase.rpc('create_simple_budget', { p_type: 'imagem' }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
       if (error) throw error
       setBudgetId(budget.id)
       setStep(2)
