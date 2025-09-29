@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card"
@@ -18,47 +18,74 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 
-/* ============================================================
-   MOCK DATA (mesmos seus dados). Cada item representa UM MÊS.
-   Índices 0..5 => Jan..Jun. Se depois vier Jul..Dez, agregação já funciona.
-============================================================ */
-const monthlyData = [
-  { month: "Jan", fornecedor: 145000, honorario: 21750, total: 166750 },
-  { month: "Fev", fornecedor: 178000, honorario: 26700, total: 204700 },
-  { month: "Mar", fornecedor: 162000, honorario: 24300, total: 186300 },
-  { month: "Abr", fornecedor: 198000, honorario: 29700, total: 227700 },
-  { month: "Mai", fornecedor: 185000, honorario: 27750, total: 212750 },
-  { month: "Jun", fornecedor: 205000, honorario: 30750, total: 235750 },
+/* =============================================================================
+   DADOS DE AGOSTO (conforme planilha)
+   - Total geral: 262.074,26
+   - Honorários (agência): 64.335,00
+   - Valor fornecedor (repasse): 197.739,26  (= Total - Honorários)
+   - Eventos: 15
+   - Clientes ativos: 3 (BYD, Bridgstones, Shopee)
+   - Totais por cliente (R$):
+       BYD .......... 164.734,26
+       Bridgstones .. 92.840,00
+       Shopee ....... 4.500,00
+   Substitua/expanda quando tiver novos meses.
+============================================================================= */
+type MonthPoint = {
+  key: string          // "2025-08"
+  label: string        // "Ago/2025"
+  fornecedor: number
+  honorario: number
+  total: number
+  eventos: number
+  clientesAtivos: number
+}
+
+// Agosto/2025 (pode adicionar mais meses aqui)
+const monthlyRaw: MonthPoint[] = [
+  {
+    key: "2025-08",
+    label: "Ago/2025",
+    fornecedor: 197_739.26,
+    honorario: 64_335.0,
+    total: 262_074.26,
+    eventos: 15,
+    clientesAtivos: 3,
+  },
 ]
 
-const clientData = [
-  { cliente: "Ambev", total: 380000, honorario: 57000, eventos: 12 },
-  { cliente: "Coca-Cola", total: 295000, honorario: 44250, eventos: 8 },
-  { cliente: "Nestlé", total: 215000, honorario: 32250, eventos: 6 },
-  { cliente: "Unilever", total: 178000, honorario: 26700, eventos: 5 },
-  { cliente: "P&G", total: 142000, honorario: 21300, eventos: 4 },
+// Totais por cliente no mês de agosto (Top clientes)
+const clientsAugust = [
+  { cliente: "BYD", total: 164_734.26, honorario: 51_395.0, eventos: 9 }, // eventos simulados
+  { cliente: "Bridgstones", total: 92_840.0, honorario: 8_440.0, eventos: 5 },
+  { cliente: "Shopee", total: 4_500.0, honorario: 4_500.0, eventos: 1 },
 ]
 
-const supplierData = [
-  { fornecedor: "Produtora Alpha", total: 285000, eventos: 8 },
-  { fornecedor: "Estúdio Beta", total: 245000, eventos: 6 },
-  { fornecedor: "Locação Gamma", total: 198000, eventos: 12 },
-  { fornecedor: "Áudio Delta", total: 165000, eventos: 7 },
-  { fornecedor: "Pós Epsilon", total: 142000, eventos: 5 },
-]
+// Para o “pizza”, aproveitamos a distribuição por cliente
+const pieFromClients = clientsAugust.map((c, i) => ({
+  name: c.cliente,
+  value: c.total,
+  color:
+    [
+      "hsl(var(--primary))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+    ][i % 5],
+}))
 
-const pieData = [
-  { name: "Produção", value: 45, color: "hsl(var(--primary))" },
-  { name: "Pós-produção", value: 25, color: "hsl(var(--chart-2))" },
-  { name: "Locação", value: 20, color: "hsl(var(--chart-3))" },
-  { name: "Outros", value: 10, color: "hsl(var(--chart-4))" },
-]
-
-/* ============================================================
+/* =============================================================================
    HELPERS
-============================================================ */
+============================================================================= */
 type Granularity = "monthly" | "quarterly" | "semiannual" | "annual"
-type PeriodPoint = { label: string; fornecedor: number; honorario: number; total: number; startIdx: number; endIdx: number }
+type PeriodPoint = {
+  label: string
+  keySpan: string[]      // chaves dos meses cobertos (p/ buscar eventos/clientes)
+  fornecedor: number
+  honorario: number
+  total: number
+}
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0)
@@ -68,53 +95,97 @@ const pctDelta = (curr?: number, prev?: number) => {
   return ((curr - prev) / prev) * 100
 }
 
-/** Divide o ano em grupos conforme granularidade e soma os meses disponíveis. */
-function aggregateByGranularity(data: typeof monthlyData, granularity: Granularity): PeriodPoint[] {
-  if (!data?.length) return []
-
-  const lastIndex = data.length - 1
-  const pushSum = (label: string, startIdx: number, endIdx: number, list: PeriodPoint[]) => {
-    const slice = data.slice(startIdx, Math.min(endIdx, lastIndex) + 1)
-    if (!slice.length) return
-    const fornecedor = slice.reduce((a, b) => a + (b.fornecedor || 0), 0)
-    const honorario = slice.reduce((a, b) => a + (b.honorario || 0), 0)
-    const total = slice.reduce((a, b) => a + (b.total || 0), 0)
-    list.push({ label, fornecedor, honorario, total, startIdx, endIdx: Math.min(endIdx, lastIndex) })
-  }
-
-  const result: PeriodPoint[] = []
-
-  if (granularity === "monthly") {
-    data.forEach((m, i) =>
-      result.push({ label: m.month, fornecedor: m.fornecedor, honorario: m.honorario, total: m.total, startIdx: i, endIdx: i })
-    )
-    return result
-  }
-
-  if (granularity === "quarterly") {
-    // T1: 0-2, T2: 3-5, T3: 6-8, T4: 9-11  (usamos apenas o que existir)
-    pushSum("T1", 0, 2, result)
-    pushSum("T2", 3, 5, result)
-    pushSum("T3", 6, 8, result)
-    pushSum("T4", 9, 11, result)
-    return result
-  }
-
-  if (granularity === "semiannual") {
-    // S1: 0-5, S2: 6-11
-    pushSum("S1", 0, 5, result)
-    pushSum("S2", 6, 11, result)
-    return result
-  }
-
-  // annual
-  pushSum("Anual", 0, 11, result)
-  return result
+const monthIdx = (key: string) => {
+  // key: "YYYY-MM"
+  const m = Number(key.slice(5, 7))
+  return m - 1 // 0..11
 }
 
-/* ============================================================
-   KPI Card (reutilizável)
-============================================================ */
+const monthShort = (i: number) =>
+  ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][i]
+
+/** Agrega os meses conforme granularidade. Funciona mesmo com 1 mês apenas. */
+function aggregateByGranularity(data: MonthPoint[], granularity: Granularity): PeriodPoint[] {
+  if (!data?.length) return []
+
+  // agrupar por ano
+  const byYear: Record<string, MonthPoint[]> = {}
+  data.forEach((m) => {
+    const y = m.key.slice(0, 4)
+    byYear[y] = byYear[y] || []
+    byYear[y].push(m)
+  })
+  // ordena por mês dentro do ano
+  Object.values(byYear).forEach((arr) =>
+    arr.sort((a, b) => monthIdx(a.key) - monthIdx(b.key))
+  )
+
+  const res: PeriodPoint[] = []
+
+  Object.entries(byYear).forEach(([year, arr]) => {
+    const firstIdx = monthIdx(arr[0].key)
+    const lastIdx = monthIdx(arr[arr.length - 1].key)
+
+    const pushSlice = (label: string, keys: string[]) => {
+      const slice = arr.filter((m) => keys.includes(m.key))
+      if (!slice.length) return
+      res.push({
+        label,
+        keySpan: slice.map((s) => s.key),
+        fornecedor: slice.reduce((a, b) => a + b.fornecedor, 0),
+        honorario: slice.reduce((a, b) => a + b.honorario, 0),
+        total: slice.reduce((a, b) => a + b.total, 0),
+      })
+    }
+
+    if (granularity === "monthly") {
+      arr.forEach((m) =>
+        pushSlice(`${monthShort(monthIdx(m.key))}/${year}`, [m.key])
+      )
+      return
+    }
+
+    if (granularity === "quarterly") {
+      // T1 (Jan–Mar) ... T4 (Out–Dez)
+      const quarters = [
+        { label: `T1/${year} (Jan–Mar)`, months: [0, 1, 2] },
+        { label: `T2/${year} (Abr–Jun)`, months: [3, 4, 5] },
+        { label: `T3/${year} (Jul–Set)`, months: [6, 7, 8] },
+        { label: `T4/${year} (Out–Dez)`, months: [9, 10, 11] },
+      ]
+      quarters.forEach((q) =>
+        pushSlice(
+          q.label,
+          arr.filter((m) => q.months.includes(monthIdx(m.key))).map((m) => m.key)
+        )
+      )
+      return
+    }
+
+    if (granularity === "semiannual") {
+      const semis = [
+        { label: `S1/${year} (Jan–Jun)`, months: [0, 1, 2, 3, 4, 5] },
+        { label: `S2/${year} (Jul–Dez)`, months: [6, 7, 8, 9, 10, 11] },
+      ]
+      semis.forEach((s) =>
+        pushSlice(
+          s.label,
+          arr.filter((m) => s.months.includes(monthIdx(m.key))).map((m) => m.key)
+        )
+      )
+      return
+    }
+
+    // annual
+    pushSlice(`Ano ${year}`, arr.map((m) => m.key))
+  })
+
+  return res
+}
+
+/* =============================================================================
+   KPI CARD
+============================================================================= */
 function KpiCard({
   label, value, prevValue, icon, currency = true, highlight = false,
 }: {
@@ -137,7 +208,7 @@ function KpiCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-bold ${highlight ? "text-primary" : ""} leading-tight`}>
+        <div className={`text-2xl font-bold ${highlight ? "text-primary" : ""}`}>
           {typeof value === "number" && currency ? formatCurrency(value) : value}
         </div>
         {delta !== null ? (
@@ -157,30 +228,40 @@ function KpiCard({
   )
 }
 
-/* ============================================================
-   PAGE
-============================================================ */
+/* =============================================================================
+   PÁGINA
+============================================================================= */
 export default function Finance() {
-  const [year, setYear] = useState("2024")
+  const [year, setYear] = useState("2025")
   const [granularity, setGranularity] = useState<Granularity>("monthly")
-  const [periodIdx, setPeriodIdx] = useState(aggregateByGranularity(monthlyData, "monthly").length - 1)
+  const [periodIdx, setPeriodIdx] = useState(0)
   const [comparePrev, setComparePrev] = useState(true)
 
   // Série agregada conforme granularidade
-  const series = useMemo(() => aggregateByGranularity(monthlyData, granularity), [granularity])
-  const period = series[periodIdx] // atual
-  const prev = series[periodIdx - 1] // anterior (pode ser undefined)
+  const series = useMemo(
+    () => aggregateByGranularity(monthlyRaw, granularity),
+    [granularity]
+  )
 
-  // Garantir que o índice sempre é válido ao trocar granularidade
-  if (periodIdx > series.length - 1) setPeriodIdx(series.length - 1)
+  // Clamp seguro do índice quando a granularidade muda
+  useEffect(() => {
+    setPeriodIdx((i) => Math.min(Math.max(0, i), Math.max(0, series.length - 1)))
+  }, [series.length])
 
-  // KPIs do período selecionado (notar que eventos/cliente são mocks)
-  const eventosCount = clientData.reduce((a, b) => a + (b.eventos || 0), 0)
-  const clientesAtivos = clientData.length
+  const period = series[periodIdx]        // período atual
+  const prev = series[periodIdx - 1]      // período anterior (pode não existir)
+
+  // KPIs (eventos/clientes: somatório dos meses do span)
+  const spanMonths = monthlyRaw.filter((m) => period?.keySpan.includes(m.key))
+  const eventosCount = spanMonths.reduce((a, b) => a + (b.eventos || 0), 0)
+  const clientesAtivos = Math.max(
+    ...spanMonths.map((m) => m.clientesAtivos || 0),
+    0
+  )
   const ticketMedio = period ? (period.total || 0) / Math.max(1, eventosCount) : 0
   const margemPct = period?.total ? Math.round(((period.honorario || 0) / period.total) * 100) : 0
 
-  // Dataset comparativo para o gráfico de barras
+  // Dataset comparativo (gráfico de barras)
   const compareData = useMemo(
     () => [
       { metric: "Total", atual: period?.total || 0, anterior: prev?.total || 0 },
@@ -190,15 +271,13 @@ export default function Finance() {
     [period, prev]
   )
 
+  const periodLabels = series.map((s) => s.label)
   const goPrev = () => setPeriodIdx((i) => Math.max(0, i - 1))
   const goNext = () => setPeriodIdx((i) => Math.min(series.length - 1, i + 1))
 
-  // Labels de período para o select central
-  const periodLabels = series.map((s) => s.label)
-
   return (
     <div className="min-h-screen bg-background p-6 space-y-6">
-      {/* Barra de filtros */}
+      {/* Barra de filtros (sticky) */}
       <div className="sticky top-0 z-30 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3 mb-2">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -224,53 +303,41 @@ export default function Finance() {
                 <SelectValue placeholder="Ano" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="2025">2025</SelectItem>
                 <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2023">2023</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Navegação de período (adapta o label) */}
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" onClick={goPrev} disabled={periodIdx === 0} aria-label="Período anterior">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
               <Select value={period?.label} onValueChange={(v) => setPeriodIdx(Math.max(0, periodLabels.indexOf(v)))}>
-                <SelectTrigger className="w-28">
+                <SelectTrigger className="w-36">
                   <SelectValue placeholder="Período" />
                 </SelectTrigger>
                 <SelectContent>
                   {periodLabels.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goNext}
-                disabled={periodIdx === series.length - 1}
-                aria-label="Próximo período"
-              >
+              <Button variant="outline" size="icon" onClick={goNext} disabled={periodIdx === series.length - 1} aria-label="Próximo período">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
             <div className="flex items-center gap-2 pl-2">
               <Switch id="comparePrev" checked={comparePrev} onCheckedChange={setComparePrev} />
-              <label htmlFor="comparePrev" className="text-sm">
-                Comparar com período anterior
-              </label>
+              <label htmlFor="comparePrev" className="text-sm">Comparar com período anterior</label>
             </div>
 
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Exportar PDF
             </Button>
-
             <Button
               variant="outline"
               onClick={() => {
@@ -280,6 +347,8 @@ export default function Finance() {
                   ["Fornecedor", period?.fornecedor ?? 0],
                   ["Honorários", period?.honorario ?? 0],
                   ["Margem (%)", margemPct],
+                  ["Eventos", eventosCount],
+                  ["Clientes ativos", clientesAtivos],
                 ]
                 const csv = "data:text/csv;charset=utf-8," + rows.map((r) => r.join(";")).join("\n")
                 const a = document.createElement("a")
@@ -295,7 +364,7 @@ export default function Finance() {
         </div>
       </div>
 
-      {/* KPIs do período selecionado */}
+      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KpiCard
           label="Valor Fornecedor"
@@ -327,9 +396,7 @@ export default function Finance() {
                     {`${Math.abs(pctDelta(period?.honorario, prev.honorario)!).toFixed(1)}%`}
                   </span>
                 )
-              ) : (
-                <span>—</span>
-              )}
+              ) : <span>—</span>}
             </div>
           </CardContent>
         </Card>
@@ -351,7 +418,7 @@ export default function Finance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{eventosCount}</div>
-            <div className="text-xs text-muted-foreground mt-1">no período (mock)</div>
+            <div className="text-xs text-muted-foreground mt-1">no período</div>
           </CardContent>
         </Card>
 
@@ -364,7 +431,7 @@ export default function Finance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{clientesAtivos}</div>
-            <div className="text-xs text-muted-foreground mt-1">neste período (mock)</div>
+            <div className="text-xs text-muted-foreground mt-1">neste período</div>
           </CardContent>
         </Card>
 
@@ -375,11 +442,13 @@ export default function Finance() {
         />
       </div>
 
-      {/* Gráficos de tendência (sempre mostramos a série do ano conforme granularidade) */}
+      {/* Tendência (mostra todos os períodos disponíveis) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="glass-effect">
           <CardHeader>
-            <CardTitle>Evolução por {granularity === "monthly" ? "mês" : granularity === "quarterly" ? "trimestre" : granularity === "semiannual" ? "semestre" : "ano"}</CardTitle>
+            <CardTitle>
+              Evolução por {granularity === "monthly" ? "mês" : granularity === "quarterly" ? "trimestre" : granularity === "semiannual" ? "semestre" : "ano"}
+            </CardTitle>
             <CardDescription>Faturamento e honorários agregados</CardDescription>
           </CardHeader>
           <CardContent>
@@ -426,17 +495,17 @@ export default function Finance() {
         </Card>
       </div>
 
-      {/* Distribuição por categoria */}
+      {/* Distribuição por Cliente (pizza) */}
       <Card className="glass-effect">
         <CardHeader>
-          <CardTitle>Distribuição por Categoria</CardTitle>
-          <CardDescription>Gastos por tipo de serviço</CardDescription>
+          <CardTitle>Distribuição por Cliente</CardTitle>
+          <CardDescription>Participação no faturamento do período</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={pieData}
+                data={pieFromClients}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
@@ -444,7 +513,9 @@ export default function Finance() {
                 outerRadius={110}
                 dataKey="value"
               >
-                {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                {pieFromClients.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.color} />
+                ))}
               </Pie>
               <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
             </PieChart>
@@ -456,18 +527,18 @@ export default function Finance() {
       <Tabs defaultValue="clients" className="space-y-4">
         <TabsList>
           <TabsTrigger value="clients">Por Cliente</TabsTrigger>
-          <TabsTrigger value="suppliers">Por Fornecedor</TabsTrigger>
+          <TabsTrigger value="suppliers" disabled>Por Fornecedor (em breve)</TabsTrigger>
         </TabsList>
 
         <TabsContent value="clients">
           <Card className="glass-effect">
             <CardHeader>
-              <CardTitle>Top 5 Clientes</CardTitle>
-              <CardDescription>Maiores faturamentos do período</CardDescription>
+              <CardTitle>Clientes do período</CardTitle>
+              <CardDescription>Totais e honorários</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {clientData.map((item, idx) => (
+                {clientsAugust.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
@@ -481,38 +552,6 @@ export default function Finance() {
                     <div className="text-right">
                       <div className="font-bold">{formatCurrency(item.total)}</div>
                       <div className="text-sm text-muted-foreground">Hon: {formatCurrency(item.honorario)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="suppliers">
-          <Card className="glass-effect">
-            <CardHeader>
-              <CardTitle>Top 5 Fornecedores</CardTitle>
-              <CardDescription>Maiores valores pagos no período</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {supplierData.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold">{item.fornecedor}</div>
-                        <div className="text-sm text-muted-foreground">{item.eventos} eventos</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold">{formatCurrency(item.total)}</div>
-                      <div className="text-sm text-muted-foreground">
-                        Ticket: {formatCurrency(item.total / Math.max(1, item.eventos))}
-                      </div>
                     </div>
                   </div>
                 ))}
