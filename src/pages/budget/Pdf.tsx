@@ -138,7 +138,7 @@ export default function PdfView() {
           {payload.filme && (
             <section className="p-4 border border-border rounded-lg">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
-                🎬 Produção de Filme
+                Produção de Filme
               </h2>
               <div className="bg-muted/20 p-3 rounded">
                 <div className="grid md:grid-cols-2 gap-4 mb-3">
@@ -172,7 +172,7 @@ export default function PdfView() {
           {payload.audio && (
             <section className="p-4 border border-border rounded-lg">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
-                🎵 Produção de Áudio
+                Produção de Áudio
               </h2>
               <div className="bg-muted/20 p-3 rounded">
                 <div className="grid md:grid-cols-2 gap-4 mb-3">
@@ -200,7 +200,7 @@ export default function PdfView() {
           {payload.cc && (
             <section className="p-4 border border-border rounded-lg">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
-                📝 Closed Caption
+                Closed Caption
               </h2>
               <div className="bg-muted/20 p-3 rounded">
                 <div className="flex justify-between items-center">
@@ -220,7 +220,7 @@ export default function PdfView() {
           {payload.imagens && payload.imagens.items && payload.imagens.items.length > 0 && (
             <section className="p-4 border border-border rounded-lg">
               <h2 className="font-semibold mb-3 flex items-center gap-2">
-                🖼️ Compra de Imagens
+                Compra de Imagens
               </h2>
               <div className="bg-muted/20 p-3 rounded">
                 <div className="flex justify-between items-center">
@@ -261,11 +261,11 @@ export default function PdfView() {
         <section className="mt-8 p-4 bg-muted/10 rounded-lg border-l-4 border-primary">
           <h3 className="font-semibold mb-3">Termos e Condições</h3>
           <div className="text-sm space-y-2 text-muted-foreground leading-relaxed">
-            <p><strong>📅 Validade:</strong> 7 dias a partir da data deste orçamento.</p>
-            <p><strong>📋 Inclui:</strong> os itens e serviços listados neste documento.</p>
-            <p><strong>⏱️ Prazos:</strong> condicionados à aprovação do escopo com a produtora e à disponibilidade/agenda da produtora.</p>
-            <p><strong>📺 Usos:</strong> conforme mídias, território e período informados neste orçamento.</p>
-            <p><strong>⚠️ Importante:</strong> Alterações de escopo e/ou entregáveis geram nova versão deste orçamento.</p>
+            <p><strong>Validade:</strong> 7 dias a partir da data deste orçamento.</p>
+            <p><strong>Inclui:</strong> os itens e serviços listados neste documento.</p>
+            <p><strong>Prazos:</strong> condicionados à aprovação do escopo com a produtora e à disponibilidade/agenda da produtora.</p>
+            <p><strong>Usos:</strong> conforme mídias, território e período informados neste orçamento.</p>
+            <p><strong>Importante:</strong> Alterações de escopo e/ou entregáveis geram nova versão deste orçamento.</p>
           </div>
         </section>
 
