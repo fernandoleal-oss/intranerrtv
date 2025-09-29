@@ -123,7 +123,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { error: { message: 'Domínio não autorizado' } }
       }
 
-      const { error } = await supabase.auth.signUp({
+      console.log('Tentando criar usuário:', { email, name })
+
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -135,7 +137,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       })
 
+      console.log('Resposta do signUp:', { data, error })
+
       if (error) {
+        console.error('Erro detalhado do Supabase:', error)
         toast({
           title: 'Erro no cadastro',
           description: error.message,
@@ -144,12 +149,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { error }
       }
 
-      toast({
-        title: 'Cadastro realizado',
-        description: 'Verifique seu email para confirmar a conta'
-      })
+      if (data.user) {
+        toast({
+          title: 'Cadastro realizado',
+          description: 'Conta criada com sucesso!'
+        })
+      } else {
+        toast({
+          title: 'Cadastro realizado', 
+          description: 'Verifique seu email para confirmar a conta'
+        })
+      }
+      
       return { error: null }
     } catch (error) {
+      console.error('Erro inesperado no cadastro:', error)
       toast({
         title: 'Erro no cadastro',
         description: 'Falha ao criar conta',
