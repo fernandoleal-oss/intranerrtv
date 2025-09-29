@@ -60,7 +60,7 @@ export default function NovoCC() {
   const handleCreateBudget = async () => {
     try {
       const { data: budget, error } = await supabase.rpc('create_budget_with_version', { p_tipo: 'cc' })
-      updateData(data.produtor)
+      // Budget created successfully
       
       if (error) throw error
       setBudgetId(budget.id)
@@ -87,7 +87,7 @@ export default function NovoCC() {
                 <Input
                   id="produtor"
                   value={data.produtor || ''}
-                  
+                  onChange={(e) => updateData({ produtor: e.target.value })}
                   className="mt-1"
                 />
               </div>
