@@ -1,164 +1,637 @@
-<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    />
-    <title>WE Proposals — Sistema de Orçamentos</title>
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Input } from '@/components/ui/input'
+import { 
+  Film, 
+  Headphones, 
+  Image, 
+  Subtitles,
+  Plus,
+  Search,
+  Settings,
+  LogOut,
+  Filter,
+  Calendar,
+  Users,
+  DollarSign,
+  TrendingUp,
+  FileText,
+  Eye
+} from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
+import { supabase } from '@/integrations/supabase/client'
+import AnimatedCard from '@/components/AnimatedCard'
 
-    <!-- SEO/Brand -->
-    <meta name="application-name" content="WE Proposals" />
-    <meta
-      name="description"
-      content="Sistema interno da WE para criar, gerenciar e versionar orçamentos de produção (filme, áudio, CC e banco de imagem)."
-    />
-    <meta name="author" content="WE Agency" />
-    <meta name="robots" content="noindex, nofollow" />
+interface Campaign {
+  id: string
+  name: string
+  status: 'rascunho' | 'enviado_atendimento' | 'aprovado'
+  client_name: string
+  product_name: string
+  responsible_name: string
+  updated_at: string
+  budget_count: number
+  total_value: number
+}
 
-    <!-- Cor do navegador -->
-    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="format-detection" content="telephone=no" />
+interface DashboardStats {
+  total_campaigns: number
+  active_budgets: number
+  approved_value: number
+  pending_approval: number
+}
 
-    <!-- Open Graph / Twitter (sem Lovable) -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="WE Proposals" />
-    <meta property="og:title" content="WE Proposals — Sistema de Orçamentos" />
-    <meta
-      property="og:description"
-      content="Sistema interno da WE para criar, gerenciar e versionar orçamentos."
-    />
-    <meta property="og:url" content="https://sis-de-comp-hist-orc-we.lovable.app/" />
-    <meta property="og:image" content="/og/we-proposals.png" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="WE Proposals — Sistema de Orçamentos" />
-    <meta name="twitter:description" content="Sistema interno da WE para orçamentos." />
-    <meta name="twitter:image" content="/og/we-proposals.png" />
+export default function Home() {
+  const navigate = useNavigate()
+  const { profile, signOut } = useAuth()
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [recentBudgets, setRecentBudgets] = useState<any[]>([])
+  const [stats, setStats] = useState<DashboardStats>({
+    total_campaigns: 0,
+    active_budgets: 0,
+    approved_value: 0,
+    pending_approval: 0
+  })
+  const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
 
-    <!-- Ícones / Manifest (adicione os arquivos em public/) -->
-    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/icons/favicon.png" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#000000" />
-    <link rel="manifest" href="/site.webmanifest" />
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
 
-    <!-- Fontes -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch campaigns with related data
+      const { data: campaignsData } = await supabase
+        .from('campaigns')
+        .select(`
+          id,
+          name,
+          status,
+          updated_at,
+          clients!inner(name),
+          products!inner(name),
+          profiles!inner(name),
+          budgets(id)
+        `)
+        .order('updated_at', { ascending: false })
+        .limit(10)
 
-    <!-- (Opcional) CSP básica — ajuste os domínios do seu Supabase se habilitar
-    <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self';
-               script-src 'self' 'unsafe-eval';
-               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-               font-src 'self' https://fonts.gstatic.com;
-               img-src 'self' data: blob:;
-               connect-src 'self' https://<SEU-PROJETO>.supabase.co https://<SEU-PROJETO>.supabase.in;
-               frame-ancestors 'none';"> -->
+      // Fetch recent budgets for history
+      const { data: budgetsData } = await supabase
+        .from('budgets')
+        .select(`
+          id,
+          display_id,
+          type,
+          status,
+          created_at,
+          updated_at,
+          versions!inner(total_geral, payload)
+        `)
+        .order('updated_at', { ascending: false })
+        .limit(5)
 
-    <style>
-      /* app shell + ajustes globais */
-      :root {
-        --bg: #0b1220;
-        --fg: #e6eaf2;
-      }
-      html, body {
-        height: 100%;
-        background: var(--bg);
-        color: var(--fg);
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      .skip-link {
-        position: absolute;
-        left: -9999px;
-        top: auto;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-      }
-      .skip-link:focus {
-        position: fixed;
-        left: 16px;
-        top: 16px;
-        width: auto;
-        height: auto;
-        padding: 8px 12px;
-        background: #111827;
-        color: #fff;
-        border-radius: 8px;
-        outline: 2px solid #3b82f6;
-        z-index: 9999;
-      }
-      #app-shell {
-        display: grid;
-        place-items: center;
-        min-height: 100dvh;
-      }
-      .spinner {
-        width: 44px;
-        height: 44px;
-        border: 3px solid rgba(255,255,255,0.2);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-bottom: 12px;
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .hint {
-        color: #aab3c5;
-        font-size: 12px;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .spinner { animation: none; }
-      }
-    </style>
-  </head>
+      const processedCampaigns = campaignsData?.map(campaign => ({
+        id: campaign.id,
+        name: campaign.name,
+        status: campaign.status,
+        client_name: campaign.clients.name,
+        product_name: campaign.products.name,
+        responsible_name: campaign.profiles.name || 'N/A',
+        updated_at: campaign.updated_at,
+        budget_count: campaign.budgets?.length || 0,
+        total_value: campaign.budgets?.length * 50000 || 0 // Placeholder calculation
+      })) || []
 
-  <body>
-    <a href="#root" class="skip-link">Pular para o conteúdo</a>
+      setCampaigns(processedCampaigns)
+      
+      // Set recent budgets for history section
+      setRecentBudgets(budgetsData?.map(budget => ({
+        id: budget.id,
+        display_id: budget.display_id,
+        type: budget.type,
+        status: budget.status || 'rascunho',
+        created_at: budget.created_at,
+        updated_at: budget.updated_at,
+        total_value: budget.versions?.[0]?.total_geral || 0,
+        has_data: Object.keys(budget.versions?.[0]?.payload || {}).length > 0
+      })) || [])
 
-    <!-- App shell mostrado até o React montar -->
-    <div id="app-shell" aria-hidden="true">
-      <div style="text-align:center">
-        <div class="spinner" role="status" aria-label="Carregando"></div>
-        <div class="hint">Carregando WE Proposals…</div>
+      // Calculate stats
+      const totalCampaigns = campaignsData?.length || 0
+      const activeBudgets = processedCampaigns.reduce((sum, c) => sum + c.budget_count, 0)
+      const approvedValue = processedCampaigns
+        .filter(c => c.status === 'aprovado')
+        .reduce((sum, c) => sum + c.total_value, 0)
+      const pendingApproval = processedCampaigns.filter(c => c.status === 'enviado_atendimento').length
+
+      setStats({
+        total_campaigns: totalCampaigns,
+        active_budgets: activeBudgets,
+        approved_value: approvedValue,
+        pending_approval: pendingApproval
+      })
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const budgetTypes = [
+    {
+      id: 'filme',
+      title: 'Produção de Filme',
+      description: 'Cotações com múltiplas produtoras, comparador e honorários',
+      icon: Film,
+      gradient: 'from-blue-500 to-purple-600',
+      path: '/new/filme'
+    },
+    {
+      id: 'audio',
+      title: 'Produção de Áudio', 
+      description: 'Serviços de áudio com trilha, locução e spots',
+      icon: Headphones,
+      gradient: 'from-green-500 to-teal-600',
+      path: '/new/audio'
+    },
+    {
+      id: 'imagem',
+      title: 'Compra de Imagem',
+      description: 'Parser automático para Shutterstock, Getty Images e personalizados',
+      icon: Image,
+      gradient: 'from-orange-500 to-red-600', 
+      path: '/new/imagem'
+    },
+    {
+      id: 'cc',
+      title: 'Closed Caption',
+      description: 'R$ 900 por versão - Legendas acessíveis',
+      icon: Subtitles,
+      gradient: 'from-purple-500 to-pink-600',
+      path: '/new/cc'
+    }
+  ]
+
+  const getStatusBadge = (status: string) => {
+    const variants = {
+      rascunho: 'secondary',
+      enviado_atendimento: 'default',
+      aprovado: 'success'
+    }
+    
+    const labels = {
+      rascunho: 'Rascunho',
+      enviado_atendimento: 'Enviado', 
+      aprovado: 'Aprovado'
+    }
+
+    return (
+      <Badge variant={variants[status as keyof typeof variants] as any} className="text-xs">
+        {labels[status as keyof typeof labels]}
+      </Badge>
+    )
+  }
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'filme': return '🎬'
+      case 'audio': return '🎵'
+      case 'imagem': return '🖼️'
+      case 'cc': return '📝'
+      default: return '📄'
+    }
+  }
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    })
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-muted flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Carregando dashboard...</p>
+        </div>
       </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-muted">
+      {/* Header */}
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-primary-foreground font-bold">WE</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-foreground">Orçamento de Produção</h1>
+                <p className="text-sm text-muted-foreground">RTV WE</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {profile?.role === 'admin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/admin')}
+                  className="gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  Admin
+                </Button>
+              )}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/financeiro')}
+                className="gap-2"
+              >
+                <DollarSign className="w-4 h-4" />
+                Financeiro
+              </Button>
+              
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${profile?.name || profile?.email}`} />
+                  <AvatarFallback>{profile?.name?.[0] || profile?.email?.[0] || 'U'}</AvatarFallback>
+                </Avatar>
+                <div className="hidden md:block text-right">
+                  <p className="text-sm font-medium text-foreground">{profile?.name || 'Usuário'}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{profile?.role}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-6 py-8 space-y-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="glass-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Campanhas Ativas</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.total_campaigns}</p>
+                </div>
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Users className="w-6 h-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Orçamentos</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.active_budgets}</p>
+                </div>
+                <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
+                  <Film className="w-6 h-6 text-success" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Valor Aprovado</p>
+                  <p className="text-2xl font-bold text-success">{formatCurrency(stats.approved_value)}</p>
+                </div>
+                <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-success" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Aguardando Aprovação</p>
+                  <p className="text-2xl font-bold text-warning">{stats.pending_approval}</p>
+                </div>
+                <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-warning" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Action Cards */}
+        <section className="space-y-6">
+          <div className="text-center space-y-2">
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-3xl font-bold text-foreground"
+            >
+              Criar Novo Orçamento
+            </motion.h2>
+            <p className="text-muted-foreground text-lg">
+              Escolha o tipo de produção para começar
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {budgetTypes.map((type, index) => (
+              <motion.div
+                key={type.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <AnimatedCard
+                  onClick={() => navigate(type.path)}
+                  className="group cursor-pointer glass-card hover-lift h-full"
+                >
+                  <CardHeader className="text-center pb-4">
+                    <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-r ${type.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
+                      <type.icon className="w-8 h-8 text-white" />
+                    </div>
+                    <CardTitle className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                      {type.title}
+                    </CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground">
+                      {type.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0 pb-6">
+                    <Button className="w-full gap-2 btn-gradient">
+                      <Plus className="w-4 h-4" />
+                      Começar
+                    </Button>
+                  </CardContent>
+                </AnimatedCard>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* Recent Budgets History */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-bold text-foreground">Histórico de Orçamentos</h3>
+              <p className="text-muted-foreground">Últimos orçamentos criados e editados</p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => navigate('/budgets')}
+            >
+              <Filter className="w-4 h-4" />
+              Ver Todos
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {recentBudgets.length === 0 ? (
+              <Card className="glass-card">
+                <CardContent className="p-8 text-center">
+                  <div className="w-16 h-16 bg-muted/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-foreground mb-2">Nenhum orçamento encontrado</h4>
+                  <p className="text-muted-foreground">Crie seu primeiro orçamento usando as opções acima</p>
+                </CardContent>
+              </Card>
+            ) : (
+              recentBudgets.map((budget, index) => (
+                <Card key={budget.id} className="glass-card hover-lift cursor-pointer group">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {budget.display_id}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {budget.type?.toUpperCase()}
+                          </Badge>
+                          <Badge 
+                            variant={budget.status === 'aprovado' ? 'default' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {budget.status}
+                          </Badge>
+                          {budget.has_data && (
+                            <Badge variant="outline" className="text-green-500 border-green-500/30 bg-green-500/10 text-xs">
+                              ✓ Preenchido
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          <span className="mr-4">
+                            {getTypeIcon(budget.type)} {new Date(budget.updated_at).toLocaleDateString('pt-BR')}
+                          </span>
+                          {budget.total_value > 0 && (
+                            <span className="font-semibold text-success">
+                              {formatCurrency(budget.total_value)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/budget/${budget.id}/pdf`)}
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/budget/${budget.id}/edit`)}
+                          className="opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* Recent Campaigns Dashboard */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-foreground">Campanhas Recentes</h3>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Buscar campanhas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-64"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Card className="glass-card">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-border/50">
+                    <tr>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Campanha</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Cliente</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Produto</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Status</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Orçamentos</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Total</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Responsável</th>
+                      <th className="text-left p-4 font-medium text-muted-foreground">Atualizado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaigns.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center p-8 text-muted-foreground">
+                          Nenhuma campanha encontrada
+                        </td>
+                      </tr>
+                    ) : (
+                      campaigns
+                        .filter(campaign => 
+                          campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          campaign.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          campaign.product_name.toLowerCase().includes(searchTerm.toLowerCase())
+                        )
+                        .map((campaign) => (
+                          <tr 
+                            key={campaign.id} 
+                            className="border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-colors"
+                            onClick={() => navigate(`/campaign/${campaign.id}`)}
+                          >
+                            <td className="p-4">
+                              <div className="font-medium text-foreground">{campaign.name}</div>
+                            </td>
+                            <td className="p-4 text-muted-foreground">{campaign.client_name}</td>
+                            <td className="p-4 text-muted-foreground">{campaign.product_name}</td>
+                            <td className="p-4">{getStatusBadge(campaign.status)}</td>
+                            <td className="p-4 text-muted-foreground">{campaign.budget_count}</td>
+                            <td className="p-4 font-medium text-foreground">
+                              {formatCurrency(campaign.total_value)}
+                            </td>
+                            <td className="p-4 text-muted-foreground">{campaign.responsible_name}</td>
+                            <td className="p-4 text-muted-foreground">{formatDate(campaign.updated_at)}</td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Recent Budgets History */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-foreground">Orçamentos Recentes</h3>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => navigate('/budgets')}
+            >
+              Ver Todos
+            </Button>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentBudgets.map((budget) => (
+              <Card key={budget.id} className="glass-card hover-lift cursor-pointer" onClick={() => navigate(`/budget/${budget.id}`)}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{getTypeIcon(budget.type)}</span>
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">{budget.display_id}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{budget.type}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {getStatusBadge(budget.status)}
+                      {budget.has_data && (
+                        <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20">
+                          Preenchido
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span>Criado:</span>
+                      <span>{formatDate(budget.created_at)}</span>
+                    </div>
+                    {budget.total_value > 0 && (
+                      <div className="flex items-center justify-between font-medium text-foreground">
+                        <span>Total:</span>
+                        <span>{formatCurrency(budget.total_value)}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-1 mt-3">
+                    <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); navigate(`/budget/${budget.id}/edit`) }}>
+                      Editar
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); navigate(`/budget/${budget.id}/pdf`) }}>
+                      PDF
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </main>
     </div>
-
-    <!-- Ponto de montagem -->
-    <main id="root" role="main"></main>
-
-    <noscript>
-      <div style="padding:16px; color:#fff; background:#111827; text-align:center">
-        Ative o JavaScript para usar o WE Proposals.
-      </div>
-    </noscript>
-
-    <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // remove o app shell após o React montar
-      window.addEventListener("DOMContentLoaded", () => {
-        const root = document.getElementById("root");
-        const shell = document.getElementById("app-shell");
-        if (root && shell) {
-          const obs = new MutationObserver(() => {
-            if (root.childElementCount > 0) {
-              shell.remove();
-              obs.disconnect();
-            }
-          });
-          obs.observe(root, { childList: true });
-        }
-      });
-    </script>
-  </body>
-</html>
+  )
+}
