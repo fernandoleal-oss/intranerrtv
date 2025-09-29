@@ -387,6 +387,13 @@ export type Database = {
           | { p_tipo: string }
         Returns: Json
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["user_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       budget_status: "rascunho" | "enviado_atendimento" | "aprovado"
