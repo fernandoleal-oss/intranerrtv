@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/select"
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label as RLabel,
+  CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts"
 import {
   TrendingUp, TrendingDown, DollarSign, Calendar, FileText, Users,
@@ -37,7 +37,6 @@ type AnexoItem = {
 
 /* =============================================================================
    DADOS – ANEXOS (linhas) POR MÊS
-   (mesmos dados enviados anteriormente)
 ============================================================================= */
 // ------------------------ AGOSTO ------------------------
 const anexosAgosto: AnexoItem[] = [
@@ -97,7 +96,8 @@ const anexosSetembro: AnexoItem[] = [
 
   { cliente: "BYD FROTA", ap: "28.278", descricao: "6 vinhetas 5\" Seleção Globo (montagem, sem áudio)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 35000, honorario_rs: 0, total: 35000, competencia: "2025-09" },
 
-  { cliente: "EMS", ap: "28.034", descricao: "Campanhas: Repoflor / Beng Pro / Caladryl (produção principal)", fornecedor: "BOILER FILMES", valor_fornecedor: 1342000, honorario_rs: 0, total: 1342000, competencia: "2025-09" },
+  // EMS – grande produção
+  { cliente: "EMS", ap: "28.034", descricao: "Campanhas Repoflor / Beng Pro / Caladryl (produção principal)", fornecedor: "BOILER FILMES", valor_fornecedor: 1342000, honorario_rs: 0, total: 1342000, competencia: "2025-09" },
   { cliente: "EMS", ap: "28.034", descricao: "Campanhas áudio/música", fornecedor: "CANJA", valor_fornecedor: 126000, honorario_rs: 0, total: 126000, competencia: "2025-09" },
   { cliente: "EMS", ap: "28.034", descricao: "Efeitos / mockups", fornecedor: "MOCKUP10 PRODUÇÕES E EFEITOS ESPECIAIS EIRELI-ME", valor_fornecedor: 3700, honorario_rs: 0, total: 3700, competencia: "2025-09" },
   { cliente: "EMS", ap: "28.034", descricao: "Criação/áudio adicional", fornecedor: "BUMBLEBEAT - CREATIVE AUDIO HIVE", valor_fornecedor: 28000, honorario_rs: 0, total: 28000, competencia: "2025-09" },
@@ -202,33 +202,32 @@ function KpiCard({
   )
 }
 
-/* ---------------- Legend customizada para a pizza ---------------- */
-function ClientLegend({
-  data,
-  total,
+// --------- Cabeçalho da tabela (coluna ordenável)
+function ThSortable({
+  label, onClick, active, dir, className = "",
 }: {
-  data: { name: string; value: number; color: string; pct: number }[]
-  total: number
+  label: string
+  onClick: () => void
+  active?: boolean
+  dir?: "asc" | "desc"
+  className?: string
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-      {data.map(d => (
-        <div key={d.name} className="flex items-center justify-between rounded-md px-2 py-1 bg-white/5">
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: d.color }} />
-            <span className="text-sm">{d.name}</span>
-          </div>
-          <div className="text-sm tabular-nums">
-            {formatCurrency(d.value)} <span className="text-muted-foreground">({Math.round(d.pct)}%)</span>
-          </div>
-        </div>
-      ))}
-    </div>
+    <th className={className}>
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1 hover:underline" title="Ordenar">
+        {label}
+        <ArrowUpDown className={`h-3.5 w-3.5 ${active ? "opacity-100" : "opacity-30"}`} />
+        {active ? <span className="sr-only">{dir === "asc" ? "asc" : "desc"}</span> : null}
+      </button>
+    </th>
   )
 }
 
-/* ---------------- AnexoTable (filtros/ordenar/paginar) ---------------- */
+/* =============================================================================
+   ANEXO – TABELA INTERATIVA
+============================================================================= */
 type SortKey = keyof Pick<AnexoItem, "cliente" | "ap" | "descricao" | "fornecedor" | "valor_fornecedor" | "honorario_rs" | "total">
+
 function AnexoTable({
   title,
   subtitle = "Detalhamento linha a linha",
@@ -509,31 +508,11 @@ function AnexoTable({
   )
 }
 
-function ThSortable({
-  label, onClick, active, dir, className = "",
-}: {
-  label: string
-  onClick: () => void
-  active?: boolean
-  dir?: "asc" | "desc"
-  className?: string
-}) {
-  return (
-    <th className={className}>
-      <button type="button" onClick={onClick} className="inline-flex items-center gap-1 hover:underline" title="Ordenar">
-        {label}
-        <ArrowUpDown className={`h-3.5 w-3.5 ${active ? "opacity-100" : "opacity-30"}`} />
-        {active ? <span className="sr-only">{dir === "asc" ? "asc" : "desc"}</span> : null}
-      </button>
-    </th>
-  )
-}
-
 /* =============================================================================
-   PÁGINA FINANCE
+   PÁGINA FINANCE – com gráfico de rosca melhorado
 ============================================================================= */
 export default function Finance() {
-  const [month, setMonth] = useState<MonthKey>("2025-09")      // abre em Set/2025
+  const [month, setMonth] = useState<MonthKey>("2025-09")
   const [comparePrev, setComparePrev] = useState(true)
 
   const itemsByMonth: Record<MonthKey, AnexoItem[]> = {
@@ -541,9 +520,7 @@ export default function Finance() {
     "2025-09": anexosSetembro,
   }
 
-  const currentItems = itemsByMonth[month]
-  const current = useMemo(() => summarize(currentItems), [currentItems])
-
+  const current = useMemo(() => summarize(itemsByMonth[month]), [month])
   const prevKey = month === "2025-09" ? "2025-08" : undefined
   const prev = useMemo(() => (prevKey ? summarize(itemsByMonth[prevKey]) : undefined), [prevKey])
 
@@ -558,97 +535,36 @@ export default function Finance() {
   }, [])
 
   // distribuição por cliente (mês selecionado)
-  const clientsDistRaw = useMemo(() => {
-    const grouped = groupBy(currentItems, x => x.cliente)
-    return Object.entries(grouped).map(([cliente, arr]) => {
-      const value = arr.reduce((a, b) => a + (b.total || 0), 0)
-      return { name: cliente, value }
-    }).sort((a, b) => b.value - a.value)
-  }, [currentItems])
-
   const clientsDist = useMemo(() => {
-    const total = clientsDistRaw.reduce((a, b) => a + b.value, 0) || 1
-    const withPct = clientsDistRaw.map((d, idx) => ({
-      ...d,
-      pct: (d.value / total) * 100,
-      color:
-        [
-          "hsl(var(--primary))",
-          "hsl(var(--chart-2))",
-          "hsl(var(--chart-3))",
-          "hsl(var(--chart-4))",
-          "hsl(var(--chart-5))",
-          "hsl(var(--chart-6))",
-          "hsl(var(--chart-7))",
-          "hsl(var(--chart-8))",
-        ][idx % 8],
-    }))
-    // agrupa fatias pequenas (< 2.5%) em "Outros" e limita a 7 nomes + Outros
-    const big = withPct.filter(x => x.pct >= 2.5).slice(0, 7)
-    const small = withPct.filter(x => !big.includes(x))
-    const outrosTotal = small.reduce((a, b) => a + b.value, 0)
-    const result = [...big]
-    if (outrosTotal > 0) {
-      result.push({
-        name: "Outros",
-        value: outrosTotal,
-        pct: (outrosTotal / total) * 100,
-        color: "hsl(var(--muted))",
-      })
-    }
-    return { total, data: result }
-  }, [clientsDistRaw])
+    const grouped = groupBy(itemsByMonth[month], x => x.cliente)
+    const total = Object.values(grouped).flat().reduce((a, b) => a + (b.total || 0), 0) || 1
+    const entries = Object.entries(grouped).map(([cliente, arr], idx) => {
+      const value = arr.reduce((a, b) => a + (b.total || 0), 0)
+      return {
+        name: cliente,
+        value,
+        pct: value / total,
+        color:
+          [
+            "hsl(var(--primary))",
+            "hsl(var(--chart-2))",
+            "hsl(var(--chart-3))",
+            "hsl(var(--chart-4))",
+            "hsl(var(--chart-5))",
+            "hsl(var(--chart-6))",
+          ][idx % 6],
+      }
+    })
+    return entries.sort((a, b) => b.value - a.value)
+  }, [month])
 
-  // tabela por cliente
-  const tableClients = useMemo(() => {
-    const grouped = groupBy(currentItems, x => x.cliente)
-    return Object.entries(grouped).map(([cliente, arr]) => {
-      const receita = arr.reduce((a, b) => a + (b.total || 0), 0)
-      const custos = arr.reduce((a, b) => a + (b.valor_fornecedor || 0), 0)
-      const honor = arr.reduce((a, b) => a + (b.honorario_rs || 0), 0)
-      const margem = receita - custos
-      const margemPct = receita > 0 ? (margem / receita) * 100 : 0
-      const jobs = arr.length
-      const ticket = jobs > 0 ? receita / jobs : 0
-      return { cliente, receita, custos, honor, margem, margemPct, jobs, ticket }
-    }).sort((a, b) => b.receita - a.receita)
-  }, [currentItems])
-
-  // top fornecedores (mês)
-  const topSuppliers = useMemo(() => {
-    const grouped = groupBy(currentItems, x => x.fornecedor)
-    const rows = Object.entries(grouped).map(([forn, arr]) => ({
-      fornecedor: forn,
-      jobs: arr.length,
-      spend: arr.reduce((a, b) => a + (b.valor_fornecedor || 0), 0),
-    })).sort((a, b) => b.spend - a.spend).slice(0, 5)
-    return rows
-  }, [currentItems])
-
-  // resumo executivo bullets
-  const resumoBullets = useMemo(() => {
-    const maiorCliente = tableClients[0]?.cliente
-      ? `Maior cliente por receita: ${tableClients[0].cliente} (${formatCurrency(tableClients[0].receita)}).`
-      : "Sem dados de cliente."
-    const maiorFornecedor = topSuppliers[0]?.fornecedor
-      ? `Maior fornecedor por gasto: ${topSuppliers[0].fornecedor} (${formatCurrency(topSuppliers[0].spend)}).`
-      : "Sem dados de fornecedor."
-    const temAbsorvido = currentItems.some(i =>
-      /INTERNO|CUSTO\s*INTERNO|absorvido/i.test(i.fornecedor) ||
-      /absorvido/i.test(i.descricao)
-    )
-    const obs = temAbsorvido
-      ? "Há itens com custo interno/absorvido; verificar se compõem receita ou apenas custo operacional."
-      : "Sem apontamentos operacionais relevantes."
-    return [maiorCliente, maiorFornecedor, obs]
-  }, [tableClients, topSuppliers, currentItems])
-
+  // texto do cabeçalho
   const clientesDoMes = useMemo(() => {
-    const set = new Set(currentItems.map(i => i.cliente))
+    const set = new Set(itemsByMonth[month].map(i => i.cliente))
     return Array.from(set).sort().join(", ")
-  }, [currentItems])
+  }, [month])
 
-  // estilos impressão (cabeçalho fixo)
+  // estilos de impressão
   useEffect(() => {
     const styleId = "finance-print-style"
     if (document.getElementById(styleId)) return
@@ -669,11 +585,22 @@ export default function Finance() {
     document.head.appendChild(style)
   }, [])
 
-  /* ====== Funções de rótulo para a pizza (mostra só >=6%) ====== */
-  const renderPieLabel = (props: any) => {
-    const { name, percent } = props
-    if (percent < 0.06) return null
-    return `${name} ${(percent * 100).toFixed(0)}%`
+  // ------------- Rótulo externo do gráfico de rosca (evita poluição) -------------
+  const DONUT_MIN_PCT = 0.06 // só rotula fatias a partir de 6%
+  const renderDonutLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, percent, name } = props
+    if (!percent || percent < DONUT_MIN_PCT) return null
+    const RAD = Math.PI / 180
+    const r = outerRadius + 18
+    const x = cx + r * Math.cos(-midAngle * RAD)
+    const y = cy + r * Math.sin(-midAngle * RAD)
+    const lbl = `${name} ${(percent * 100).toFixed(0)}%`
+    const anchor = x > cx ? "start" as const : "end" as const
+    return (
+      <text x={x} y={y} fill="currentColor" textAnchor={anchor} dominantBaseline="central" className="text-xs">
+        {lbl}
+      </text>
+    )
   }
 
   return (
@@ -685,10 +612,11 @@ export default function Finance() {
           <div>
             <div className="text-base font-semibold">Relatório Financeiro Mensal de Marketing – {monthLabel[month]}</div>
             <div className="text-xs text-muted-foreground">
-              Cliente(s) do mês: {clientesDoMes || "—"} • Período: {monthRangeBr[month]} • Responsável: — • Versão: v1 • Critério: Competência
+              Cliente(s): {clientesDoMes || "—"} • Período: {monthRangeBr[month]} • Responsável: — • Versão: v1 • Critério: Competência
             </div>
           </div>
         </div>
+
         <div className="hidden md:flex items-center gap-3 no-print">
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="h-4 w-4 mr-2" />
@@ -698,7 +626,7 @@ export default function Finance() {
       </div>
       <div className="print-spacer" />
 
-      {/* CONTROLES */}
+      {/* BARRA DE CONTROLES */}
       <div className="sticky top-20 z-20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3 mb-2 no-print">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -716,28 +644,24 @@ export default function Finance() {
               <label htmlFor="comparePrev" className="text-sm">Comparar com mês anterior</label>
             </div>
           </div>
+
           <div className="text-right">
-            <div className="text-xs text-muted-foreground">Período: {monthRangeBr[month]}</div>
+            <div className="text-xs text-muted-foreground">
+              Período: {monthRangeBr[month]}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* RESUMO EXECUTIVO */}
-      <Card className="glass-effect card-break">
-        <CardHeader>
-          <CardTitle>Resumo executivo – {monthLabel[month]}</CardTitle>
-          <CardDescription>Principais destaques do período</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="list-disc pl-6 space-y-1">
-            {resumoBullets.map((b, i) => <li key={i} className="text-sm">{b}</li>)}
-          </ul>
-        </CardContent>
-      </Card>
-
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 card-break">
-        <KpiCard label="Receita do mês" value={current.receita} prevValue={prev?.receita} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} highlight />
+        <KpiCard
+          label="Receita do mês"
+          value={current.receita}
+          prevValue={prev?.receita}
+          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+          highlight
+        />
         <KpiCard label="Custos diretos" value={current.custos} prevValue={prev?.custos} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
         <KpiCard label="Honorários (R$)" value={current.honor} prevValue={prev?.honor} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} />
         <Card className="glass-effect">
@@ -788,14 +712,16 @@ export default function Finance() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{current.clientes}</div>
-            <div className="text-xs text-muted-foreground mt-1">Ticket/cliente: {formatCurrency(current.ticketCliente)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Ticket por cliente: {formatCurrency(current.ticketCliente)}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* GRÁFICOS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 card-break">
-        {/* Colunas Receita x Custos x Margem */}
+        {/* Colunas Receita x Custos x Margem (Ago vs Set) */}
         <Card className="glass-effect">
           <CardHeader>
             <CardTitle>Comparativo (Receita × Custos × Margem)</CardTitle>
@@ -807,7 +733,10 @@ export default function Finance() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(value: number) => formatCurrency(value)}
+                />
                 <Legend />
                 <Bar dataKey="Receita" fill="hsl(var(--primary))" />
                 <Bar dataKey="Custos" fill="hsl(var(--chart-2))" />
@@ -817,71 +746,69 @@ export default function Finance() {
           </CardContent>
         </Card>
 
-        {/* Rosca por cliente – rótulos só para fatias relevantes */}
+        {/* ROSCA – participação por cliente (com rótulos externos e legenda ao lado) */}
         <Card className="glass-effect">
           <CardHeader>
             <CardTitle>Participação por cliente – {monthLabel[month]}</CardTitle>
             <CardDescription>Receita do mês por cliente</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <PieChart>
-                <Pie
-                  data={clientsDist.data}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={80}
-                  outerRadius={120}
-                  paddingAngle={1}
-                  dataKey="value"
-                  isAnimationActive={false}
-                  labelLine={false}
-                  label={renderPieLabel as any}
-                >
-                  {clientsDist.data.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.color} />
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+              <div className="md:col-span-3">
+                <ResponsiveContainer width="100%" height={320}>
+                  <PieChart>
+                    <Pie
+                      data={clientsDist}
+                      cx="48%"
+                      cy="52%"
+                      innerRadius={70}
+                      outerRadius={110}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                      labelLine={false}
+                      label={renderDonutLabel}
+                    >
+                      {clientsDist.map((it, idx) => <Cell key={idx} fill={it.color} />)}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                      formatter={(value: number) => formatCurrency(value)}
+                    />
+                    {/* total no centro */}
+                    {/* (usando texto sobreposto) */}
+                    {/* Recharts não tem center label padrão; usamos foreignObject simples */}
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none -mt-40 text-center">
+                  <div className="inline-block rounded-xl px-3 py-1 bg-background/80 backdrop-blur border text-xs text-muted-foreground">
+                    Receita total {monthLabel[month]}
+                  </div>
+                  <div className="text-lg font-semibold">{formatCurrency(current.receita)}</div>
+                </div>
+              </div>
+
+              {/* legenda detalhada à direita */}
+              <div className="md:col-span-2 max-h-[320px] overflow-auto pr-1">
+                <ul className="space-y-2">
+                  {clientsDist.map((c, i) => (
+                    <li key={i} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: c.color }} />
+                        <span className="text-sm">{c.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium tabular-nums">{formatCurrency(c.value)}</div>
+                        <div className="text-xs text-muted-foreground">{(c.pct * 100).toFixed(1)}%</div>
+                      </div>
+                    </li>
                   ))}
-                  <RLabel
-                    value={`Total ${formatCurrency(clientsDist.total)}`}
-                    position="center"
-                    className="text-sm fill-current text-muted-foreground"
-                  />
-                </Pie>
-                <Tooltip
-                  formatter={(value: number, name: string, props: any) => [formatCurrency(value), props?.payload?.name]}
-                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <ClientLegend
-              data={clientsDist.data.map(d => ({ name: d.name, value: d.value, color: d.color as string, pct: (d.value / (clientsDist.total || 1)) * 100 }))}
-              total={clientsDist.total}
-            />
+                </ul>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* TOP FORNECEDORES (barras horizontais) */}
-      <Card className="glass-effect card-break">
-        <CardHeader>
-          <CardTitle>Top fornecedores – {monthLabel[month]}</CardTitle>
-          <CardDescription>Spend do mês e nº de jobs</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={[...topSuppliers].reverse()} layout="vertical" margin={{ left: 80 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis type="number" stroke="hsl(var(--muted-foreground))" />
-              <YAxis dataKey="fornecedor" type="category" stroke="hsl(var(--muted-foreground))" width={140} />
-              <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(value: number, name: string) => [formatCurrency(value), "Spend"]} />
-              <Bar dataKey="spend" fill="hsl(var(--primary))" />
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Jobs: {topSuppliers.map(s => `${s.fornecedor} (${s.jobs})`).join(" • ")}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* PERFORMANCE POR CLIENTE */}
       <Card className="glass-effect card-break">
@@ -890,48 +817,7 @@ export default function Finance() {
           <CardDescription>Receita, custos, honorários e margem</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-white/10 overflow-hidden">
-            <div className="max-h-[420px] overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-background/90 backdrop-blur z-10">
-                  <tr className="[&>th]:text-left [&>th]:py-2 [&>th]:px-3 [&>th]:font-medium [&>th]:text-muted-foreground">
-                    <th>Cliente</th>
-                    <th className="text-right">Receita</th>
-                    <th className="text-right">Custos</th>
-                    <th className="text-right">Honorários (R$)</th>
-                    <th className="text-right">Margem (R$)</th>
-                    <th className="text-right">Margem (%)</th>
-                    <th className="text-right"># Jobs</th>
-                    <th className="text-right">Ticket médio</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableClients.map((row) => (
-                    <tr key={row.cliente} className="border-t border-white/5 hover:bg-white/5">
-                      <td className="py-2 px-3">{row.cliente}</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(row.receita)}</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(row.custos)}</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(row.honor)}</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(row.margem)}</td>
-                      <td className="py-2 px-3 text-right">{row.margemPct.toFixed(1)}%</td>
-                      <td className="py-2 px-3 text-right">{row.jobs}</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(row.ticket)}</td>
-                    </tr>
-                  ))}
-                  <tr className="border-t border-white/10 bg-white/[0.03]">
-                    <td className="py-2 px-3">Totais do mês</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(current.receita)}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(current.custos)}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(current.honor)}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(current.margem)}</td>
-                    <td className="py-2 px-3 text-right">{isFinite(current.margemPct) ? `${current.margemPct.toFixed(1)}%` : "—"}</td>
-                    <td className="py-2 px-3 text-right">{current.jobs}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(current.ticketJob)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ClientTable monthItems={itemsByMonth[month]} totalResumo={current} />
         </CardContent>
       </Card>
 
@@ -952,7 +838,10 @@ export default function Finance() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="metric" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(value: number) => formatCurrency(value)}
+                />
                 <Legend />
                 <Bar dataKey="anterior" name={`Período ${monthLabel[prevKey!]}`} fill="hsl(var(--chart-2))" />
                 <Bar dataKey="atual" name={`Período ${monthLabel[month]}`} fill="hsl(var(--primary))" />
@@ -975,6 +864,70 @@ export default function Finance() {
           <AnexoTable title="Anexo – Itens faturados (Set/2025)" monthLabelText="Set/2025" items={anexosSetembro} />
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+/* =============================================================================
+   TABELA POR CLIENTE (com totais)
+============================================================================= */
+function ClientTable({ monthItems, totalResumo }: { monthItems: AnexoItem[], totalResumo: ReturnType<typeof summarize> }) {
+  const data = useMemo(() => {
+    const grouped = groupBy(monthItems, x => x.cliente)
+    return Object.entries(grouped).map(([cliente, arr]) => {
+      const receita = arr.reduce((a, b) => a + (b.total || 0), 0)
+      const custos = arr.reduce((a, b) => a + (b.valor_fornecedor || 0), 0)
+      const honor = arr.reduce((a, b) => a + (b.honorario_rs || 0), 0)
+      const margem = receita - custos
+      const margemPct = receita > 0 ? (margem / receita) * 100 : 0
+      const jobs = arr.length
+      const ticket = jobs > 0 ? receita / jobs : 0
+      return { cliente, receita, custos, honor, margem, margemPct, jobs, ticket }
+    }).sort((a, b) => b.receita - a.receita)
+  }, [monthItems])
+
+  return (
+    <div className="rounded-lg border border-white/10 overflow-hidden">
+      <div className="max-h-[420px] overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-background/90 backdrop-blur z-10">
+            <tr className="[&>th]:text-left [&>th]:py-2 [&>th]:px-3 [&>th]:font-medium [&>th]:text-muted-foreground">
+              <th>Cliente</th>
+              <th className="text-right">Receita</th>
+              <th className="text-right">Custos</th>
+              <th className="text-right">Honorários (R$)</th>
+              <th className="text-right">Margem (R$)</th>
+              <th className="text-right">Margem (%)</th>
+              <th className="text-right"># Jobs</th>
+              <th className="text-right">Ticket médio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row) => (
+              <tr key={row.cliente} className="border-t border-white/5 hover:bg-white/5">
+                <td className="py-2 px-3">{row.cliente}</td>
+                <td className="py-2 px-3 text-right">{formatCurrency(row.receita)}</td>
+                <td className="py-2 px-3 text-right">{formatCurrency(row.custos)}</td>
+                <td className="py-2 px-3 text-right">{formatCurrency(row.honor)}</td>
+                <td className="py-2 px-3 text-right">{formatCurrency(row.margem)}</td>
+                <td className="py-2 px-3 text-right">{row.margemPct.toFixed(1)}%</td>
+                <td className="py-2 px-3 text-right">{row.jobs}</td>
+                <td className="py-2 px-3 text-right">{formatCurrency(row.ticket)}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-white/10 bg-white/[0.03]">
+              <td className="py-2 px-3">Totais do mês</td>
+              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.receita)}</td>
+              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.custos)}</td>
+              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.honor)}</td>
+              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.margem)}</td>
+              <td className="py-2 px-3 text-right">{isFinite(totalResumo.margemPct) ? `${totalResumo.margemPct.toFixed(1)}%` : "—"}</td>
+              <td className="py-2 px-3 text-right">{totalResumo.jobs}</td>
+              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.ticketJob)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
