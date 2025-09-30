@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useDeferredValue } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
@@ -13,20 +13,44 @@ import { useToast } from '@/hooks/use-toast'
 import { useAutosaveWithStatus } from '@/hooks/useAutosaveWithStatus'
 import { AutosaveIndicator } from '@/components/AutosaveIndicator'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import React from 'react'
 
+/** =========================
+ *  Config / Helpers
+ *  ========================= */
 const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Cotações', 'Revisão', 'Exportar']
 
-// Helpers
+const MEDIA_OPTIONS = [
+  { value: 'todas', label: 'Todas as mídias' },
+  { value: 'tv_aberta', label: 'TV aberta' },
+  { value: 'tv_fechada', label: 'TV fechada' },
+  { value: 'sociais', label: 'Redes sociais' },
+]
+const TERRITORIO_OPTIONS = [
+  { value: 'nacional', label: 'Nacional' },
+  { value: 'sao_paulo', label: 'São Paulo' },
+  { value: 'regional', label: 'Regional' },
+]
+const PERIODO_OPTIONS = [
+  { value: '12_meses', label: '12 meses' },
+  { value: '6_meses', label: '6 meses' },
+  { value: '3_meses', label: '3 meses' },
+]
+
+// Sugestões rápidas (pode trocar por fetch do Supabase depois)
+const CLIENT_HINTS = ['BYD', 'Ambev', 'Nestlé', 'Unilever', 'P&G', 'Coca-Cola']
+const PRODUTO_HINTS = ['Campanha Black Friday', 'Lançamento Verão', 'Linha Premium', 'Conteúdo Social']
+
 const genId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
 const parseCurrencyLoose = (raw: string): number => {
   if (!raw) return 0
-  // aceita 1.234,56 ou 1234.56 ou "  1 234,56"
   const s = raw.replace(/\s/g, '').replace(/[R$]/gi, '').replace(/\./g, '').replace(',', '.')
   const n = Number(s)
   return Number.isFinite(n) ? n : 0
 }
 
+/** =========================
+ *  Tipagens
+ *  ========================= */
 type QuoteFilm = {
   id: string
   produtora: string
@@ -36,7 +60,6 @@ type QuoteFilm = {
   tratamento: string
   desconto: number
 }
-
 type QuoteAudio = {
   id: string
   produtora: string
@@ -44,7 +67,6 @@ type QuoteAudio = {
   valor: number
   desconto: number
 }
-
 interface FilmeData {
   produtor?: string
   email?: string
@@ -64,9 +86,13 @@ interface FilmeData {
   total?: number
 }
 
+/** =========================
+ *  Componente principal
+ *  ========================= */
 export default function NovoFilme() {
   const navigate = useNavigate()
   const { toast } = useToast()
+
   const [step, setStep] = useState(1)
   const [budgetId, setBudgetId] = useState<string>()
   const [data, setData] = useState<FilmeData>({
@@ -76,40 +102,38 @@ export default function NovoFilme() {
     formatos: [],
     filme: { subtotal: 0 },
     audio: { subtotal: 0 },
-    total: 0
+    total: 0,
   })
 
-  // === AUTOSAVE (não reidrata o formulário) ===
+  // Título da aba contextual
+  useEffect(() => {
+    document.title = `Produção de Filme — Etapa ${step} · WE Proposals`
+  }, [step])
+
+  /** ========== Autosave (sem reidratar o formulário) ========== */
   const { status: saveStatus } = useAutosaveWithStatus([data], async () => {
     if (budgetId && Object.keys(data).length > 0) {
-      await supabase
-        .from('versions')
-        .update({ payload: data as any })
-        .eq('budget_id', budgetId)
-        .eq('versao', 1)
+      await supabase.from('versions').update({ payload: data as any }).eq('budget_id', budgetId).eq('versao', 1)
     }
   })
 
-  // Evita “travadas” no preview durante digitação
+  // Evita travadas no preview
   const deferredData = useDeferredValue(data)
 
+  /** ========== Recalcular totais ========== */
   const recalcTotals = useCallback((d: FilmeData) => {
     const filmeSubtotal = (d.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
     const audioSubtotal = (d.quotes_audio || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
     const honorario = filmeSubtotal * ((d.honorario_perc || 0) / 100)
     const total = filmeSubtotal + audioSubtotal + honorario
-    return {
-      ...d,
-      filme: { subtotal: filmeSubtotal },
-      audio: { subtotal: audioSubtotal },
-      total
-    }
+    return { ...d, filme: { subtotal: filmeSubtotal }, audio: { subtotal: audioSubtotal }, total }
   }, [])
 
   const updateData = useCallback((updates: Partial<FilmeData>) => {
     setData(prev => recalcTotals({ ...prev, ...updates }))
   }, [recalcTotals])
 
+  /** ========== Criar orçamento ========== */
   const handleCreateBudget = async () => {
     try {
       const { data: budget, error } = await supabase.rpc('create_simple_budget', { p_type: 'filme' }) as {
@@ -124,16 +148,16 @@ export default function NovoFilme() {
     }
   }
 
-  // === COTAÇÕES (IDs estáveis; sem key nos inputs) ===
-  const addFilmeQuote = () => {
+  /** ========== Cotações (IDs estáveis) ========== */
+  const addFilmeQuote = (preset?: Partial<QuoteFilm>) => {
     const q: QuoteFilm = {
       id: genId(),
-      produtora: '',
-      escopo: '',
-      valor: 0,
-      diretor: '',
-      tratamento: '',
-      desconto: 0
+      produtora: preset?.produtora ?? '',
+      escopo: preset?.escopo ?? '',
+      valor: preset?.valor ?? 0,
+      diretor: preset?.diretor ?? '',
+      tratamento: preset?.tratamento ?? '',
+      desconto: preset?.desconto ?? 0,
     }
     updateData({ quotes_film: [...(data.quotes_film || []), q] })
   }
@@ -149,13 +173,9 @@ export default function NovoFilme() {
     setData(prev => recalcTotals({ ...prev, quotes_film: (prev.quotes_film || []).filter(q => q.id !== id) }))
   }
 
-  // Linha de cotação com estado local para números (não perde foco)
+  /** ========== Linha de cotação memoizada (mantém foco) ========== */
   const QuoteRow = useMemo(() => {
-    type RowProps = {
-      q: QuoteFilm
-      onChange: (patch: Partial<QuoteFilm>) => void
-      onRemove: () => void
-    }
+    type RowProps = { q: QuoteFilm; onChange: (patch: Partial<QuoteFilm>) => void; onRemove: () => void }
     const Row: React.FC<RowProps> = React.memo(({ q, onChange, onRemove }) => {
       const [valorStr, setValorStr] = useState(() => (q.valor ? String(q.valor).replace('.', ',') : ''))
       const [descStr, setDescStr] = useState(() => (q.desconto ? String(q.desconto).replace('.', ',') : ''))
@@ -164,7 +184,7 @@ export default function NovoFilme() {
       useEffect(() => { setDescStr(q.desconto ? String(q.desconto).replace('.', ',') : '') }, [q.desconto])
 
       return (
-        <div className="p-4 border rounded-lg space-y-3 bg-white/5 border-white/10">
+        <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
           <div className="grid md:grid-cols-3 gap-3">
             <div>
               <Label className="dark-label">Produtora</Label>
@@ -182,7 +202,7 @@ export default function NovoFilme() {
                 value={q.escopo}
                 onChange={(e) => onChange({ escopo: e.target.value })}
                 className="dark-input"
-                placeholder="Ex: Filme 30s com elenco"
+                placeholder="Ex.: Filme 30s com elenco"
               />
             </div>
             <div>
@@ -215,7 +235,7 @@ export default function NovoFilme() {
                 value={q.tratamento}
                 onChange={(e) => onChange({ tratamento: e.target.value })}
                 className="dark-input"
-                placeholder="Link ou observações"
+                placeholder="Link/observações"
                 autoComplete="off"
               />
             </div>
@@ -233,7 +253,10 @@ export default function NovoFilme() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-between pt-1">
+            <div className="text-xs text-white/60">
+              Dica: preencha valor/desconto e saia do campo para aplicar no total.
+            </div>
             <Button onClick={onRemove} variant="ghost" size="sm" className="text-red-400 hover:text-red-500">
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -245,7 +268,26 @@ export default function NovoFilme() {
     return Row
   }, [])
 
-  // ====== STEP CONTENT ======
+  /** ========== Validações simples por etapa (habilita botões) ========== */
+  const canStep1 = !!data.produtor && !!data.email
+  const canStep2 = !!data.cliente && !!data.produto
+  const canStep3 = !!data.periodo && !!data.territorio && !!data.midias
+
+  /** ========== Navegação com Enter / Shift+Enter ========== */
+  const goNext = () => setStep(s => Math.min(6, s + 1))
+  const goPrev = () => setStep(s => Math.max(1, s - 1))
+  const keyNav: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if ((step === 1 && canStep1) || (step === 2 && canStep2) || (step === 3 && canStep3) || step >= 4) goNext()
+    }
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault()
+      goPrev()
+    }
+  }
+
+  /** ========== Conteúdo das etapas ========== */
   const StepContent = () => {
     switch (step) {
       case 1:
@@ -255,6 +297,7 @@ export default function NovoFilme() {
               <FormInput
                 id="produtor"
                 label="Nome do Produtor"
+                description="Usamos para identificar o responsável por este orçamento."
                 value={data.produtor || ''}
                 onChange={(value) => updateData({ produtor: value })}
                 placeholder="Nome completo do produtor"
@@ -264,6 +307,7 @@ export default function NovoFilme() {
               <FormInput
                 id="email"
                 label="E-mail"
+                description="Enviaremos o PDF e os avisos de atualização."
                 type="email"
                 value={data.email || ''}
                 onChange={(value) => updateData({ email: value })}
@@ -272,8 +316,10 @@ export default function NovoFilme() {
                 autoComplete="email"
               />
             </div>
-            <div className="flex gap-3 justify-end">
-              <Button onClick={handleCreateBudget} size="lg" className="btn-gradient px-6">
+
+            <div className="flex items-center justify-between text-xs text-white/60">
+              <span>Pressione <kbd className="px-1 py-0.5 rounded bg-white/10">Enter</kbd> para continuar</span>
+              <Button onClick={handleCreateBudget} size="lg" className="btn-gradient px-6" disabled={!canStep1}>
                 Continuar
               </Button>
             </div>
@@ -284,27 +330,41 @@ export default function NovoFilme() {
         return (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
             <div className="space-y-6">
-              <FormInput
-                id="cliente"
-                label="Cliente"
-                value={data.cliente || ''}
-                onChange={(value) => updateData({ cliente: value })}
-                placeholder="Razão social ou nome fantasia"
-                required
-                autoComplete="organization"
-              />
-              <FormInput
-                id="produto"
-                label="Produto/Serviço"
-                value={data.produto || ''}
-                onChange={(value) => updateData({ produto: value })}
-                placeholder="Nome do produto ou serviço"
-                required
-              />
+              {/* Cliente com datalist para busca rápida */}
+              <div>
+                <Label className="dark-label">Cliente</Label>
+                <input
+                  className="dark-input w-full"
+                  list="clientes-sug"
+                  value={data.cliente || ''}
+                  onChange={(e) => updateData({ cliente: e.target.value })}
+                  placeholder="Digite ou selecione"
+                  autoComplete="organization"
+                />
+                <datalist id="clientes-sug">
+                  {CLIENT_HINTS.map(c => <option key={c} value={c} />)}
+                </datalist>
+                <p className="mt-1 text-xs text-white/60">Você pode digitar livremente ou escolher uma sugestão.</p>
+              </div>
+
+              <div>
+                <Label className="dark-label">Produto/Serviço</Label>
+                <input
+                  className="dark-input w-full"
+                  list="produtos-sug"
+                  value={data.produto || ''}
+                  onChange={(e) => updateData({ produto: e.target.value })}
+                  placeholder="Nome do produto/serviço"
+                />
+                <datalist id="produtos-sug">
+                  {PRODUTO_HINTS.map(p => <option key={p} value={p} />)}
+                </datalist>
+              </div>
             </div>
+
             <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(1)}>Voltar</Button>
-              <Button onClick={() => setStep(3)} className="btn-gradient px-6">Salvar e Continuar</Button>
+              <Button variant="ghost" onClick={goPrev}>Voltar</Button>
+              <Button onClick={goNext} className="btn-gradient px-6" disabled={!canStep2}>Salvar e Continuar</Button>
             </div>
           </motion.div>
         )
@@ -316,6 +376,7 @@ export default function NovoFilme() {
               <FormInput
                 id="job"
                 label="Job"
+                description="Ex.: campanha, peça, ação"
                 value={data.job || ''}
                 onChange={(value) => updateData({ job: value })}
                 placeholder="Descrição do job"
@@ -326,12 +387,7 @@ export default function NovoFilme() {
                 label="Mídias"
                 value={data.midias || ''}
                 onChange={(value) => updateData({ midias: value })}
-                options={[
-                  { value: 'todas', label: 'Todas as mídias' },
-                  { value: 'tv_aberta', label: 'TV aberta' },
-                  { value: 'tv_fechada', label: 'TV fechada' },
-                  { value: 'sociais', label: 'Redes sociais' }
-                ]}
+                options={MEDIA_OPTIONS}
                 placeholder="Selecione as mídias"
               />
               <FormSelect
@@ -339,11 +395,7 @@ export default function NovoFilme() {
                 label="Território"
                 value={data.territorio || ''}
                 onChange={(value) => updateData({ territorio: value })}
-                options={[
-                  { value: 'nacional', label: 'Nacional' },
-                  { value: 'sao_paulo', label: 'São Paulo' },
-                  { value: 'regional', label: 'Regional' }
-                ]}
+                options={TERRITORIO_OPTIONS}
                 placeholder="Selecione o território"
               />
               <FormSelect
@@ -351,17 +403,14 @@ export default function NovoFilme() {
                 label="Período"
                 value={data.periodo || ''}
                 onChange={(value) => updateData({ periodo: value })}
-                options={[
-                  { value: '12_meses', label: '12 meses' },
-                  { value: '6_meses', label: '6 meses' },
-                  { value: '3_meses', label: '3 meses' }
-                ]}
+                options={PERIODO_OPTIONS}
                 placeholder="Selecione o período"
               />
             </div>
+
             <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(2)}>Voltar</Button>
-              <Button onClick={() => setStep(4)} className="btn-gradient px-6">Salvar e Continuar</Button>
+              <Button variant="ghost" onClick={goPrev}>Voltar</Button>
+              <Button onClick={goNext} className="btn-gradient px-6" disabled={!canStep3}>Salvar e Continuar</Button>
             </div>
           </motion.div>
         )
@@ -370,15 +419,27 @@ export default function NovoFilme() {
         return (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Cotações de Filme</h3>
-              <Button onClick={addFilmeQuote} variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Produtora
-              </Button>
+              <div>
+                <h3 className="text-lg font-semibold">Cotações de Filme</h3>
+                <p className="text-xs text-white/60">Adicione pelo menos 1 produtora para comparar valores.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => addFilmeQuote()} variant="outline" size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Produtora
+                </Button>
+                {/* Atalhos de presets para agilizar */}
+                <Button onClick={() => addFilmeQuote({ escopo: 'Filme 30s', valor: 0 })} variant="ghost" size="sm">
+                  + 30s
+                </Button>
+                <Button onClick={() => addFilmeQuote({ escopo: 'Reduções 15/6s', valor: 0 })} variant="ghost" size="sm">
+                  + Reduções
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {(data.quotes_film || []).map((q) => (
+              {(data.quotes_film || []).map(q => (
                 <QuoteRow
                   key={q.id}
                   q={q}
@@ -386,11 +447,16 @@ export default function NovoFilme() {
                   onRemove={() => removeFilmeQuoteById(q.id)}
                 />
               ))}
+              {(data.quotes_film || []).length === 0 && (
+                <div className="text-sm text-white/60">Nenhuma cotação adicionada ainda.</div>
+              )}
             </div>
 
             <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(3)}>Voltar</Button>
-              <Button onClick={() => setStep(5)} className="btn-gradient px-6">Revisar Orçamento</Button>
+              <Button variant="ghost" onClick={goPrev}>Voltar</Button>
+              <Button onClick={goNext} className="btn-gradient px-6" disabled={(data.quotes_film?.length || 0) === 0}>
+                Revisar Orçamento
+              </Button>
             </div>
           </motion.div>
         )
@@ -398,17 +464,21 @@ export default function NovoFilme() {
       case 5:
         return (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="p-6 border rounded-lg space-y-4 bg-white/5 border-white/10">
+            <div className="p-6 rounded-lg bg-white/5 border border-white/10 space-y-4">
               <h3 className="text-lg font-semibold">Resumo do Orçamento</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span>Cliente:</span><span className="font-medium">{data.cliente || '-'}</span></div>
                 <div className="flex justify-between"><span>Produto:</span><span className="font-medium">{data.produto || '-'}</span></div>
-                <div className="flex justify-between"><span>Cotações de filme:</span><span className="font-medium">{data.quotes_film?.length || 0}</span></div>
+                <div className="flex justify-between"><span>Mídias:</span><span className="font-medium capitalize">{data.midias || '-'}</span></div>
+                <div className="flex justify-between"><span>Território:</span><span className="font-medium capitalize">{data.territorio || '-'}</span></div>
+                <div className="flex justify-between"><span>Período:</span><span className="font-medium">{data.periodo || '-'}</span></div>
+                <div className="flex justify-between"><span>Cotações:</span><span className="font-medium">{data.quotes_film?.length || 0}</span></div>
               </div>
             </div>
+
             <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(4)}>Voltar</Button>
-              <Button onClick={() => setStep(6)} className="btn-gradient px-6">Ir para Exportar</Button>
+              <Button variant="ghost" onClick={goPrev}>Voltar</Button>
+              <Button onClick={goNext} className="btn-gradient px-6">Ir para Exportar</Button>
             </div>
           </motion.div>
         )
@@ -421,21 +491,10 @@ export default function NovoFilme() {
               <p className="text-muted-foreground">Escolha uma das opções abaixo:</p>
             </div>
             <div className="space-y-3">
-              <Button
-                onClick={() => budgetId && navigate(`/budget/${budgetId}/pdf`)}
-                size="lg"
-                className="w-full btn-gradient"
-                disabled={!budgetId}
-              >
+              <Button onClick={() => budgetId && navigate(`/budget/${budgetId}/pdf`)} size="lg" className="w-full btn-gradient" disabled={!budgetId}>
                 Visualizar PDF
               </Button>
-              <Button
-                onClick={() => budgetId && navigate(`/budget/${budgetId}`)}
-                variant="outline"
-                size="lg"
-                className="w-full nav-button"
-                disabled={!budgetId}
-              >
+              <Button onClick={() => budgetId && navigate(`/budget/${budgetId}`)} variant="outline" size="lg" className="w-full nav-button" disabled={!budgetId}>
                 Visualizar Orçamento
               </Button>
               <Button onClick={() => navigate('/')} variant="ghost" size="lg" className="w-full">
@@ -450,9 +509,9 @@ export default function NovoFilme() {
     }
   }
 
-  // ====== LAYOUT ======
+  /** ========== Layout ========== */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" onKeyDown={keyNav}>
       <div className="fixed top-4 right-4 z-50">
         <AutosaveIndicator status={saveStatus} />
       </div>
@@ -483,17 +542,16 @@ export default function NovoFilme() {
             </div>
             <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6">
               <StepContent />
+              {/* Rodapé fixo da etapa para navegação rápida em telas longas */}
+              <div className="mt-8 sticky bottom-4 z-40 flex justify-between bg-slate-900/60 backdrop-blur rounded-lg p-3 border border-white/10">
+                <span className="text-xs text-white/60">Use Enter para avançar • Shift+Enter para voltar</span>
+                <span className="text-xs text-white/60">Autosave ativo</span>
+              </div>
             </div>
           </div>
 
           {/* Preview (desacoplado) */}
-          <PreviewSidebar
-            data={{
-              filme: deferredData.filme,
-              audio: deferredData.audio,
-              total: deferredData.total
-            }}
-          />
+          <PreviewSidebar data={{ filme: deferredData.filme, audio: deferredData.audio, total: deferredData.total }} />
         </div>
       </div>
     </div>
