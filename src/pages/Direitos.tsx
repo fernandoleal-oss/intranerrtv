@@ -1187,3 +1187,15 @@ export default function Direitos() {
     </main>
   );
 }
+
+
+import React from "react";
+
+export default function Direitos() {
+  return (
+    <main style={{ padding: 24 }}>
+      <h1 style={{ fontFamily: "sans-serif" }}>Direitos — teste de rota</h1>
+      <p>Se você está vendo esta página, a importação dinâmica está OK.</p>
+    </main>
+  );
+}
