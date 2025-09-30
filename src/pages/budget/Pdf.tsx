@@ -1,402 +1,230 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "../../integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, Home } from "lucide-react";
-import logoWE from "@/assets/Logo_WE.png";
+// src/pages/budget/Pdf.tsx
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { supabase } from '@/integrations/supabase/client'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft, Home } from 'lucide-react'
+
+type Payload = Record<string, any>
+
+type View = {
+  budgetId: string
+  displayId: string
+  type: string
+  status: string
+  createdAt: string
+  payload: Payload
+}
+
+const fmt = (v?: any) => (v == null || v === '' ? '—' : String(v))
+const money = (n: number | undefined) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0)
 
 export default function PdfView() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [data, setData] = useState<any>(null);
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [view, setView] = useState<View | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    (async () => {
-      if (!id) return;
-      // pegue a última versão; ajuste consulta conforme seu schema
-      const { data: v } = await supabase
-        .from("versions")
-        .select("*, budgets:budget_id(display_id, type)")
-        .eq("budget_id", id)
-        .order("versao", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      setData(v);
-    })();
-  }, [id]);
+    const run = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('versions')
+          .select(`
+            id,
+            payload,
+            created_at,
+            budgets!inner(
+              id,
+              display_id,
+              type,
+              status,
+              created_at
+            )
+          `)
+          .eq('budget_id', id)
+          .order('versao', { ascending: false })
+          .limit(1)
+          .maybeSingle()
 
-  if (!data) return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-        <p className="text-muted-foreground">Carregando orçamento...</p>
+        if (error || !data) throw error || new Error('Orçamento não encontrado')
+
+        const payload: Payload = data.payload || {}
+        setView({
+          budgetId: data.budgets.id,
+          displayId: data.budgets.display_id,
+          type: data.budgets.type,
+          status: data.budgets.status,
+          createdAt: data.budgets.created_at,
+          payload,
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+    run()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background grid place-items-center">
+        <div className="text-muted-foreground">Gerando PDF…</div>
+      </div>
+    )
+  }
+
+  if (!view) {
+    return (
+      <div className="min-h-screen bg-background grid place-items-center">
+        <div className="space-y-4 text-center">
+          <div className="text-xl font-semibold">Orçamento não encontrado</div>
+          <Button onClick={() => navigate('/')}>
+            <Home className="w-4 h-4 mr-2" /> Início
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const p = view.payload
+  const total = p.total ?? 0
+
+  return (
+    <div className="min-h-screen bg-white print:bg-white">
+      {/* Barra de ações (não aparece na impressão) */}
+      <div className="sticky top-0 z-10 bg-white border-b p-3 flex items-center gap-2 print:hidden">
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
+        </Button>
+        <Button variant="outline" onClick={() => navigate('/')}>
+          <Home className="w-4 h-4 mr-2" /> Início
+        </Button>
+        <div className="ml-auto text-sm text-muted-foreground">
+          {view.displayId} • {view.type.toUpperCase()} • {view.status}
+        </div>
+        <Button className="ml-3" onClick={() => window.print()}>Imprimir / PDF</Button>
+      </div>
+
+      {/* Cabeçalho corporativo */}
+      <div className="px-10 pt-10">
+        <div className="rounded-2xl overflow-hidden border">
+          <div className="bg-black text-white p-6 flex items-center justify-between">
+            <div className="font-bold text-lg">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
+            <div className="text-sm opacity-80">CNPJ: 05.265.118/0001-65</div>
+          </div>
+          <div className="p-6 text-sm">
+            <div>R. Chilon, 381 - Vila Olímpia, São Paulo - SP, 04552-030</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sumário de identificação */}
+      <div className="px-10 pt-6">
+        <div className="grid md:grid-cols-3 gap-4 text-sm">
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Cliente</div>
+            <div className="font-medium">{fmt(p.cliente)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Produto</div>
+            <div className="font-medium">{fmt(p.produto)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Job</div>
+            <div className="font-medium">{fmt(p.job)}</div>
+          </div>
+
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Mídias</div>
+            <div className="font-medium">{fmt(p.midias)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Território</div>
+            <div className="font-medium">{fmt(p.territorio)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Período</div>
+            <div className="font-medium">{fmt(p.periodo)}</div>
+          </div>
+
+          <div className="border rounded-xl p-4 md:col-span-3">
+            <div className="text-muted-foreground">Entregáveis</div>
+            <div className="font-medium">{Array.isArray(p.entregaveis) ? p.entregaveis.join(', ') : fmt(p.entregaveis)}</div>
+          </div>
+
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Adaptações de Formatos</div>
+            <div className="font-medium">{Array.isArray(p.formatos) ? p.formatos.join(', ') : fmt(p.formatos)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Data do Orçamento</div>
+            <div className="font-medium">{fmt(p.data_orcamento)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Exclusividade de Elenco</div>
+            <div className="font-medium">{fmt(p.exclusividade_elenco)}</div>
+          </div>
+          <div className="border rounded-xl p-4">
+            <div className="text-muted-foreground">Áudio</div>
+            <div className="font-medium">{fmt(p.audio_descr)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumo financeiro */}
+      <div className="px-10 pt-6">
+        <div className="rounded-2xl border p-6">
+          <div className="text-lg font-semibold mb-4">Resumo Financeiro</div>
+          <div className="grid md:grid-cols-3 gap-4 text-sm">
+            <div className="border rounded-xl p-4">
+              <div className="text-muted-foreground">Filme (subtotal)</div>
+              <div className="font-medium">{money(p?.filme?.subtotal)}</div>
+            </div>
+            <div className="border rounded-xl p-4">
+              <div className="text-muted-foreground">Áudio (subtotal)</div>
+              <div className="font-medium">{money(p?.audio?.subtotal)}</div>
+            </div>
+            <div className="border rounded-xl p-4">
+              <div className="text-muted-foreground">Total Geral</div>
+              <div className="font-semibold text-primary">{money(total)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Observações / termos (SEM INSTRUÇÕES DE FATURAMENTO até aprovar) */}
+      <div className="px-10 py-8">
+        <div className="grid md:grid-cols-2 gap-6 text-sm">
+          <div className="rounded-2xl border p-6">
+            <div className="font-semibold mb-2">Observações</div>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>Validade do orçamento: 7 dias a partir da emissão.</li>
+              <li>Usos e prazos condicionados à aprovação e disponibilidade.</li>
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border p-6">
+            <div className="font-semibold mb-2">Termos e Condições</div>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>Alterações de escopo podem gerar nova versão.</li>
+              <li>Conforme mídias, território e período informados neste orçamento.</li>
+            </ul>
+          </div>
+
+          {view.status?.toLowerCase() === 'aprovado' && (
+            <div className="rounded-2xl border p-6 md:col-span-2">
+              <div className="font-semibold mb-2">Instruções para Faturamento</div>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Enviar Nota Fiscal para: checking@we.com.br</li>
+                <li>Constar número da AP/OC no corpo da Nota Fiscal</li>
+                <li>Dados bancários corretos e atualizados</li>
+                <li>Condições de pagamento: conforme acordado (30/45/60 dias)</li>
+                <li>Dúvidas: departamento financeiro</li>
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
-
-  const payload = data.payload || {};
-  const fmt = (n: number) => (n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-
-  return (
-    <div className="bg-white text-zinc-900 min-h-screen py-8 print:py-0">
-      {/* Navigation Buttons - Hide on Print */}
-      <div className="no-print mb-6">
-        <div className="max-w-4xl mx-auto px-6 flex gap-3">
-          <Button 
-            onClick={() => navigate('/')}
-            variant="outline"
-            className="gap-2 nav-button"
-          >
-            <Home className="h-4 w-4" />
-            Página Inicial
-          </Button>
-          <Button 
-            onClick={() => navigate(`/budget/${id}/edit`)}
-            variant="outline"
-            className="gap-2 nav-button"
-          >
-            <Edit className="h-4 w-4" />
-            Editar Orçamento
-          </Button>
-          <Button 
-            onClick={() => window.print()}
-            className="gap-2 btn-gradient ml-auto"
-          >
-            Imprimir PDF
-          </Button>
-        </div>
-      </div>
-      
-      <div className="max-w-4xl mx-auto px-6 print:px-0">
-        {/* Cabeçalho Corporativo (estilo AP) */}
-        <header className="bg-black text-white p-6 rounded-lg mb-6 print:rounded-none">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-6">
-              <div className="bg-white p-2 rounded">
-                <img src={logoWE} alt="WE Logo" className="h-10 w-auto" />
-              </div>
-              <div className="text-xs leading-relaxed">
-                <div className="font-bold text-sm">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
-                <div>CNPJ: 05.265.118/0001-65</div>
-                <div>R. Chilon, 381 - Vila Olímpia, São Paulo - SP, 04552-030</div>
-              </div>
-            </div>
-            <div className="text-right text-xs">
-              <div className="font-bold text-sm mb-1">Orçamento {data.budgets?.display_id || id}</div>
-              <div>Versão: v{data.versao}</div>
-              <div className="mt-2 text-white/80">
-                Data: {payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}
-              </div>
-            </div>
-          </div>
-          
-          {/* Bloco superior estilo AP */}
-          <div className="border-t border-white/20 pt-4 mt-4">
-            <div className="grid grid-cols-4 gap-x-4 gap-y-2 text-xs">
-              <div>
-                <span className="text-white/60 block">Agência</span>
-                <span className="font-semibold">AGÊNCIA WE</span>
-              </div>
-              <div>
-                <span className="text-white/60 block">Cliente</span>
-                <span className="font-semibold">{payload.cliente || '—'}</span>
-              </div>
-              <div>
-                <span className="text-white/60 block">Produto</span>
-                <span className="font-semibold">{payload.produto || '—'}</span>
-              </div>
-              <div>
-                <span className="text-white/60 block">Job</span>
-                <span className="font-semibold">{payload.job || '—'}</span>
-              </div>
-              <div>
-                <span className="text-white/60 block">Competência</span>
-                <span className="font-semibold">
-                  {payload.data_orcamento 
-                    ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-                    : new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-                  }
-                </span>
-              </div>
-              <div>
-                <span className="text-white/60 block">Tipo Orçamento</span>
-                <span className="font-semibold">{data.budgets?.type?.toUpperCase()}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Sumário Detalhado (estilo AP) */}
-        <section className="mb-6 p-6 bg-slate-50 rounded-lg border border-slate-200">
-          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-300 pb-2">
-            Detalhamento do Projeto
-          </h2>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Cliente:</span>
-              <span className="text-slate-900">{payload.cliente || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Produto:</span>
-              <span className="text-slate-900">{payload.produto || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Job:</span>
-              <span className="text-slate-900">{payload.job || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Mídias:</span>
-              <span className="text-slate-900">{payload.midias || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Território:</span>
-              <span className="text-slate-900">{payload.territorio || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Período:</span>
-              <span className="text-slate-900">{payload.periodo || '—'}</span>
-            </div>
-            <div className="flex col-span-2">
-              <span className="font-semibold text-slate-700 w-40">Entregáveis:</span>
-              <span className="text-slate-900">{payload.entregaveis || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Adaptações:</span>
-              <span className="text-slate-900">{payload.adaptacoes || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Data Orçamento:</span>
-              <span className="text-slate-900">
-                {payload.data_orcamento ? new Date(payload.data_orcamento).toLocaleDateString('pt-BR') : '—'}
-              </span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Exclusividade Elenco:</span>
-              <span className="text-slate-900">{payload.exclusividade_elenco || '—'}</span>
-            </div>
-            <div className="flex">
-              <span className="font-semibold text-slate-700 w-40">Áudio:</span>
-              <span className="text-slate-900">{payload.audio || payload.tipo_audio || '—'}</span>
-            </div>
-          </div>
-        </section>
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold mb-2">Orçamento de Produção</h1>
-          <div className="text-sm text-muted-foreground">
-            Documento gerado em {new Date().toLocaleDateString('pt-BR', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
-          </div>
-        </div>
-
-        {/* Informações do Cliente */}
-        {(payload.cliente || payload.produto) && (
-          <div className="mb-8 p-4 bg-muted/30 rounded-lg">
-            <h2 className="font-semibold mb-3 text-lg">Informações do Cliente</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              {payload.cliente && (
-                <div>
-                  <strong className="text-sm text-muted-foreground">Cliente:</strong>
-                  <div className="font-medium">{payload.cliente}</div>
-                </div>
-              )}
-              {payload.produto && (
-                <div>
-                  <strong className="text-sm text-muted-foreground">Produto:</strong>
-                  <div className="font-medium">{payload.produto}</div>
-                </div>
-              )}
-              {payload.job && (
-                <div>
-                  <strong className="text-sm text-muted-foreground">Job:</strong>
-                  <div className="font-medium">{payload.job}</div>
-                </div>
-              )}
-              {payload.campanha && (
-                <div>
-                  <strong className="text-sm text-muted-foreground">Campanha:</strong>
-                  <div className="font-medium">{payload.campanha}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Seções por tipo */}
-        <div className="space-y-6">
-          {payload.filme && (
-            <section className="p-4 border border-border rounded-lg">
-              <h2 className="font-semibold mb-3 flex items-center gap-2">
-                Produção de Filme
-              </h2>
-              <div className="bg-muted/20 p-3 rounded">
-                <div className="grid md:grid-cols-2 gap-4 mb-3">
-                  {payload.midias && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Mídias:</span>
-                      <div className="font-medium">{payload.midias}</div>
-                    </div>
-                  )}
-                  {payload.territorio && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Território:</span>
-                      <div className="font-medium">{payload.territorio}</div>
-                    </div>
-                  )}
-                  {payload.periodo && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Período:</span>
-                      <div className="font-medium">{payload.periodo}</div>
-                    </div>
-                  )}
-                </div>
-                <div className="pt-2 border-t border-border">
-                  <span className="text-sm text-muted-foreground">Subtotal:</span>
-                  <span className="font-bold ml-2">R$ {fmt(payload.filme.subtotal || 0)}</span>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {payload.audio && (
-            <section className="p-4 border border-border rounded-lg">
-              <h2 className="font-semibold mb-3 flex items-center gap-2">
-                Produção de Áudio
-              </h2>
-              <div className="bg-muted/20 p-3 rounded">
-                <div className="grid md:grid-cols-2 gap-4 mb-3">
-                  {payload.tipo_audio && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Tipo:</span>
-                      <div className="font-medium">{payload.tipo_audio}</div>
-                    </div>
-                  )}
-                  {payload.duracao && (
-                    <div>
-                      <span className="text-sm text-muted-foreground">Duração:</span>
-                      <div className="font-medium">{payload.duracao}</div>
-                    </div>
-                  )}
-                </div>
-                <div className="pt-2 border-t border-border">
-                  <span className="text-sm text-muted-foreground">Subtotal:</span>
-                  <span className="font-bold ml-2">R$ {fmt(payload.audio.subtotal || 0)}</span>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {payload.cc && (
-            <section className="p-4 border border-border rounded-lg">
-              <h2 className="font-semibold mb-3 flex items-center gap-2">
-                Closed Caption
-              </h2>
-              <div className="bg-muted/20 p-3 rounded">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="text-sm text-muted-foreground">Versões:</span>
-                    <span className="font-medium ml-2">{payload.cc.qtd || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-sm text-muted-foreground">Total:</span>
-                    <span className="font-bold ml-2">R$ {fmt(payload.cc.total || 0)}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {payload.imagens && payload.imagens.items && payload.imagens.items.length > 0 && (
-            <section className="p-4 border border-border rounded-lg">
-              <h2 className="font-semibold mb-3 flex items-center gap-2">
-                Compra de Imagens
-              </h2>
-              <div className="bg-muted/20 p-3 rounded">
-                <div className="space-y-2 mb-3">
-                  {payload.imagens.items.map((item: any, index: number) => (
-                    <div key={index} className="flex justify-between items-center py-1 border-b border-border/50 last:border-0">
-                      <span className="text-sm">{item.descricao}</span>
-                      <span className="font-medium">R$ {fmt(item.valor || 0)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="pt-2 border-t border-border">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Total de Imagens:</span>
-                    <span className="font-bold">R$ {fmt(payload.imagens.total || 0)}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* Total Geral */}
-        <section className="mt-8 p-6 bg-primary/5 border-2 border-primary/20 rounded-lg">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Resumo Financeiro</h2>
-          </div>
-          <div className="space-y-3">
-            {data.honorario_total > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Honorário:</span>
-                <span className="font-semibold">R$ {fmt(data.honorario_total)}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center text-2xl font-bold border-t pt-3">
-              <span>Total Geral:</span>
-              <span className="text-primary">R$ {fmt(data.total_geral || payload.total || 0)}</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Observações e Termos (estilo AP/OC) */}
-        <section className="mt-8 space-y-4">
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <h3 className="font-bold text-amber-900 mb-2">Observações</h3>
-            <div className="text-sm text-amber-800 space-y-1">
-              <p><strong>Território:</strong> {payload.territorio || 'Conforme especificado'}</p>
-              <p><strong>Período:</strong> {payload.periodo || 'Conforme especificado'}</p>
-              <p><strong>Mídia:</strong> {payload.midias || 'Conforme especificado'}</p>
-              <p><strong>Validade do orçamento:</strong> 7 dias a partir da data de emissão</p>
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-            <h3 className="font-bold text-slate-900 mb-3">Termos e Condições</h3>
-            <div className="text-sm text-slate-700 space-y-2 leading-relaxed">
-              <p><strong>Inclui:</strong> Os itens e serviços discriminados neste documento.</p>
-              <p><strong>Prazos:</strong> Condicionados à aprovação do escopo e disponibilidade dos fornecedores.</p>
-              <p><strong>Usos:</strong> Conforme mídias, território e período informados neste orçamento.</p>
-              <p><strong>Alterações:</strong> Mudanças de escopo e/ou entregáveis geram nova versão deste orçamento.</p>
-            </div>
-          </div>
-
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-bold text-blue-900 mb-3">Instruções para Faturamento</h3>
-            <div className="text-sm text-blue-800 space-y-2">
-              <p>• Enviar Nota Fiscal para: <strong>checking@we.com.br</strong></p>
-              <p>• Constar número da AP/OC no corpo da Nota Fiscal</p>
-              <p>• Dados bancários devem estar corretos e atualizados</p>
-              <p>• Condições de pagamento: Conforme acordado (30/45/60 dias)</p>
-              <p>• Para dúvidas sobre faturamento, contatar o departamento financeiro</p>
-            </div>
-          </div>
-        </section>
-
-        <div className="mt-10 flex gap-3 no-print">
-          <Button 
-            onClick={() => window.print()} 
-            className="btn-gradient"
-          >
-            Imprimir / Salvar PDF
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
 }
