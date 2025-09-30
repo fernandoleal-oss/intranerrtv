@@ -715,4 +715,378 @@ Status (opcional): `
   }
 
   return (
-    <d
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg">Adicionar novo registro</h3>
+          <div className="flex gap-2">
+            <button className={classNames("px-3 py-2 rounded-lg border", mode==="form"?"bg-black text-white":"")} onClick={()=>setMode("form")}>
+              Formulário
+            </button>
+            <button className={classNames("px-3 py-2 rounded-lg border", mode==="prompt"?"bg-black text-white":"")} onClick={()=>setMode("prompt")}>
+              <ClipboardList className="h-4 w-4 inline mr-1" />
+              Prompt
+            </button>
+          </div>
+        </div>
+
+        {mode==="form" && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm mb-1">Cliente</label>
+                <input list="client-datalist" className="w-full border rounded-lg p-2" value={client} onChange={e=>setClient(e.target.value)} placeholder="Ex.: EMS, BYD, LEGRAND..." />
+                <datalist id="client-datalist">
+                  {clientSuggestions.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Produto</label>
+                <input className="w-full border rounded-lg p-2" value={product} onChange={e=>setProduct(e.target.value)} placeholder="Ex.: Lacday" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm mb-1">Título (filme/peça)</label>
+                <input className="w-full border rounded-lg p-2" value={title} onChange={e=>setTitle(e.target.value)} placeholder='Ex.: "Fujão (Faro)"' />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">Assinatura do contrato (produção)</label>
+                <input type="date" className="w-full border rounded-lg p-2" value={signedProd} onChange={e=>setSignedProd(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Primeira veiculação</label>
+                <input type="date" className="w-full border rounded-lg p-2" value={firstAir} onChange={e=>setFirstAir(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">Validade (meses)</label>
+                <div className="flex gap-2">
+                  <input type="number" min={1} className="w-full border rounded-lg p-2" value={validity} onChange={e=>setValidity(e.target.value === "" ? "" : Number(e.target.value))} />
+                  <button type="button" onClick={calcExpire} className="px-3 py-2 rounded-lg border">Calcular expira</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Data que expira</label>
+                <input type="date" className="w-full border rounded-lg p-2" value={expire} onChange={e=>setExpire(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">Produtora de áudio</label>
+                <input className="w-full border rounded-lg p-2" value={audioProd} onChange={e=>setAudioProd(e.target.value)} placeholder="Ex.: Subsound / Antfood" />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Produtora de filme</label>
+                <input className="w-full border rounded-lg p-2" value={filmProd} onChange={e=>setFilmProd(e.target.value)} placeholder="Ex.: Boiler / Surreal / O2" />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">Link filme (opcional)</label>
+                <input className="w-full border rounded-lg p-2" value={linkFilm} onChange={e=>setLinkFilm(e.target.value)} placeholder="https://..." />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Link drive (opcional)</label>
+                <input className="w-full border rounded-lg p-2" value={linkDrive} onChange={e=>setLinkDrive(e.target.value)} placeholder="https://..." />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={markRenewed} onChange={e=>setMarkRenewed(e.target.checked)} />
+                Já marcar como renovado
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={archiveNow} onChange={e=>setArchiveNow(e.target.checked)} />
+                Arquivar este registro
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} />
+                Conferi e está correto
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-between">
+              <button onClick={onClose} className="px-3 py-2 rounded-lg border">Cancelar</button>
+              <button onClick={handleCreateFromForm} className="px-3 py-2 rounded-lg bg-black text-white flex items-center gap-2">
+                <Plus className="h-4 w-4" /> Adicionar
+              </button>
+            </div>
+          </>
+        )}
+
+        {mode==="prompt" && (
+          <>
+            <p className="text-sm text-gray-600 mb-2">
+              Cole o bloco no formato do modelo. Eu extraio cliente, produto, título, produtoras, datas e links e levo para o formulário para você validar.
+            </p>
+            <textarea className="w-full h-64 border rounded-lg p-3 font-mono text-sm" value={promptText} onChange={e=>setPromptText(e.target.value)} />
+            <div className="mt-6 flex justify-between">
+              <button onClick={onClose} className="px-3 py-2 rounded-lg border">Cancelar</button>
+              <button onClick={handleCreateFromPrompt} className="px-3 py-2 rounded-lg bg-black text-white flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Preencher formulário
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================
+   Página
+========================================= */
+export default function Direitos() {
+  const navigate = useNavigate();
+
+  const [rows, setRows] = useState<RightRow[]>(SEED_ALL);
+  const clientOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) if (r.client) set.add(r.client);
+    return Array.from(set).sort();
+  }, [rows]);
+
+  const [client, setClient] = useState<string>(clientOptions[0] || "EMS");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL"|"EM_USO"|"LE30"|"LE15"|"HOJE"|"VENCIDO"|"ARQ">("ALL");
+
+  const [openRenew, setOpenRenew] = useState(false);
+  const [current, setCurrent] = useState<RightRow | null>(null);
+  const [openAdd, setOpenAdd] = useState(false);
+
+  useEffect(() => {
+    if (!clientOptions.includes(client) && clientOptions.length > 0) {
+      setClient(clientOptions[0]);
+    }
+  }, [clientOptions, client]);
+
+  const rowsClient = useMemo(() => rows.filter(r => r.client === client), [rows, client]);
+
+  const kpis = useMemo(() => {
+    let uso=0, le30=0, le15=0, hoje=0, venc=0, arq=0;
+    for (const r of rowsClient) {
+      if (r.archived) { arq++; continue; }
+      const d = daysUntil(r.expire_date);
+      if (d===undefined) continue;
+      if (d<0) venc++;
+      else if (d===0) hoje++;
+      else if (d<=15) le15++;
+      else if (d<=30) le30++;
+      else uso++;
+    }
+    return { uso, le30, le15, hoje, venc, arq };
+  }, [rowsClient]);
+
+  const filtered = useMemo(() => {
+    const t = search.trim().toLowerCase();
+    return rowsClient
+      .filter(r => {
+        if (statusFilter === "ARQ") return r.archived === true;
+        if (r.archived) return false;
+        const d = daysUntil(r.expire_date);
+        let ok = true;
+        if (statusFilter==='EM_USO') ok = (d!==undefined && d>30);
+        if (statusFilter==='LE30')  ok = (d!==undefined && d>15 && d<=30);
+        if (statusFilter==='LE15')  ok = (d!==undefined && d>0 && d<=15);
+        if (statusFilter==='HOJE')  ok = (d===0);
+        if (statusFilter==='VENCIDO') ok = (d!==undefined && d<0);
+        if (statusFilter==='ALL') ok = true;
+        if (ok && t) ok = (`${r.product} ${r.title}`.toLowerCase().includes(t));
+        return ok;
+      })
+      .sort((a,b) => {
+        const da = a.expire_date ? new Date(a.expire_date).getTime() : Infinity;
+        const db = b.expire_date ? new Date(b.expire_date).getTime() : Infinity;
+        return da - db;
+      });
+  }, [rowsClient, search, statusFilter]);
+
+  function updateRow(id: string, patch: Partial<RightRow>) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  }
+
+  function exportCsv() {
+    const head = ["Cliente","Produto","Título","1ª veic.","Expira","Dias","Val(meses)","Status","Renovado?","Prod. filme","Prod. áudio","Link filme","Link drive"];
+    const lines = filtered.map(r => [
+      r.client,
+      r.product,
+      r.title,
+      fmtDate(r.first_air),
+      fmtDate(r.expire_date),
+      (daysUntil(r.expire_date) ?? "—").toString(),
+      r.validity_months ?? "—",
+      (r.status_label ?? "—"),
+      r.renewed ? "Sim" : "Não",
+      r.film_producer ?? "—",
+      r.audio_producer ?? "—",
+      r.link_film ?? "—",
+      r.link_drive ?? "—",
+    ]);
+    const csv = [head, ...lines].map(row => row.join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `direitos_${client}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <main className="max-w-7xl mx-auto py-8 px-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/")} className="px-3 py-2 rounded-xl border inline-flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" /> Início
+          </button>
+          <h1 className="text-2xl font-semibold">Direitos por cliente</h1>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={() => setOpenAdd(true)} className="px-3 py-2 rounded-xl border inline-flex items-center gap-2">
+            <Plus className="h-4 w-4" /> Adicionar (Form ou Prompt)
+          </button>
+          <button onClick={exportCsv} className="px-3 py-2 rounded-xl border inline-flex items-center gap-2">
+            <Download className="h-4 w-4" /> Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Abas de clientes */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {clientOptions.length===0 && <span className="text-sm text-gray-500">Sem registros. Clique em “Adicionar”.</span>}
+        {clientOptions.map(c => (
+          <button
+            key={c}
+            onClick={()=>setClient(c)}
+            className={classNames("px-3 py-2 rounded-xl border", client===c ? "bg-black text-white" : "bg-white")}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      {/* Busca + filtros */}
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur mb-4 rounded-2xl border p-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="relative md:w-96">
+            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"/>
+            <input
+              value={search}
+              onChange={e=>setSearch(e.target.value)}
+              placeholder="Buscar por produto ou título"
+              className="w-full pl-10 pr-3 py-2 rounded-xl border"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["ALL","Todos"],
+              ["EM_USO","Em uso"],
+              ["LE30","≤ 30 dias"],
+              ["LE15","≤ 15 dias"],
+              ["HOJE","Vence hoje"],
+              ["VENCIDO","Vencido"],
+              ["ARQ","Arquivados"],
+            ] as const).map(([k,label]) => (
+              <button
+                key={k}
+                onClick={()=>setStatusFilter(k)}
+                className={classNames("px-3 py-2 rounded-xl border", statusFilter===k?"bg-black text-white":"bg-white")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+        <StatCard label="Em uso" value={kpis.uso} />
+        <StatCard label="≤ 30 dias" value={kpis.le30} />
+        <StatCard label="≤ 15 dias" value={kpis.le15} />
+        <StatCard label="Vence hoje" value={kpis.hoje} />
+        <StatCard label="Vencido" value={kpis.venc} />
+        <StatCard label="Arquivados" value={kpis.arq} />
+      </div>
+
+      {/* Tabela */}
+      <div className="overflow-auto border rounded-2xl">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr className="text-left">
+              <th className="p-3">Produto</th>
+              <th className="p-3">Título</th>
+              <th className="p-3">1ª veiculação</th>
+              <th className="p-3">Expira</th>
+              <th className="p-3">Dias</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Links</th>
+              <th className="p-3 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td className="p-6 text-gray-500" colSpan={8}>Nada encontrado com esses filtros.</td></tr>
+            ) : (
+              filtered.map(r => {
+                const d = daysUntil(r.expire_date);
+                return (
+                  <tr key={r.id} className="border-t hover:bg-gray-50">
+                    <td className="p-3 whitespace-nowrap">{r.product}</td>
+                    <td className="p-3">
+                      <div className="font-medium">{r.title}</div>
+                      {(r.film_producer || r.audio_producer) && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {r.film_producer && <>Prod. filme: {r.film_producer}</>} {r.film_producer && r.audio_producer && " · "}
+                          {r.audio_producer && <>Prod. áudio: {r.audio_producer}</>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3 whitespace-nowrap">{fmtDate(r.first_air)}</td>
+                    <td className="p-3 whitespace-nowrap">{fmtDate(r.expire_date)}</td>
+                    <td className="p-3">{d === undefined ? "—" : d}</td>
+                    <td className="p-3"><StatusPill expire_date={r.expire_date} status_label={r.status_label} archived={r.archived} /></td>
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        {r.link_film ? (
+                          <a className="underline inline-flex items-center gap-1" href={r.link_film} target="_blank" rel="noreferrer">
+                            <Film className="h-4 w-4"/> filme
+                          </a>
+                        ) : <span className="text-gray-400">—</span>}
+                        {r.link_drive ? (
+                          <a className="underline inline-flex items-center gap-1" href={r.link_drive} target="_blank" rel="noreferrer">
+                            <FolderOpen className="h-4 w-4"/> drive
+                          </a>
+                        ) : <span className="text-gray-400">—</span>}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex justify-end gap-2">
+                        {!r.archived && (
+                          <button className="px-2 py-1 rounded-lg border inline-flex items-center gap-1" onClick={()=>{ setCurrent(r); setOpenRenew(true); }}>
+                            <RefreshCcw className="h-4 w-4"/> Renovar
+                          </button>
+                        )}
+                        <button className="px-2 py-1 rounded-lg border inline-flex items-center gap-1" onClick={()=>updateRow(r.id, { archived: !r.archived })} title={r.archived ? "Desarquivar" : "Arquivar"}>
+                          <Archive className="h-4 w-4"/> {r.archived ? "Desarquivar" : "Arquivar"}
+                        </button>
+                        {r.link_film && (
+                          <a className="px-2 py-1 rounded-lg border inline-flex items-center gap-1" href={r.link_film} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-4 w-4"/> Abrir
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modais */}
+      <RenewWizard open={openRenew} onClose={()=>setOpenRenew(false)} row={current} onSaved={(patch)=> current && updateRow(current.id, patch)} />
+      <AddModal open={openAdd} onClose={()=>setOpenAdd(false)} onAdd={(row)=> { setRows(prev => [...prev, row]); setClient(row.client); }} clientSuggestions={clientOptions} />
+    </main>
+  );
+}
