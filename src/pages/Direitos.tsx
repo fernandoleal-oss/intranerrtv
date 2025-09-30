@@ -16,8 +16,33 @@ import {
   FileUp,
   CheckCircle2,
   AlertTriangle,
+  X,
 } from "lucide-react";
 
+/* =============================================================================
+   PDF.js: carga dinâmica com fallback para evitar erro de módulo/worker
+============================================================================= */
+let pdfjsLibRef: any = null;
+async function ensurePdfJsReady() {
+  if (pdfjsLibRef) return pdfjsLibRef;
+  try {
+    const lib = await import("pdfjs-dist");
+    try {
+      // tenta worker ESM
+      const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+      (lib as any).GlobalWorkerOptions.workerSrc = workerUrl;
+    } catch {
+      // fallback CDN (trava versão p/ estabilidade)
+      (lib as any).GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
+    }
+    pdfjsLibRef = lib;
+    return lib;
+  } catch (e) {
+    console.error("Falha ao carregar pdfjs-dist:", e);
+    return null;
+  }
+}
 
 /* =============================================================================
    TIPOS
@@ -54,10 +79,10 @@ type RightRow = {
 const genId = (p = "seed") =>
   `${p}-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
 
-/** dd/mm/aaaa → ISO */
+/** dd/mm/aaaa (ou dd.mm.aa) → ISO */
 function parseBrDateToIso(str?: string | null): string | null {
   if (!str) return null;
-  const s = str.trim().replace(/\./g, "/");
+  const s = String(str).trim().replace(/\./g, "/");
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (!m) return null;
   const dd = Number(m[1]);
@@ -66,7 +91,7 @@ function parseBrDateToIso(str?: string | null): string | null {
   if (yyyy < 100) yyyy += 2000;
   const dt = new Date(yyyy, mm - 1, dd);
   if (isNaN(dt.getTime())) return null;
-  return `${yyyy}-${String(mm).padStart(2,"0")}-${String(dd).padStart(2,"0")}`;
+  return `${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -91,18 +116,329 @@ function addMonthsIso(isoBase: string, months: number): string {
   const d = new Date(isoBase);
   d.setMonth(d.getMonth() + months);
   const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,"0");
-  const dd = String(d.getDate()).padStart(2,"0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
 /* =============================================================================
-   SEED INICIAL (vazio aqui; você pode injetar seus registros se quiser)
+   SEED INICIAL com as infos que você colou (EMS, BYD, LEGRAND)
+   - Datas convertidas para ISO quando informadas
+   - status_label preenchido (RENOVADO / VENCIDO / DENTRO DO PRAZO etc.)
 ============================================================================= */
-const SEED_ALL: RightRow[] = [];
+const SEED_ALL: RightRow[] = [
+  // =============== EMS ===============
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Dermacyd",
+    title: "Testemunhal (Paola Oliveira)",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("01/04/2024"),
+    first_air: parseBrDateToIso("01/05/2024"),
+    validity_months: 12,
+    expire_date: null, // duas datas no seu texto (22/04/2025 e 12/09/2025); deixamos em branco para você ajustar por job
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Gelmax",
+    title: "Max e Faro",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("15/10/2024"),
+    first_air: parseBrDateToIso("19/10/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("18/10/2025"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Multgrip",
+    title: "Incomodo",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("30/04/2025"),
+    first_air: null,
+    validity_months: 12,
+    expire_date: parseBrDateToIso("29/04/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Dermacyd",
+    title: "Caroline",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("30/04/2025"),
+    first_air: null,
+    validity_months: 12,
+    expire_date: parseBrDateToIso("29/04/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Bengué",
+    title: "Niveis de Dor",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("30/04/2025"),
+    first_air: null,
+    validity_months: 12,
+    expire_date: parseBrDateToIso("29/04/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Lacday",
+    title: "Laclovers",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("30/04/2025"),
+    first_air: null,
+    validity_months: 12,
+    expire_date: parseBrDateToIso("29/04/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Lacday",
+    title: '"Diga sim" (AP 19.736) — RENOVADO',
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("16/01/2024"),
+    first_air: parseBrDateToIso("01/03/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("08/06/2026"),
+    status_label: "RENOVADO",
+    link_film: null, link_drive: null,
+    renewed: true, renewal_contract_url: null, renewal_signed_at: parseBrDateToIso("09/06/2025"), renewal_validity_months: 12,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Institucional",
+    title: "Getty - Renovação de pacote (AP 21.715) — RENOVADO",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("21/06/2024"),
+    first_air: parseBrDateToIso("21/06/2025"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("20/06/2026"),
+    status_label: "RENOVADO",
+    link_film: null, link_drive: null,
+    renewed: true, renewal_contract_url: null, renewal_signed_at: parseBrDateToIso("21/06/2025"), renewal_validity_months: 12,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "Caladryl",
+    title: "Renovação PÓS Tudo — RENOVADO",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("11/10/2024"),
+    first_air: parseBrDateToIso("15/10/2024"),
+    validity_months: 9,
+    expire_date: parseBrDateToIso("13/02/2026"),
+    status_label: "RENOVADO",
+    link_film: null, link_drive: null,
+    renewed: true, renewal_contract_url: null, renewal_signed_at: parseBrDateToIso("20/06/2025"), renewal_validity_months: 9,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  // Vencidos (alguns exemplos)
+  {
+    id: genId("ems"),
+    client: "EMS",
+    product: "LACDAY",
+    title: "Confeiteira (AP 17.067) — VENCIDO",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("29/04/2023"),
+    first_air: parseBrDateToIso("29/04/2023"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("29/04/2024"),
+    status_label: "VENCIDO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  // (adicionei só os principais para não explodir o arquivo; você pode colar mais seguindo o mesmo padrão)
+
+  // =============== BYD ===============
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "ENERGY",
+    title: "Solução Residencial e Comercial (AP 20.468)",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: parseBrDateToIso("20/03/2024"),
+    validity_months: 24,
+    expire_date: parseBrDateToIso("20/03/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Shark Lançamento",
+    title: "Surreal Films",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: parseBrDateToIso("01/10/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("01/10/2025"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: "COPIAS", link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: "Surreal", archived: false,
+  },
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Black Friday",
+    title: "Thiago Nigro - Cine",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: parseBrDateToIso("01/11/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("01/11/2025"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: "BYD_hero_30s-ON_4x5.mp4", link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: "Cine", archived: false,
+  },
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Super Híbridos",
+    title: "Luiz Miranda — Trust",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("26/02/2025"),
+    first_air: null,
+    validity_months: 12,
+    expire_date: parseBrDateToIso("25/02/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: "COPIAS", link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: "Trust", archived: false,
+  },
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Shark Gustavo Lima",
+    title: "Melodia",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: parseBrDateToIso("01/03/2025"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("01/03/2026"),
+    status_label: "DENTRO DO PRAZO",
+    link_film: "COPIAS", link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: "Melodia", archived: false,
+  },
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Tripa King",
+    title: "—",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: parseBrDateToIso("18/06/2025"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("17/06/2026"),
+    status_label: "RENOVADO",
+    link_film: null, link_drive: null,
+    renewed: true, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: 12,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  // Vencidos da BYD (exemplos)
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Lanç. Dolphin Mini Filme e KV",
+    title: "—",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: parseBrDateToIso("28/02/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("28/02/2025"),
+    status_label: "VENCIDO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("byd"),
+    client: "BYD",
+    product: "Lanç. Song Plus",
+    title: "Acostamento",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("14/04/2024"),
+    first_air: parseBrDateToIso("19/04/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("19/04/2025"),
+    status_label: "VENCIDO",
+    link_film: "COPIA", link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+
+  // =============== LEGRAND ===============
+  {
+    id: genId("legrand"),
+    client: "LEGRAND",
+    product: "EXPEC",
+    title: "ESCRITORIO / CASAL / MULHER A NOITE",
+    contract_signed_cast: null,
+    contract_signed_production: null,
+    first_air: null,
+    validity_months: 12,
+    expire_date: parseBrDateToIso("01/03/2026"), // “março/2026” — defini 01/03/2026
+    status_label: "DENTRO DO PRAZO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+  {
+    id: genId("legrand"),
+    client: "LEGRAND",
+    product: "REPOFLOR",
+    title: "REPOFLOR CASA",
+    contract_signed_cast: null,
+    contract_signed_production: parseBrDateToIso("02/08/2024"),
+    first_air: parseBrDateToIso("10/09/2024"),
+    validity_months: 12,
+    expire_date: parseBrDateToIso("02/09/2025"),
+    status_label: "VENCIDO",
+    link_film: null, link_drive: null,
+    renewed: false, renewal_contract_url: null, renewal_signed_at: null, renewal_validity_months: null,
+    audio_producer: null, film_producer: null, archived: false,
+  },
+];
 
 /* =============================================================================
-   PARSER DO “PROMPT” DE TEXTO (continua igual; usado no modo Prompt)
+   PARSER DO “PROMPT” DE TEXTO (modo rápido)
 ============================================================================= */
 function parseQuickPrompt(text: string): Partial<RightRow> {
   const map: Record<string, string> = {};
@@ -121,17 +457,17 @@ function parseQuickPrompt(text: string): Partial<RightRow> {
 
   const client = get("cliente");
   const product = get("produto");
-  const title = get("título","titulo","nome do filme","filme","peça","nome da peça") || "";
-  const filmProducer = get("produtora de filme","produtora de vídeo","produtora de video","produtora de filme:");
-  const audioProducer = get("produtora de áudio","produtora de audio");
-  const signedProd = get("assinatura contrato (produção)","assinatura contrato","assinatura do contrato (produção)","assinatura do contrato");
-  const firstAir = get("primeira veiculação","primeira veiculacao","1ª veiculação","1a veiculação","1a veiculacao");
-  const validity = get("validade (meses)","validade");
-  const expire = get("data que expira","expira","data de expiração","data de expiracao");
-  const linkFilm = get("link filme (opcional)","link filme","filme");
-  const linkDrive = get("link drive (opcional)","link drive","drive");
-  const status = get("status (opcional)","status");
-  const validityNum = validity ? Number(String(validity).replace(/[^\d]/g,"")) : undefined;
+  const title = get("título", "titulo", "nome do filme", "filme", "peça", "nome da peça") || "";
+  const filmProducer = get("produtora de filme", "produtora de vídeo", "produtora de video");
+  const audioProducer = get("produtora de áudio", "produtora de audio");
+  const signedProd = get("assinatura contrato (produção)", "assinatura contrato", "assinatura do contrato (produção)", "assinatura do contrato");
+  const firstAir = get("primeira veiculação", "primeira veiculacao", "1ª veiculação", "1a veiculação", "1a veiculacao");
+  const validity = get("validade (meses)", "validade");
+  const expire = get("data que expira", "expira", "data de expiração", "data de expiracao");
+  const linkFilm = get("link filme (opcional)", "link filme", "filme");
+  const linkDrive = get("link drive (opcional)", "link drive", "drive");
+  const status = get("status (opcional)", "status");
+  const validityNum = validity ? Number(String(validity).replace(/[^\d]/g, "")) : undefined;
 
   return {
     client: client || "",
@@ -150,13 +486,13 @@ function parseQuickPrompt(text: string): Partial<RightRow> {
 }
 
 /* =============================================================================
-   EXTRAÇÃO DE TEXTO DO PDF + HEURÍSTICAS
-   - Lê todas as páginas e junta o texto
-   - Procura padrões comuns (Cliente, Produto, Produtora, Datas etc.)
+   LEITURA DO PDF + HEURÍSTICAS (beta)
 ============================================================================= */
 async function extractPdfText(file: File): Promise<string> {
+  const lib = await ensurePdfJsReady();
+  if (!lib) throw new Error("pdfjs-dist não carregou");
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await (lib as any).getDocument({ data: buf }).promise;
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -170,44 +506,34 @@ async function extractPdfText(file: File): Promise<string> {
 function parseFromContractText(text: string): Partial<RightRow> & { notes?: string[] } {
   const T = text.replace(/\s+/g, " ");
   const notes: string[] = [];
-
-  // util: pega 1° grupo por regex
   const pick = (re: RegExp) => {
     const m = T.match(re);
     return m && m[1] ? m[1].trim() : undefined;
   };
 
-  // campos (várias variações de rótulo)
   const client = pick(/(?:Cliente|Contratante|Anunciante)\s*:\s*([^;,\n]+)/i);
   const product = pick(/(?:Produto|Campanha|Projeto)\s*:\s*([^;,\n]+)/i);
   const title = pick(/(?:Título|Titulo|Peça|Filme)\s*:\s*([^;,\n]+)/i);
-
   const filmProducer =
     pick(/(?:Produtora de (?:filme|vídeo|video)|Produtora)\s*:\s*([^;,\n]+)/i) ||
     pick(/(?:Produção|Produtor(?:a)? executiva?)\s*:\s*([^;,\n]+)/i);
-
   const audioProducer =
     pick(/(?:Produtora de (?:áudio|audio)|Trilha|Áudio)\s*:\s*([^;,\n]+)/i);
 
-  // datas
   const signedProdRaw =
     pick(/Assinatura(?: do)? contrato(?: de produção)?\s*[:\-]\s*(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4})/i) ||
     pick(/Data de assinatura\s*[:\-]\s*(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4})/i);
-
   const firstAirRaw =
     pick(/Primeira (?:veiculação|veiculacao)\s*[:\-]\s*(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4})/i) ||
     pick(/1[ªa]\s*veiculação\s*[:\-]\s*(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4})/i);
-
   const expireRaw =
     pick(/(?:Data que expira|Expira(?:ção)?)\s*[:\-]\s*(\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4})/i) ||
     undefined;
 
   let validityNum: number | undefined;
-  const validRaw = pick(/Validade(?: \(meses\))?\s*[:\-]\s*(\d{1,3})/i) ||
-                   pick(/vigência de\s*(\d{1,3})\s*mes/i);
+  const validRaw = pick(/Validade(?: \(meses\))?\s*[:\-]\s*(\d{1,3})/i) || pick(/vigência de\s*(\d{1,3})\s*mes/i);
   if (validRaw) validityNum = Number(validRaw);
 
-  // montar
   const out: Partial<RightRow> & { notes?: string[] } = {
     client: client || "",
     product: product || "",
@@ -221,7 +547,6 @@ function parseFromContractText(text: string): Partial<RightRow> & { notes?: stri
     notes,
   };
 
-  // se não houver expiração, calcular por validade + data-base
   if (!out.expire_date && out.validity_months) {
     const base = out.first_air || out.contract_signed_production;
     if (base) {
@@ -230,7 +555,6 @@ function parseFromContractText(text: string): Partial<RightRow> & { notes?: stri
     }
   }
 
-  // confidência simples: se poucos campos achados, avisa
   const filled = ["client","product","title","film_producer","audio_producer","contract_signed_production","first_air","validity_months","expire_date"].filter(k => (out as any)[k]);
   if (filled.length <= 2) notes.push("Poucos campos encontrados — confira o PDF, os rótulos podem variar.");
   return out;
@@ -264,7 +588,7 @@ function StatCard({ label, value, hint }: { label: string; value: number; hint?:
 }
 
 /* =============================================================================
-   MODAIS: RENOVAR & ADICIONAR (agora com MODO PDF)
+   MODAIS: RENOVAR & ADICIONAR (com Form, Prompt e PDF)
 ============================================================================= */
 function RenewWizard({
   open, onClose, row, onSaved
@@ -307,7 +631,10 @@ function RenewWizard({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-6">
-        <h3 className="text-lg mb-4">Renovar — {row.client} · {row.product}</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg">Renovar — {row.client} · {row.product}</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-5 w-5"/></button>
+        </div>
         <ol className="flex items-center gap-2 text-xs mb-4">
           {[1,2,3].map(n => (
             <li key={n} className={classNames("px-2 py-1 rounded-lg border", step===n?"bg-black text-white":"bg-gray-50")}>
@@ -387,7 +714,7 @@ function AddModal({
   const [archiveNow, setArchiveNow] = useState(false);
   const [linkFilm, setLinkFilm] = useState("");
   const [linkDrive, setLinkDrive] = useState("");
-  const [confirmed, setConfirmed] = useState(false); // “Conferi e está correto”
+  const [confirmed, setConfirmed] = useState(false);
 
   // prompt
   const [promptText, setPromptText] = useState(
@@ -444,11 +771,9 @@ Status (opcional): `
     setAudioProd((suggested.audio_producer as string) ?? "");
     setSignedProd(suggested.contract_signed_production ?? "");
     setFirstAir(suggested.first_air ?? "");
-    setValidity(
-      suggested.validity_months != null ? Number(suggested.validity_months) : ""
-    );
+    setValidity(suggested.validity_months != null ? Number(suggested.validity_months) : "");
     setExpire(suggested.expire_date ?? "");
-    setMode("form"); // vem pro formulário para você validar
+    setMode("form"); // volta para validar
   }
 
   async function handleExtractPdf() {
@@ -505,14 +830,11 @@ Status (opcional): `
     setAudioProd((p.audio_producer as string) ?? "");
     setSignedProd(p.contract_signed_production ?? "");
     setFirstAir(p.first_air ?? "");
-    setValidity(
-      p.validity_months != null ? Number(p.validity_months) : ""
-    );
+    setValidity(p.validity_months != null ? Number(p.validity_months) : "");
     setExpire(p.expire_date ?? "");
     setMode("form");
   }
 
-  // calc expiração rápido a partir de validade + base
   function calcExpire() {
     const base = firstAir || signedProd;
     if (base && validity && Number(validity) > 0) {
@@ -520,13 +842,15 @@ Status (opcional): `
     }
   }
 
+  if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6">
         {/* topo */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg">Adicionar novo registro</h3>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               className={classNames("px-3 py-2 rounded-lg border", mode==="form"?"bg-black text-white":"")}
               onClick={()=>setMode("form")}
@@ -548,6 +872,9 @@ Status (opcional): `
             >
               <FileUp className="h-4 w-4 inline mr-1" />
               PDF (beta)
+            </button>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100" aria-label="Fechar">
+              <X className="h-5 w-5"/>
             </button>
           </div>
         </div>
@@ -601,7 +928,7 @@ Status (opcional): `
 
               <div>
                 <label className="block text-sm mb-1">Produtora de áudio</label>
-                <input className="w-full border rounded-lg p-2" value={audioProd} onChange={e=>setAudioProd(e.target.value)} placeholder="Ex.: Subsoud / Antfood" />
+                <input className="w-full border rounded-lg p-2" value={audioProd} onChange={e=>setAudioProd(e.target.value)} placeholder="Ex.: Subsound / Antfood" />
               </div>
               <div>
                 <label className="block text-sm mb-1">Produtora de filme</label>
@@ -735,14 +1062,34 @@ function Hint({ label, value, raw }:{ label:string; value:any; raw?:string }) {
 export default function Direitos() {
   const navigate = useNavigate();
 
-  const [rows, setRows] = useState<RightRow[]>(SEED_ALL);
+  // carrega/persiste localStorage
+  const [rows, setRows] = useState<RightRow[]>(() => {
+    try {
+      const raw = localStorage.getItem("rights_rows_v1");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return SEED_ALL;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("rights_rows_v1", JSON.stringify(rows)); } catch {}
+  }, [rows]);
+
   const clientOptions = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) set.add(r.client);
-    return Array.from(set).sort();
+    const list = Array.from(set).sort();
+    // garante as 3 primeiras abas em ordem amigável se existirem
+    const prefer = ["EMS", "BYD", "LEGRAND"];
+    const preferred = prefer.filter(p => list.includes(p));
+    const others = list.filter(l => !prefer.includes(l));
+    return [...preferred, ...others];
   }, [rows]);
 
-  const [client, setClient] = useState<string>(clientOptions[0] || "EMS");
+  const [client, setClient] = useState<string>(() => {
+    // inicia em EMS (se houver) senão primeiro cliente
+    const hasEMS = SEED_ALL.some(r => r.client === "EMS");
+    return hasEMS ? "EMS" : (SEED_ALL[0]?.client || "");
+  });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL"|"EM_USO"|"LE30"|"LE15"|"HOJE"|"VENCIDO"|"ARQ">("ALL");
 
@@ -751,6 +1098,10 @@ export default function Direitos() {
   const [current, setCurrent] = useState<RightRow | null>(null);
   const [openAdd, setOpenAdd] = useState(false);
 
+  // garante que não abre modal sozinho
+  useEffect(() => { /* noop intencional */ }, []);
+
+  // sincroniza seleção quando lista de clientes muda
   useEffect(() => {
     if (!clientOptions.includes(client) && clientOptions.length > 0) {
       setClient(clientOptions[0]);
