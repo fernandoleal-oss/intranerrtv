@@ -120,7 +120,7 @@ export default function BudgetEdit() {
           .eq("budget_id", id)
           .order("versao", { ascending: false })
           .limit(1)
-          .maybeSingle<VersionRow>({ head: false, count: "exact" })
+          .maybeSingle<VersionRow>()
 
         if (error) throw error
         if (!row) throw new Error("not_found")

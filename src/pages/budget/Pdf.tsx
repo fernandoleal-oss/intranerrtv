@@ -49,7 +49,7 @@ export default function PdfView() {
 
         if (error || !data) throw error || new Error('Orçamento não encontrado')
 
-        const payload: Payload = data.payload || {}
+        const payload: Payload = (data.payload as Payload) || {}
         setView({
           budgetId: data.budgets.id,
           displayId: data.budgets.display_id,

@@ -20,6 +20,7 @@ const PdfView     = lazy(() => import('@/pages/budget/Pdf'))
 const BudgetList  = lazy(() => import('@/pages/BudgetList'))
 const BudgetEdit  = lazy(() => import('@/pages/budget/Edit'))
 const Finance     = lazy(() => import('@/pages/Finance'))
+const Direitos = lazy(() => import('@/pages/Direitos'))
 
 const queryClient = new QueryClient()
 
@@ -178,6 +179,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Finance />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/direitos"
+                element={
+                  <ProtectedRoute>
+                    <Direitos />
                   </ProtectedRoute>
                 }
               />

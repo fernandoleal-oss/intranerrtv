@@ -12,6 +12,10 @@ interface EmptyStateProps {
     label: string
     onClick: () => void
   }
+  secondaryAction?: {
+    label: string
+    onClick: () => void
+  }
   className?: string
 }
 
@@ -20,7 +24,8 @@ export function EmptyState({
   emoji,
   title, 
   description, 
-  action, 
+  action,
+  secondaryAction,
   className 
 }: EmptyStateProps) {
   return (
@@ -35,11 +40,18 @@ export function EmptyState({
         </div>
         <h3 className="text-xl font-semibold mb-2">{title}</h3>
         <p className="text-muted-foreground mb-6 max-w-md">{description}</p>
-        {action && (
-          <Button onClick={action.onClick} className="btn-gradient">
-            {action.label}
-          </Button>
-        )}
+        <div className="flex gap-3">
+          {action && (
+            <Button onClick={action.onClick} className="btn-gradient">
+              {action.label}
+            </Button>
+          )}
+          {secondaryAction && (
+            <Button onClick={secondaryAction.onClick} variant="outline">
+              {secondaryAction.label}
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

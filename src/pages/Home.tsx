@@ -269,6 +269,16 @@ export default function Home() {
                 <DollarSign className="w-4 h-4" />
                 Financeiro
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/direitos')}
+                className="gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                Direitos
+              </Button>
               
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">

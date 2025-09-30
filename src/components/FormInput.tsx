@@ -10,6 +10,7 @@ interface FormInputProps {
   type?: string
   placeholder?: string
   required?: boolean
+  autoComplete?: string
 }
 
 export const FormInput = memo(function FormInput({ 
@@ -19,7 +20,8 @@ export const FormInput = memo(function FormInput({
   onChange, 
   type = 'text', 
   placeholder = '',
-  required = false 
+  required = false,
+  autoComplete = 'off'
 }: FormInputProps) {
   const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.persist() // Ensure event doesn't get pooled
@@ -39,7 +41,7 @@ export const FormInput = memo(function FormInput({
         onChange={handleChange}
         className="dark-input focus-ring"
         placeholder={placeholder}
-        autoComplete="off"
+        autoComplete={autoComplete}
         spellCheck={false}
       />
     </div>
