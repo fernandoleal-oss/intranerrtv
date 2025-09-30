@@ -26,20 +26,20 @@ let pdfjsLibRef: any = null;
 async function ensurePdfJsReady() {
   if (pdfjsLibRef) return pdfjsLibRef;
   try {
-    const lib = await import("pdfjs-dist");
+
     try {
       // tenta worker ESM
-      const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+     
       (lib as any).GlobalWorkerOptions.workerSrc = workerUrl;
     } catch {
       // fallback CDN (trava versão p/ estabilidade)
       (lib as any).GlobalWorkerOptions.workerSrc =
-        "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js";
+       
     }
     pdfjsLibRef = lib;
     return lib;
   } catch (e) {
-    console.error("Falha ao carregar pdfjs-dist:", e);
+  
     return null;
   }
 }
@@ -490,7 +490,7 @@ function parseQuickPrompt(text: string): Partial<RightRow> {
 ============================================================================= */
 async function extractPdfText(file: File): Promise<string> {
   const lib = await ensurePdfJsReady();
-  if (!lib) throw new Error("pdfjs-dist não carregou");
+ 
   const buf = await file.arrayBuffer();
   const pdf = await (lib as any).getDocument({ data: buf }).promise;
   let fullText = "";
