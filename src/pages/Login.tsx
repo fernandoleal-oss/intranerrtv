@@ -254,7 +254,7 @@ export default function Login() {
                       Acesso Restrito
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Apenas usuários com e-mail <span className="font-semibold text-primary">@we.com.br</span> podem acessar este sistema.
+                      Apenas usuários com e-mail <span className="font-semibold text-primary">@we.com.br e @grupowe.com.br</span> podem acessar este sistema.
                     </p>
                   </div>
                 </div>
