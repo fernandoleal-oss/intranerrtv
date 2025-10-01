@@ -66,7 +66,7 @@ export default function OrcamentoNovo() {
     setData((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  // Recalcular totais (subtotal de cotações + honorário)
+  // Recalcular totais
   useEffect(() => {
     const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
     const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100)
@@ -98,10 +98,8 @@ export default function OrcamentoNovo() {
   }
 
   /**
-   * Salva o orçamento:
-   * 1) cria (RPC create_simple_budget_rpc) -> budgets + versions (vazia)
-   * 2) atualiza a version com o payload preenchido
-   * 3) se pendente de faturamento, tenta marcar status na tabela (best-effort)
+   * Salva usando um único RPC:
+   * create_budget_full_rpc(type, payload, total)
    */
   const handleSave = async (goToPdf = true) => {
     if (!data.cliente || !data.produto) {
@@ -111,42 +109,29 @@ export default function OrcamentoNovo() {
 
     setSaving(true)
     try {
-      // 1) cria via RPC sem ambiguidade
-      const { data: created, error: budgetError } = (await supabase.rpc("create_simple_budget_rpc", {
-        p_type_text: data.type,
+      const payload = { ...data } // inclui pendente_faturamento no payload
+
+      const { data: created, error } = (await supabase.rpc("create_budget_full_rpc", {
+        p_type_text: data.type,      // 'filme' | 'audio' | 'imagem' | 'cc'
+        p_payload: payload,          // jsonb
+        p_total: data.total ?? 0,    // numeric
       })) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
 
-      if (budgetError || !created) {
-        throw new Error(budgetError?.message ?? "Falha ao criar orçamento")
-      }
-
-      // 2) atualiza a versão com payload completo
-      const { error: versionError } = await supabase
-        .from("versions")
-        .update({
-          payload: data as any,
-          total_geral: data.total,
-        })
-        .eq("id", created.version_id)
-
-      if (versionError) throw new Error(versionError.message)
-
-      // 3) se marcado como pendente, tenta atualizar o status (se a tabela permitir)
-      if (data.pendente_faturamento) {
-        // se budgets.status for enum, garanta que 'pendente' exista nele. Caso contrário, remova esta linha.
-        await supabase.from("budgets").update({ status: "pendente" }).eq("id", created.id)
+      if (error || !created) {
+        throw new Error(error?.message ?? "Falha ao criar orçamento")
       }
 
       toast({ title: "Orçamento salvo com sucesso!" })
       if (goToPdf) navigate(`/budget/${created.id}/pdf`)
     } catch (err: any) {
       console.error("[save-budget] error:", err)
-      const msg = err?.message || err?.details || err?.hint || "Falha ao salvar. Verifique o RPC."
-      toast({
-        title: "Erro ao salvar orçamento",
-        description: msg,
-        variant: "destructive",
-      })
+      const msg =
+        err?.message ||
+        err?.details ||
+        err?.hint ||
+        (typeof err === "object" ? JSON.stringify(err) : String(err)) ||
+        "Falha ao salvar. Verifique o RPC."
+      toast({ title: "Erro ao salvar orçamento", description: msg, variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -411,8 +396,7 @@ export default function OrcamentoNovo() {
                     <div>
                       <Label htmlFor="pendente_faturamento">Marcar como pendente de faturamento</Label>
                       <p className="text-xs text-neutral-400">
-                        Quando marcado, o PDF exibirá um destaque “PENDENTE DE FATURAMENTO” e o orçamento deverá
-                        ser incluído no próximo faturamento.
+                        O PDF exibirá “PENDENTE DE FATURAMENTO” e este orçamento deverá entrar no próximo faturamento.
                       </p>
                     </div>
                   </div>
