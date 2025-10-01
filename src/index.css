@@ -2,7 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --- Glass/anim helpers para a Home --- */
+@layer base {
+  :root {
+    --background: 220 15% 8%;
+    --foreground: 210 20% 98%;
+    --card: 220 15% 12%;
+    --card-foreground: 210 20% 98%;
+    --popover: 220 15% 12%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 217 91% 60%;
+    --radius: 1rem;
+  }
+}
+
+/* Animações modernas */
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(30px) }
@@ -20,18 +45,40 @@
   0%,100% { transform: translateY(0) }
   50%     { transform: translateY(-8px) }
 }
+@keyframes shimmer {
+  0% { background-position: -1000px 0 }
+  100% { background-position: 1000px 0 }
+}
+
 .animate-fade-in { animation: fadeIn .8s ease-out both }
 .animate-fade-in-up { animation: fadeInUp .8s ease-out both }
 .animate-slide-in-left { animation: slideInLeft .8s ease-out both }
 .animate-slide-in-right { animation: slideInRight .8s ease-out both }
 .animate-float { animation: float 6s ease-in-out infinite }
+.animate-shimmer { animation: shimmer 2s infinite linear }
 
-/* botões e cartões */
+/* Componentes modernos */
 .btn {
-  @apply inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all;
+  @apply inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
 }
-.btn-primary { @apply bg-neutral-900 text-white hover:bg-neutral-800 shadow; }
-.btn-ghost   { @apply bg-white border border-neutral-300 text-neutral-900 hover:bg-neutral-50; }
+.btn-primary { 
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30;
+}
+.btn-secondary { 
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border;
+}
+.btn-ghost { 
+  @apply bg-transparent border border-border text-foreground hover:bg-secondary/50;
+}
+
 .card {
-  @apply rounded-3xl border border-neutral-200 bg-white shadow;
+  @apply rounded-3xl border border-border bg-card shadow-xl backdrop-blur-sm;
+}
+
+.glass-card {
+  @apply rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl;
+}
+
+.input-modern {
+  @apply rounded-2xl border border-border bg-secondary/50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all;
 }

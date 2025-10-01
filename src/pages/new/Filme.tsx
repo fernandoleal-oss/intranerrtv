@@ -1,350 +1,430 @@
 // src/pages/new/Filme.tsx
-import { useEffect, useState, useCallback, useMemo, useDeferredValue } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Stepper } from '@/components/Stepper'
-import { PreviewSidebar } from '@/components/PreviewSidebar'
-import { FormInput } from '@/components/FormInput'
-import { FormSelect } from '@/components/FormSelect'
-import { supabase } from '@/integrations/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useToast } from '@/hooks/use-toast'
-import { useAutosaveWithStatus } from '@/hooks/useAutosaveWithStatus'
-import { AutosaveIndicator } from '@/components/AutosaveIndicator'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import React from 'react'
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Save, Eye, Plus, Trash2, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { FormInput } from "@/components/FormInput";
+import { FormTextarea } from "@/components/FormTextarea";
+import { motion, AnimatePresence } from "framer-motion";
 
-const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Cotações', 'Revisão', 'Exportar']
-
-// Helpers
-const genId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
-const parseCurrencyLoose = (raw: string): number => {
-  if (!raw) return 0
-  const s = raw.replace(/\s/g, '').replace(/[R$]/gi, '').replace(/\./g, '').replace(',', '.')
-  const n = Number(s)
-  return Number.isFinite(n) ? n : 0
+interface QuoteFilm {
+  id: string;
+  produtora: string;
+  escopo: string;
+  valor: number;
+  diretor: string;
+  tratamento: string;
+  desconto: number;
 }
 
-type QuoteFilm = {
-  id: string
-  produtora: string
-  escopo: string
-  valor: number
-  diretor: string
-  tratamento: string
-  desconto: number
+interface BudgetData {
+  type: "filme";
+  produtor?: string;
+  email?: string;
+  cliente?: string;
+  produto?: string;
+  job?: string;
+  midias?: string;
+  territorio?: string;
+  periodo?: string;
+  entregaveis?: string[];
+  formatos?: string[];
+  data_orcamento?: string;
+  exclusividade_elenco?: string;
+  audio_descr?: string;
+  quotes_film?: QuoteFilm[];
+  honorario_perc?: number;
+  observacoes?: string;
+  total: number;
 }
 
-type QuoteAudio = {
-  id: string
-  produtora: string
-  descritivo: string
-  valor: number
-  desconto: number
-}
+const parseCurrency = (val: string): number => {
+  if (!val) return 0;
+  const clean = val.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
+  return parseFloat(clean) || 0;
+};
 
-interface FilmeData {
-  produtor?: string
-  email?: string
-  cliente?: string
-  produto?: string
-  job?: string
-  midias?: string
-  territorio?: string
-  periodo?: string
-  entregaveis?: string[]
-  formatos?: string[]
-  quotes_film?: QuoteFilm[]
-  quotes_audio?: QuoteAudio[]
-  honorario_perc?: number
-  filme?: { subtotal: number }
-  audio?: { subtotal: number }
-  total?: number
-  // campos adicionais úteis ao PDF
-  data_orcamento?: string
-  exclusividade_elenco?: string
-  audio_descr?: string
-}
+const formatCurrency = (val: number): string => {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+};
 
-export default function NovoFilme() {
-  const navigate = useNavigate()
-  const { toast } = useToast()
-  const [step, setStep] = useState(1)
-  const [budgetId, setBudgetId] = useState<string>()
-  const [versionId, setVersionId] = useState<string>()        // << NOVO: vamos salvar por versão
-  const [data, setData] = useState<FilmeData>({
+export default function FilmeBudget() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  const [data, setData] = useState<BudgetData>({
+    type: "filme",
     quotes_film: [],
-    quotes_audio: [],
+    honorario_perc: 0,
+    total: 0,
     entregaveis: [],
     formatos: [],
-    filme: { subtotal: 0 },
-    audio: { subtotal: 0 },
-    total: 0,
-    data_orcamento: new Date().toISOString().slice(0,10)
-  })
+  });
 
-  // === AUTOSAVE (POR ID DA VERSÃO) ===
-  const { status: saveStatus } = useAutosaveWithStatus([data, versionId], async () => {
-    if (versionId && Object.keys(data).length > 0) {
-      await supabase
-        .from('versions')
+  const updateData = useCallback((updates: Partial<BudgetData>) => {
+    setData((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  // Recalcular totais
+  useEffect(() => {
+    const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
+    const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100);
+    const total = filmSubtotal + honorario;
+    setData((prev) => ({ ...prev, total }));
+  }, [data.quotes_film, data.honorario_perc]);
+
+  const addQuote = () => {
+    const newQuote: QuoteFilm = {
+      id: crypto.randomUUID(),
+      produtora: "",
+      escopo: "",
+      valor: 0,
+      diretor: "",
+      tratamento: "",
+      desconto: 0,
+    };
+    updateData({ quotes_film: [...(data.quotes_film || []), newQuote] });
+  };
+
+  const updateQuote = (id: string, updates: Partial<QuoteFilm>) => {
+    const updated = (data.quotes_film || []).map((q) => (q.id === id ? { ...q, ...updates } : q));
+    updateData({ quotes_film: updated });
+  };
+
+  const removeQuote = (id: string) => {
+    updateData({ quotes_film: (data.quotes_film || []).filter((q) => q.id !== id) });
+  };
+
+  const handleSave = async () => {
+    if (!data.cliente || !data.produto) {
+      toast({ title: "Preencha cliente e produto", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data: created, error: budgetError } = await supabase.rpc("create_simple_budget", {
+        p_type: data.type,
+      }) as { data: { id: string; display_id: string; version_id: string } | null; error: any };
+
+      if (budgetError || !created) throw budgetError || new Error("Falha ao criar orçamento");
+
+      const { error: versionError } = await supabase
+        .from("versions")
         .update({
           payload: data as any,
-          total_geral: data.total ?? 0,
+          total_geral: data.total,
         })
-        .eq('id', versionId)       // << grava na linha exata da versão
+        .eq("id", created.version_id);
+
+      if (versionError) throw versionError;
+
+      toast({ title: "Orçamento salvo com sucesso!" });
+      navigate(`/budget/${created.id}/pdf`);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Erro ao salvar orçamento", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-  })
+  };
 
-  // Evita travar preview durante digitação
-  const deferredData = useDeferredValue(data)
-
-  const recalcTotals = useCallback((d: FilmeData) => {
-    const filmeSubtotal = (d.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
-    const audioSubtotal = (d.quotes_audio || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
-    const honorario = filmeSubtotal * ((d.honorario_perc || 0) / 100)
-    const total = filmeSubtotal + audioSubtotal + honorario
-    return {
-      ...d,
-      filme: { subtotal: filmeSubtotal },
-      audio: { subtotal: audioSubtotal },
-      total
-    }
-  }, [])
-
-  const updateData = useCallback((updates: Partial<FilmeData>) => {
-    setData(prev => recalcTotals({ ...prev, ...updates }))
-  }, [recalcTotals])
-
-  const handleCreateBudget = async () => {
-    try {
-      const { data: created, error } = await supabase.rpc('create_simple_budget', { p_type: 'filme' }) as {
-        data: { id: string; display_id: string; version_id: string } | null; error: any
-      }
-      if (error || !created) throw error || new Error('Falha ao criar')
-
-      setBudgetId(created.id)
-      setVersionId(created.version_id)           // << guardar a versão criada no banco
-      setStep(2)
-
-      toast({ title: 'Orçamento criado', description: `ID: ${created.display_id}` })
-    } catch {
-      toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
-    }
-  }
-
-  // === COTAÇÕES (IDs estáveis; inputs controlados sem perder foco) ===
-  const addFilmeQuote = () => {
-    const q: QuoteFilm = {
-      id: genId(),
-      produtora: '',
-      escopo: '',
-      valor: 0,
-      diretor: '',
-      tratamento: '',
-      desconto: 0
-    }
-    updateData({ quotes_film: [...(data.quotes_film || []), q] })
-  }
-
-  const updateFilmeQuoteById = useCallback((id: string, updates: Partial<QuoteFilm>) => {
-    setData(prev => {
-      const list = (prev.quotes_film || []).map(q => (q.id === id ? { ...q, ...updates } : q))
-      return recalcTotals({ ...prev, quotes_film: list })
-    })
-  }, [recalcTotals])
-
-  const removeFilmeQuoteById = (id: string) => {
-    setData(prev => recalcTotals({ ...prev, quotes_film: (prev.quotes_film || []).filter(q => q.id !== id) }))
-  }
-
-  const QuoteRow = useMemo(() => {
-    type RowProps = { q: QuoteFilm; onChange: (patch: Partial<QuoteFilm>) => void; onRemove: () => void }
-    const Row: React.FC<RowProps> = React.memo(({ q, onChange, onRemove }) => {
-      const [valorStr, setValorStr] = useState(() => (q.valor ? String(q.valor).replace('.', ',') : ''))
-      const [descStr, setDescStr]   = useState(() => (q.desconto ? String(q.desconto).replace('.', ',') : ''))
-
-      useEffect(() => { setValorStr(q.valor ? String(q.valor).replace('.', ',') : '') }, [q.valor])
-      useEffect(() => { setDescStr(q.desconto ? String(q.desconto).replace('.', ',') : '') }, [q.desconto])
-
-      return (
-        <div className="p-4 border rounded-lg space-y-3 bg-white/5 border-white/10">
-          <div className="grid md:grid-cols-3 gap-3">
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/orcamentos")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
             <div>
-              <Label className="dark-label">Produtora</Label>
-              <Input value={q.produtora} onChange={(e) => onChange({ produtora: e.target.value })} className="dark-input" placeholder="Nome da produtora" autoComplete="organization" />
-            </div>
-            <div>
-              <Label className="dark-label">Escopo</Label>
-              <Input value={q.escopo} onChange={(e) => onChange({ escopo: e.target.value })} className="dark-input" placeholder="Ex: Filme 30s com elenco" />
-            </div>
-            <div>
-              <Label className="dark-label">Valor (R$)</Label>
-              <Input inputMode="decimal" pattern="[0-9.,]*" value={valorStr} onChange={(e) => setValorStr(e.target.value)} onBlur={() => onChange({ valor: parseCurrencyLoose(valorStr) })} className="dark-input" placeholder="0,00" />
+              <h1 className="text-3xl font-bold text-foreground">Novo Orçamento - Filme</h1>
+              <p className="text-muted-foreground">Preencha os dados e visualize em tempo real</p>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-3">
-            <div>
-              <Label className="dark-label">Diretor</Label>
-              <Input value={q.diretor} onChange={(e) => onChange({ diretor: e.target.value })} className="dark-input" placeholder="Nome do diretor" />
-            </div>
-            <div>
-              <Label className="dark-label">Tratamento</Label>
-              <Input value={q.tratamento} onChange={(e) => onChange({ tratamento: e.target.value })} className="dark-input" placeholder="Link/observações" autoComplete="off" />
-            </div>
-            <div>
-              <Label className="dark-label">Desconto (R$)</Label>
-              <Input inputMode="decimal" pattern="[0-9.,]*" value={descStr} onChange={(e) => setDescStr(e.target.value)} onBlur={() => onChange({ desconto: parseCurrencyLoose(descStr) })} className="dark-input" placeholder="0,00" />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button onClick={onRemove} variant="ghost" size="sm" className="text-red-400 hover:text-red-500">
-              <Trash2 className="h-4 w-4" />
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setShowPreview(!showPreview)} className="gap-2">
+              <Eye className="h-4 w-4" />
+              {showPreview ? "Ocultar" : "Visualizar"} Preview
+            </Button>
+            <Button onClick={handleSave} disabled={saving} className="gap-2">
+              {saving ? "Salvando..." : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Salvar e Gerar PDF
+                </>
+              )}
             </Button>
           </div>
         </div>
-      )
-    })
-    Row.displayName = 'QuoteRow'
-    return Row
-  }, [])
 
-  // ====== STEP CONTENT (igual ao seu com botões e labels claros) ======
-  const StepContent = () => {
-    switch (step) {
-      case 1:
-        return (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="space-y-4">
-              <FormInput id="produtor" label="Nome do Produtor" value={data.produtor || ''} onChange={(value) => updateData({ produtor: value })} placeholder="Nome completo do produtor" required autoComplete="name" />
-              <FormInput id="email" label="E-mail" type="email" value={data.email || ''} onChange={(value) => updateData({ email: value })} placeholder="email@exemplo.com" required autoComplete="email" />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button onClick={handleCreateBudget} size="lg" className="btn-gradient px-6">Continuar</Button>
-            </div>
-          </motion.div>
-        )
-      case 2:
-        return (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-            <div className="space-y-6">
-              <FormInput id="cliente" label="Cliente" value={data.cliente || ''} onChange={(value) => updateData({ cliente: value })} placeholder="Razão social ou nome fantasia" required autoComplete="organization" />
-              <FormInput id="produto" label="Produto/Serviço" value={data.produto || ''} onChange={(value) => updateData({ produto: value })} placeholder="Nome do produto ou serviço" required />
-            </div>
-            <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(1)}>Voltar</Button>
-              <Button onClick={() => setStep(3)} className="btn-gradient px-6">Salvar e Continuar</Button>
-            </div>
-          </motion.div>
-        )
-      case 3:
-        return (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-4">
-              <FormInput id="job" label="Job" value={data.job || ''} onChange={(value) => updateData({ job: value })} placeholder="Descrição do job" autoComplete="off" />
-              <FormSelect id="midias" label="Mídias" value={data.midias || ''} onChange={(value) => updateData({ midias: value })} options={[
-                { value: 'todas', label: 'Todas as mídias' },
-                { value: 'tv_aberta', label: 'TV aberta' },
-                { value: 'tv_fechada', label: 'TV fechada' },
-                { value: 'sociais', label: 'Redes sociais' },
-              ]} placeholder="Selecione as mídias" />
-              <FormSelect id="territorio" label="Território" value={data.territorio || ''} onChange={(value) => updateData({ territorio: value })} options={[
-                { value: 'nacional', label: 'Nacional' },
-                { value: 'sao_paulo', label: 'São Paulo' },
-                { value: 'regional', label: 'Regional' },
-              ]} placeholder="Selecione o território" />
-              <FormSelect id="periodo" label="Período" value={data.periodo || ''} onChange={(value) => updateData({ periodo: value })} options={[
-                { value: '12_meses', label: '12 meses' },
-                { value: '6_meses', label: '6 meses' },
-                { value: '3_meses', label: '3 meses' },
-              ]} placeholder="Selecione o período" />
-            </div>
-            <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(2)}>Voltar</Button>
-              <Button onClick={() => setStep(4)} className="btn-gradient px-6">Salvar e Continuar</Button>
-            </div>
-          </motion.div>
-        )
-      case 4:
-        return (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Cotações de Filme</h3>
-              <Button onClick={addFilmeQuote} variant="outline" size="sm"><Plus className="h-4 w-4 mr-2" />Adicionar Produtora</Button>
-            </div>
-            <div className="space-y-4">
-              {(data.quotes_film || []).map(q => (
-                <QuoteRow key={q.id} q={q} onChange={(patch) => updateFilmeQuoteById(q.id, patch)} onRemove={() => removeFilmeQuoteById(q.id)} />
-              ))}
-            </div>
-            <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(3)}>Voltar</Button>
-              <Button onClick={() => setStep(5)} className="btn-gradient px-6">Revisar Orçamento</Button>
-            </div>
-          </motion.div>
-        )
-      case 5:
-        return (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="p-6 border rounded-lg space-y-4 bg-white/5 border-white/10">
-              <h3 className="text-lg font-semibold">Resumo do Orçamento</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>Cliente:</span><span className="font-medium">{data.cliente || '-'}</span></div>
-                <div className="flex justify-between"><span>Produto:</span><span className="font-medium">{data.produto || '-'}</span></div>
-                <div className="flex justify-between"><span>Cotações de filme:</span><span className="font-medium">{data.quotes_film?.length || 0}</span></div>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-between">
-              <Button variant="ghost" onClick={() => setStep(4)}>Voltar</Button>
-              <Button onClick={() => setStep(6)} className="btn-gradient px-6">Ir para Exportar</Button>
-            </div>
-          </motion.div>
-        )
-      case 6:
-        return (
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="text-center space-y-4">
-              <h3 className="text-lg font-semibold">Orçamento Finalizado!</h3>
-              <p className="text-muted-foreground">Escolha uma das opções abaixo:</p>
-            </div>
-            <div className="space-y-3">
-              <Button onClick={() => budgetId && navigate(`/budget/${budgetId}/pdf`)} size="lg" className="w-full btn-gradient" disabled={!budgetId}>Visualizar PDF</Button>
-              <Button onClick={() => budgetId && navigate(`/budget/${budgetId}`)} variant="outline" size="lg" className="w-full nav-button" disabled={!budgetId}>Visualizar Orçamento</Button>
-              <Button onClick={() => navigate('/')} variant="ghost" size="lg" className="w-full">Voltar ao Início</Button>
-            </div>
-          </motion.div>
-        )
-      default:
-        return null
-    }
-  }
+        {/* Instruções */}
+        <Card className="mb-6 border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-primary">
+              <Info className="h-5 w-5" />
+              Instruções de Preenchimento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <p>• <strong>Cliente e Produto:</strong> Campos obrigatórios para identificação do orçamento</p>
+            <p>• <strong>Cotações:</strong> Adicione todas as produtoras cotadas com valores e descontos</p>
+            <p>• <strong>Honorário:</strong> Percentual aplicado sobre o subtotal das cotações</p>
+            <p>• <strong>Preview:</strong> Visualize como ficará o PDF antes de salvar</p>
+          </CardContent>
+        </Card>
 
-  // ====== LAYOUT ======
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="fixed top-4 right-4 z-50"><AutosaveIndicator status={saveStatus} /></div>
-      <div className="container mx-auto px-6 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Button onClick={() => (step > 1 ? setStep(step - 1) : navigate('/'))} variant="ghost" size="sm" className="text-white hover:bg-white/10">
-            <ArrowLeft className="h-4 w-4 mr-2" />{step > 1 ? 'Voltar' : 'Início'}
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Produção de Filme</h1>
-            <p className="text-white/70">Criar orçamento de filme com cotações e comparador</p>
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Formulário */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Identificação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormInput
+                    id="produtor"
+                    label="Produtor"
+                    value={data.produtor || ""}
+                    onChange={(v) => updateData({ produtor: v })}
+                    placeholder="Nome do produtor"
+                  />
+                  <FormInput
+                    id="email"
+                    label="E-mail"
+                    type="email"
+                    value={data.email || ""}
+                    onChange={(v) => updateData({ email: v })}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Cliente & Produto</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormInput
+                    id="cliente"
+                    label="Cliente"
+                    value={data.cliente || ""}
+                    onChange={(v) => updateData({ cliente: v })}
+                    placeholder="Nome do cliente"
+                    required
+                  />
+                  <FormInput
+                    id="produto"
+                    label="Produto"
+                    value={data.produto || ""}
+                    onChange={(v) => updateData({ produto: v })}
+                    placeholder="Nome do produto"
+                    required
+                  />
+                  <FormInput
+                    id="job"
+                    label="Job"
+                    value={data.job || ""}
+                    onChange={(v) => updateData({ job: v })}
+                    placeholder="Número do job"
+                  />
+                  <FormInput
+                    id="midias"
+                    label="Mídias"
+                    value={data.midias || ""}
+                    onChange={(v) => updateData({ midias: v })}
+                    placeholder="TV, Digital, OOH..."
+                  />
+                  <FormInput
+                    id="territorio"
+                    label="Território"
+                    value={data.territorio || ""}
+                    onChange={(v) => updateData({ territorio: v })}
+                    placeholder="Nacional, Regional..."
+                  />
+                  <FormInput
+                    id="periodo"
+                    label="Período"
+                    value={data.periodo || ""}
+                    onChange={(v) => updateData({ periodo: v })}
+                    placeholder="12 meses, 24 meses..."
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Cotações de Produtoras</CardTitle>
+                <Button size="sm" variant="secondary" onClick={addQuote} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Adicionar Cotação
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <AnimatePresence>
+                  {(data.quotes_film || []).map((q) => (
+                    <motion.div
+                      key={q.id}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="border border-border rounded-2xl p-4 space-y-3 bg-secondary/20"
+                    >
+                      <div className="grid md:grid-cols-3 gap-3">
+                        <FormInput
+                          id={`prod-${q.id}`}
+                          label="Produtora"
+                          value={q.produtora}
+                          onChange={(v) => updateQuote(q.id, { produtora: v })}
+                          placeholder="Nome"
+                        />
+                        <FormInput
+                          id={`escopo-${q.id}`}
+                          label="Escopo"
+                          value={q.escopo}
+                          onChange={(v) => updateQuote(q.id, { escopo: v })}
+                          placeholder="Descrição"
+                        />
+                        <FormInput
+                          id={`valor-${q.id}`}
+                          label="Valor (R$)"
+                          value={String(q.valor || "")}
+                          onChange={(v) => updateQuote(q.id, { valor: parseCurrency(v) })}
+                          placeholder="0,00"
+                        />
+                        <FormInput
+                          id={`diretor-${q.id}`}
+                          label="Diretor"
+                          value={q.diretor}
+                          onChange={(v) => updateQuote(q.id, { diretor: v })}
+                          placeholder="Nome do diretor"
+                        />
+                        <FormInput
+                          id={`tratamento-${q.id}`}
+                          label="Tratamento"
+                          value={q.tratamento}
+                          onChange={(v) => updateQuote(q.id, { tratamento: v })}
+                          placeholder="Descrição"
+                        />
+                        <FormInput
+                          id={`desconto-${q.id}`}
+                          label="Desconto (R$)"
+                          value={String(q.desconto || "")}
+                          onChange={(v) => updateQuote(q.id, { desconto: parseCurrency(v) })}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => removeQuote(q.id)} 
+                          className="text-destructive hover:text-destructive gap-1"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remover
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Honorário e Observações</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <FormInput
+                  id="honorario"
+                  label="Percentual de Honorário (%)"
+                  type="number"
+                  value={String(data.honorario_perc || 0)}
+                  onChange={(v) => updateData({ honorario_perc: parseFloat(v) || 0 })}
+                  placeholder="0"
+                />
+                <FormTextarea
+                  id="observacoes"
+                  label="Observações"
+                  value={data.observacoes || ""}
+                  onChange={(v) => updateData({ observacoes: v })}
+                  placeholder="Observações adicionais..."
+                  rows={4}
+                />
+              </CardContent>
+            </Card>
           </div>
-        </div>
-        <div className="flex gap-8">
-          <div className="flex-1 space-y-8">
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6"><Stepper step={step} steps={steps} /></div>
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6"><StepContent /></div>
+
+          {/* Preview Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-4">
+              <Card className={showPreview ? "border-primary shadow-lg shadow-primary/20" : ""}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Preview do Orçamento
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-sm space-y-3">
+                    <div className="p-3 rounded-xl bg-secondary/30">
+                      <div className="text-muted-foreground text-xs mb-1">Cliente</div>
+                      <div className="font-medium">{data.cliente || "—"}</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-secondary/30">
+                      <div className="text-muted-foreground text-xs mb-1">Produto</div>
+                      <div className="font-medium">{data.produto || "—"}</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-secondary/30">
+                      <div className="text-muted-foreground text-xs mb-1">Cotações</div>
+                      <div className="font-medium">{data.quotes_film?.length || 0}</div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border pt-4">
+                    <div className="text-sm font-semibold mb-3">Resumo Financeiro</div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between p-2 rounded-lg bg-secondary/20">
+                        <span className="text-muted-foreground">Subtotal Cotações:</span>
+                        <span className="font-medium">
+                          {formatCurrency((data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between p-2 rounded-lg bg-secondary/20">
+                        <span className="text-muted-foreground">Honorário ({data.honorario_perc || 0}%):</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            ((data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0) *
+                              (data.honorario_perc || 0)) / 100
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-bold text-base pt-2 border-t border-border p-2 rounded-lg bg-primary/10">
+                        <span>Total:</span>
+                        <span className="text-primary">
+                          {formatCurrency(data.total)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-          <PreviewSidebar data={{ filme: deferredData.filme, audio: deferredData.audio, total: deferredData.total }} />
         </div>
       </div>
     </div>
-  )
+  );
 }

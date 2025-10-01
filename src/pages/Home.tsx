@@ -169,6 +169,14 @@ export default function Home() {
       icon: DollarSign,
       color: 'from-green-500 to-emerald-600',
       path: '/financeiro'
+    },
+    {
+      id: 'comparador-byd',
+      title: 'Comparador BYD',
+      description: 'Compare modelos de carros elétricos',
+      icon: TrendingUp,
+      color: 'from-orange-500 to-red-600',
+      path: '/comparador-byd'
     }
   ]
 

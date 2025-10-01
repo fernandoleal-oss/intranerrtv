@@ -23,6 +23,7 @@ const Finance     = lazy(() => import('@/pages/Finance'))
 const Direitos    = lazy(() => import('@/pages/Direitos'))
 const Orcamentos  = lazy(() => import('@/pages/Orcamentos'))
 const OrcamentoNovo = lazy(() => import('@/pages/OrcamentoNovo'))
+const ComparadorBYD = lazy(() => import('@/pages/ComparadorBYD'))
 
 const queryClient = new QueryClient()
 
@@ -208,6 +209,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <OrcamentoNovo />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/comparador-byd"
+                element={
+                  <ProtectedRoute>
+                    <ComparadorBYD />
                   </ProtectedRoute>
                 }
               />
