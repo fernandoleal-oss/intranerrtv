@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   Pencil,
   Trash2,
+  Clipboard,
+  Check,
 } from "lucide-react";
 
 /* =============================================================================
@@ -80,13 +82,56 @@ function addMonthsIso(isoBase: string, months: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/* --------- links do Google Drive: view / download / folder --------- */
+function driveVariants(rawUrl: string): {
+  view: string;
+  download?: string; // só p/ arquivos
+  isFolder: boolean;
+} {
+  try {
+    const url = new URL(rawUrl);
+    const hostOk = /(^|\.)google\.com$/.test(url.hostname);
+    if (!hostOk) return { view: rawUrl, isFolder: false };
+
+    // /file/d/<id>/...
+    const mFile = url.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (mFile) {
+      const id = mFile[1];
+      return {
+        view: `https://drive.google.com/file/d/${id}/view`,
+        download: `https://drive.google.com/uc?export=download&id=${id}`,
+        isFolder: false,
+      };
+    }
+
+    // open?id=<id>  ou  uc?id=<id>
+    const id = url.searchParams.get("id");
+    if (id) {
+      return {
+        view: `https://drive.google.com/file/d/${id}/view`,
+        download: `https://drive.google.com/uc?export=download&id=${id}`,
+        isFolder: false,
+      };
+    }
+
+    // /drive/folders/<id>
+    const mFolder = url.pathname.match(/\/drive\/folders\/([a-zA-Z0-9_-]+)/);
+    if (mFolder) {
+      return { view: rawUrl, isFolder: true };
+    }
+
+    return { view: rawUrl, isFolder: false };
+  } catch {
+    return { view: rawUrl, isFolder: false };
+  }
+}
+
 /* =============================================================================
    SEED + PERSISTÊNCIA LOCAL
 ============================================================================= */
 const LOCAL_KEY = "rights_rows_v1";
 
 const SEED_ALL: RightRow[] = [
-  // exemplos mínimos — seus dados reais já inseridos continuarão porque salvamos no localStorage
   {
     id: genId("seed"),
     client: "BYD",
@@ -117,7 +162,7 @@ const SEED_ALL: RightRow[] = [
     contract_signed_production: "2024-01-16",
     first_air: "2024-03-01",
     validity_months: 12,
-    expire_date: "2025-06-08", // já renovado no seu dado
+    expire_date: "2025-06-08",
     status_label: "RENOVADO",
     link_film: null,
     link_drive: null,
@@ -153,7 +198,7 @@ const SEED_ALL: RightRow[] = [
 ];
 
 /* =============================================================================
-   PÍLULA DE STATUS / KPI
+   UI BÁSICA
 ============================================================================= */
 function StatusPill({
   expire_date,
@@ -205,9 +250,18 @@ function StatCard({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+function DaysChip({ d }: { d: number | undefined }) {
+  if (d === undefined) return <span>—</span>;
+  let cls = "bg-gray-100 text-gray-700";
+  if (d < 0) cls = "bg-red-100 text-red-700";
+  else if (d === 0) cls = "bg-amber-100 text-amber-700";
+  else if (d <= 15) cls = "bg-amber-50 text-amber-700";
+  else if (d <= 30) cls = "bg-yellow-50 text-yellow-700";
+  return <span className={classNames("px-2 py-0.5 rounded-lg text-xs", cls)}>{d}</span>;
+}
 
 /* =============================================================================
-   MODAIS
+   MODAIS (Renovar e Upsert)
 ============================================================================= */
 function RenewWizard({
   open,
@@ -382,11 +436,10 @@ function UpsertModal({
   onAdd: (row: RightRow) => void;
   onEdit: (id: string, patch: Partial<RightRow>) => void;
   clientSuggestions: string[];
-  initial?: RightRow | null; // se vier, é modo edição
+  initial?: RightRow | null;
 }) {
   const isEdit = !!initial;
 
-  // formulário
   const [client, setClient] = useState("");
   const [product, setProduct] = useState("");
   const [title, setTitle] = useState("");
@@ -405,7 +458,6 @@ function UpsertModal({
   useEffect(() => {
     if (open) {
       if (initial) {
-        // preencher para edição
         setClient(initial.client || "");
         setProduct(initial.product || "");
         setTitle(initial.title || "");
@@ -423,7 +475,6 @@ function UpsertModal({
         setArchiveNow(!!initial.archived);
         setConfirmed(false);
       } else {
-        // limpar p/ novo
         setClient("");
         setProduct("");
         setTitle("");
@@ -685,6 +736,8 @@ function UpsertModal({
 /* =============================================================================
    PÁGINA
 ============================================================================= */
+type SortMode = "UPCOMING_FIRST" | "EXPIRE_ASC" | "EXPIRE_DESC";
+
 export default function Direitos() {
   const navigate = useNavigate();
 
@@ -722,6 +775,8 @@ export default function Direitos() {
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "EM_USO" | "LE30" | "LE15" | "HOJE" | "VENCIDO" | "ARQ"
   >("ALL");
+  const [sortMode, setSortMode] = useState<SortMode>("UPCOMING_FIRST");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Modais
   const [openRenew, setOpenRenew] = useState(false);
@@ -759,30 +814,42 @@ export default function Direitos() {
     return { uso, le30, le15, hoje, venc, arq };
   }, [rowsClient]);
 
-  // Filtros
+  // Filtros + Ordenação
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
-    return rowsClient
-      .filter((r) => {
-        if (statusFilter === "ARQ") return r.archived === true;
-        if (r.archived) return false;
-        const d = daysUntil(r.expire_date);
-        let ok = true;
-        if (statusFilter === "EM_USO") ok = d !== undefined && d > 30;
-        if (statusFilter === "LE30") ok = d !== undefined && d > 15 && d <= 30;
-        if (statusFilter === "LE15") ok = d !== undefined && d > 0 && d <= 15;
-        if (statusFilter === "HOJE") ok = d === 0;
-        if (statusFilter === "VENCIDO") ok = d !== undefined && d < 0;
-        if (statusFilter === "ALL") ok = true;
-        if (ok && t) ok = (`${r.product} ${r.title}`.toLowerCase().includes(t));
-        return ok;
-      })
-      .sort((a, b) => {
-        const da = a.expire_date ? new Date(a.expire_date).getTime() : Infinity;
-        const db = b.expire_date ? new Date(b.expire_date).getTime() : Infinity;
-        return da - db;
-      });
-  }, [rowsClient, search, statusFilter]);
+    const base = rowsClient.filter((r) => {
+      if (statusFilter === "ARQ") return r.archived === true;
+      if (r.archived) return false;
+      const d = daysUntil(r.expire_date);
+      let ok = true;
+      if (statusFilter === "EM_USO") ok = d !== undefined && d > 30;
+      if (statusFilter === "LE30") ok = d !== undefined && d > 15 && d <= 30;
+      if (statusFilter === "LE15") ok = d !== undefined && d > 0 && d <= 15;
+      if (statusFilter === "HOJE") ok = d === 0;
+      if (statusFilter === "VENCIDO") ok = d !== undefined && d < 0;
+      if (statusFilter === "ALL") ok = true;
+      if (ok && t) ok = (`${r.product} ${r.title}`.toLowerCase().includes(t));
+      return ok;
+    });
+
+    const byTime = (r: RightRow) =>
+      r.expire_date ? new Date(r.expire_date).getTime() : Infinity;
+    const isExpired = (r: RightRow) => {
+      const d = daysUntil(r.expire_date);
+      return d !== undefined && d < 0;
+    };
+
+    return base.sort((a, b) => {
+      if (sortMode === "EXPIRE_ASC") return byTime(a) - byTime(b);
+      if (sortMode === "EXPIRE_DESC") return byTime(b) - byTime(a);
+
+      // UPCOMING_FIRST (default): não vencidos primeiro; dentro de cada grupo, data crescente
+      const ga = isExpired(a) ? 1 : 0;
+      const gb = isExpired(b) ? 1 : 0;
+      if (ga !== gb) return ga - gb;
+      return byTime(a) - byTime(b);
+    });
+  }, [rowsClient, search, statusFilter, sortMode]);
 
   // Atualizações
   function updateRow(id: string, patch: Partial<RightRow>) {
@@ -837,6 +904,16 @@ export default function Direitos() {
     URL.revokeObjectURL(url);
   }
 
+  async function copyToClipboard(text: string, key: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 1500);
+    } catch {
+      alert("Não foi possível copiar o link.");
+    }
+  }
+
   return (
     <main className="max-w-7xl mx-auto py-8 px-4">
       {/* Header */}
@@ -852,10 +929,20 @@ export default function Direitos() {
         </div>
 
         <div className="flex gap-2">
+          <select
+            className="px-3 py-2 rounded-xl border"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as SortMode)}
+            title="Ordenação"
+          >
+            <option value="UPCOMING_FIRST">Vencidos por último (padrão)</option>
+            <option value="EXPIRE_ASC">Data de expiração (mais cedo → tarde)</option>
+            <option value="EXPIRE_DESC">Data de expiração (tarde → cedo)</option>
+          </select>
           <button
             onClick={() => {
               setEditTarget(null);
-              setOpenUpsert(true); // NÃO abre sozinho — só aqui
+              setOpenUpsert(true);
             }}
             className="px-3 py-2 rounded-xl border inline-flex items-center gap-2"
           >
@@ -965,8 +1052,17 @@ export default function Direitos() {
             ) : (
               filtered.map((r) => {
                 const d = daysUntil(r.expire_date);
+                const rowTint =
+                  d !== undefined && d < 0
+                    ? "bg-red-50/60"
+                    : d !== undefined && d <= 15
+                    ? "bg-amber-50/60"
+                    : "";
+                const drive = r.link_drive ? driveVariants(r.link_drive) : null;
+                const copyKey = `${r.id}-drive`;
+
                 return (
-                  <tr key={r.id} className="border-t hover:bg-gray-50">
+                  <tr key={r.id} className={classNames("border-t hover:bg-gray-50", rowTint)}>
                     <td className="p-3 whitespace-nowrap">{r.product}</td>
                     <td className="p-3">
                       <div className="font-medium">{r.title}</div>
@@ -980,7 +1076,7 @@ export default function Direitos() {
                     </td>
                     <td className="p-3 whitespace-nowrap">{fmtDate(r.first_air)}</td>
                     <td className="p-3 whitespace-nowrap">{fmtDate(r.expire_date)}</td>
-                    <td className="p-3">{d === undefined ? "—" : d}</td>
+                    <td className="p-3"><DaysChip d={d} /></td>
                     <td className="p-3">
                       <StatusPill
                         expire_date={r.expire_date}
@@ -989,31 +1085,60 @@ export default function Direitos() {
                       />
                     </td>
                     <td className="p-3">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {r.link_film ? (
                           <a
                             className="underline inline-flex items-center gap-1"
                             href={r.link_film}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
+                            title="Abrir filme"
                           >
                             <Film className="h-4 w-4" /> filme
                           </a>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
-                        {r.link_drive ? (
-                          <a
-                            className="underline inline-flex items-center gap-1"
-                            href={r.link_drive}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <FolderOpen className="h-4 w-4" /> drive
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
+
+                        {drive ? (
+                          <div className="inline-flex items-center gap-1">
+                            <a
+                              className="underline inline-flex items-center gap-1"
+                              href={drive.view}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Abrir no Drive (visualização)"
+                            >
+                              <FolderOpen className="h-4 w-4" /> drive
+                            </a>
+                            {!drive.isFolder && drive.download && (
+                              <a
+                                className="px-1.5 py-0.5 text-xs border rounded"
+                                href={drive.download}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Abrir como download (contorna bloqueio de visualização)"
+                              >
+                                ↓
+                              </a>
+                            )}
+                            <button
+                              className="px-1.5 py-0.5 text-xs border rounded inline-flex items-center gap-1"
+                              onClick={() => copyToClipboard(drive.view, copyKey)}
+                              title="Copiar link"
+                            >
+                              {copiedKey === copyKey ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5" /> Copiado
+                                </>
+                              ) : (
+                                <>
+                                  <Clipboard className="h-3.5 w-3.5" /> Copiar
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     </td>
                     <td className="p-3">
@@ -1059,7 +1184,7 @@ export default function Direitos() {
                             className="px-2 py-1 rounded-lg border inline-flex items-center gap-1"
                             href={r.link_film}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                           >
                             <ExternalLink className="h-4 w-4" /> Abrir
                           </a>
