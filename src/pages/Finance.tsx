@@ -1,3 +1,4 @@
+// src/pages/Finance.tsx
 import React, { useEffect, useMemo, useState } from "react"
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -7,12 +8,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts"
 import {
-  TrendingUp, TrendingDown, DollarSign, Calendar, FileText, Users,
-  ChevronLeft, ChevronRight, Printer, Download, Filter, X, ArrowUpDown,
+  TrendingUp, TrendingDown, DollarSign, FileText, Users,
+  ChevronLeft, ChevronRight, Printer, Download, Filter, X, ArrowUpDown, Shield,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,7 +37,7 @@ type AnexoItem = {
 }
 
 /* =============================================================================
-   DADOS – ANEXOS (linhas) POR MÊS
+   DADOS – ANEXOS (linhas) POR MÊS (seus dados originais)
 ============================================================================= */
 // ------------------------ AGOSTO ------------------------
 const anexosAgosto: AnexoItem[] = [
@@ -78,7 +79,7 @@ const anexosSetembro: AnexoItem[] = [
   { cliente: "BYD", ap: null, descricao: "BYD - SATISFAÇÃO (áudio)", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
   { cliente: "BYD", ap: null, descricao: "BYD - SATISFAÇÃO (pós)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
 
-  // pacote 28.267 ~ 28.275 (pares áudio/pós)
+  // pacote 28.267 ~ 28.275 (pares)
   { cliente: "BYD", ap: "28.267", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
   { cliente: "BYD", ap: "28.267", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
   { cliente: "BYD", ap: "28.268", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
@@ -96,7 +97,7 @@ const anexosSetembro: AnexoItem[] = [
 
   { cliente: "BYD FROTA", ap: "28.278", descricao: "6 vinhetas 5\" Seleção Globo (montagem, sem áudio)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 35000, honorario_rs: 0, total: 35000, competencia: "2025-09" },
 
-  // EMS – grande produção
+  // EMS
   { cliente: "EMS", ap: "28.034", descricao: "Campanhas Repoflor / Beng Pro / Caladryl (produção principal)", fornecedor: "BOILER FILMES", valor_fornecedor: 1342000, honorario_rs: 0, total: 1342000, competencia: "2025-09" },
   { cliente: "EMS", ap: "28.034", descricao: "Campanhas áudio/música", fornecedor: "CANJA", valor_fornecedor: 126000, honorario_rs: 0, total: 126000, competencia: "2025-09" },
   { cliente: "EMS", ap: "28.034", descricao: "Efeitos / mockups", fornecedor: "MOCKUP10 PRODUÇÕES E EFEITOS ESPECIAIS EIRELI-ME", valor_fornecedor: 3700, honorario_rs: 0, total: 3700, competencia: "2025-09" },
@@ -119,6 +120,8 @@ const anexosSetembro: AnexoItem[] = [
 ============================================================================= */
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0)
+
+const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 })
 
 const monthLabel: Record<MonthKey, string> = {
   "2025-08": "Ago/2025",
@@ -158,7 +161,7 @@ const pctDelta = (curr?: number, prev?: number) => {
 }
 
 /* =============================================================================
-   COMPONENTES AUXILIARES
+   COMPONENTES AUXILIARES (KPIs, Th ordenável)
 ============================================================================= */
 function KpiCard({
   label, value, prevValue, icon, currency = true, highlight = false,
@@ -174,23 +177,24 @@ function KpiCard({
   const positive = (delta ?? 0) >= 0
 
   return (
-    <Card className={highlight ? "border-primary/30" : "glass-effect"}>
+    <Card className={highlight ? "border-primary/30" : ""}>
       <CardHeader className="pb-3">
         <CardTitle className={`text-sm font-medium flex items-center gap-2 ${highlight ? "text-primary" : ""}`}>
           {icon}
           {label}
         </CardTitle>
+        <CardDescription className="text-xs">Período selecionado</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-bold ${highlight ? "text-primary" : ""}`}>
+        <div className={`text-2xl font-bold tracking-tight ${highlight ? "text-primary" : ""}`}>
           {typeof value === "number" && currency ? formatCurrency(value) : value}
         </div>
         {delta !== null ? (
           <div className="flex items-center text-xs text-muted-foreground mt-1">
             {positive ? (
-              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+              <TrendingUp className="h-3 w-3 mr-1 text-green-600" />
             ) : (
-              <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
+              <TrendingDown className="h-3 w-3 mr-1 text-red-600" />
             )}
             {`${positive ? "+" : ""}${Math.abs(delta).toFixed(1)}% vs mês anterior`}
           </div>
@@ -202,7 +206,6 @@ function KpiCard({
   )
 }
 
-// --------- Cabeçalho da tabela (coluna ordenável)
 function ThSortable({
   label, onClick, active, dir, className = "",
 }: {
@@ -224,7 +227,7 @@ function ThSortable({
 }
 
 /* =============================================================================
-   ANEXO – TABELA INTERATIVA
+   ANEXO – TABELA INTERATIVA (com respiro)
 ============================================================================= */
 type SortKey = keyof Pick<AnexoItem, "cliente" | "ap" | "descricao" | "fornecedor" | "valor_fornecedor" | "honorario_rs" | "total">
 
@@ -295,10 +298,10 @@ function AnexoTable({
   }, [sorted, currentPage, pageSize])
 
   const totals = useMemo(() => {
-    const fornecedor = filtered.reduce((a, b) => a + (b.valor_fornecedor || 0), 0)
-    const honor = filtered.reduce((a, b) => a + (b.honorario_rs || 0), 0)
-    const total = filtered.reduce((a, b) => a + (b.total || 0), 0)
-    return { fornecedor, honor, total, count: filtered.length }
+    const fornecedorSum = filtered.reduce((a, b) => a + (b.valor_fornecedor || 0), 0)
+    const honorSum = filtered.reduce((a, b) => a + (b.honorario_rs || 0), 0)
+    const totalSum = filtered.reduce((a, b) => a + (b.total || 0), 0)
+    return { fornecedor: fornecedorSum, honor: honorSum, total: totalSum, count: filtered.length }
   }, [filtered])
 
   function resetFilters() {
@@ -333,11 +336,11 @@ function AnexoTable({
   }
 
   return (
-    <Card className="glass-effect">
+    <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-6">
           <div>
-            <CardTitle>{title}</CardTitle>
+            <CardTitle className="text-lg">{title}</CardTitle>
             <CardDescription>{subtitle}</CardDescription>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -351,7 +354,7 @@ function AnexoTable({
                 Exportar CSV
               </Button>
             </div>
-            <div className="flex gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground justify-end">
               <Badge variant="secondary">Itens: {totals.count}</Badge>
               <Badge variant="secondary">Fornecedor: {formatCurrency(totals.fornecedor)}</Badge>
               <Badge variant="secondary">Honorários: {formatCurrency(totals.honor)}</Badge>
@@ -370,14 +373,13 @@ function AnexoTable({
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1) }}
               placeholder="Buscar por cliente, AP, fornecedor ou descrição…"
-              className="dark-input"
             />
           </div>
 
           <div>
             <div className="text-xs mb-1 text-muted-foreground">Cliente</div>
             <Select value={cliente} onValueChange={(v) => { setCliente(v); setPage(1) }}>
-              <SelectTrigger className="dark-input">
+              <SelectTrigger>
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
@@ -390,7 +392,7 @@ function AnexoTable({
           <div>
             <div className="text-xs mb-1 text-muted-foreground">Fornecedor</div>
             <Select value={fornecedor} onValueChange={(v) => { setFornecedor(v); setPage(1) }}>
-              <SelectTrigger className="dark-input">
+              <SelectTrigger>
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
@@ -406,7 +408,6 @@ function AnexoTable({
               value={minTotal}
               onChange={(e) => { setMinTotal(e.target.value); setPage(1) }}
               placeholder="0,00"
-              className="dark-input"
               inputMode="decimal"
               pattern="[0-9.,]*"
             />
@@ -418,7 +419,6 @@ function AnexoTable({
               value={maxTotal}
               onChange={(e) => { setMaxTotal(e.target.value); setPage(1) }}
               placeholder="—"
-              className="dark-input"
               inputMode="decimal"
               pattern="[0-9.,]*"
             />
@@ -435,14 +435,14 @@ function AnexoTable({
 
       <CardContent>
         {/* Tabela */}
-        <div className="rounded-lg border border-white/10 overflow-hidden">
-          <div className="max-h-[520px] overflow-auto">
+        <div className="rounded-lg border overflow-hidden">
+          <div className="max-h-[580px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-background/90 backdrop-blur z-10">
-                <tr className="[&>th]:text-left [&>th]:py-2 [&>th]:px-3 [&>th]:font-medium [&>th]:text-muted-foreground">
+              <thead className="sticky top-0 bg-background/95 backdrop-blur z-10">
+                <tr className="[&>th]:text-left [&>th]:py-2.5 [&>th]:px-3 [&>th]:font-medium [&>th]:text-muted-foreground">
                   <ThSortable label="Cliente"   onClick={() => toggleSort("cliente")}   active={sortKey==="cliente"}   dir={sortDir} />
                   <ThSortable label="AP"        onClick={() => toggleSort("ap")}        active={sortKey==="ap"}        dir={sortDir} />
-                  <ThSortable label="Descrição" onClick={() => toggleSort("descricao")} active={sortKey==="descricao"} dir={sortDir} className="min-w-[360px]" />
+                  <ThSortable label="Descrição" onClick={() => toggleSort("descricao")} active={sortKey==="descricao"} dir={sortDir} className="min-w-[420px]" />
                   <ThSortable label="Fornecedor"onClick={() => toggleSort("fornecedor")}active={sortKey==="fornecedor"}dir={sortDir} />
                   <ThSortable label="Valor fornecedor" onClick={() => toggleSort("valor_fornecedor")} active={sortKey==="valor_fornecedor"} dir={sortDir} className="text-right" />
                   <ThSortable label="Honorário (R$)"   onClick={() => toggleSort("honorario_rs")}     active={sortKey==="honorario_rs"}     dir={sortDir} className="text-right" />
@@ -451,30 +451,30 @@ function AnexoTable({
               </thead>
               <tbody>
                 {paged.map((i, idx) => (
-                  <tr key={`${i.cliente}-${i.ap}-${idx}`} className="border-t border-white/5 hover:bg-white/5">
-                    <td className="py-2 px-3">{i.cliente}</td>
-                    <td className="py-2 px-3">{i.ap ?? "—"}</td>
-                    <td className="py-2 px-3 whitespace-pre-line">{i.descricao}</td>
-                    <td className="py-2 px-3">{i.fornecedor}</td>
-                    <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(i.valor_fornecedor)}</td>
-                    <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(i.honorario_rs)}</td>
-                    <td className="py-2 px-3 text-right tabular-nums font-medium">{formatCurrency(i.total)}</td>
+                  <tr key={`${i.cliente}-${i.ap}-${idx}`} className="border-t hover:bg-muted/20">
+                    <td className="py-2.5 px-3">{i.cliente}</td>
+                    <td className="py-2.5 px-3">{i.ap ?? "—"}</td>
+                    <td className="py-2.5 px-3 whitespace-pre-line leading-snug">{i.descricao}</td>
+                    <td className="py-2.5 px-3">{i.fornecedor}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(i.valor_fornecedor)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(i.honorario_rs)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums font-medium">{formatCurrency(i.total)}</td>
                   </tr>
                 ))}
 
                 {/* Totais (do recorte filtrado) */}
-                <tr className="border-t border-white/10 bg-white/[0.03]">
-                  <td className="py-2 px-3" colSpan={4}>Totais do relatório ({monthLabelText})</td>
-                  <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(totals.fornecedor)}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(totals.honor)}</td>
-                  <td className="py-2 px-3 text-right tabular-nums font-semibold">{formatCurrency(totals.total)}</td>
+                <tr className="border-t bg-muted/10">
+                  <td className="py-2.5 px-3" colSpan={4}>Totais do relatório ({monthLabelText})</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(totals.fornecedor)}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(totals.honor)}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums font-semibold">{formatCurrency(totals.total)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
           {/* Paginação */}
-          <div className="flex items-center justify-between p-3 bg-white/[0.02] border-t border-white/10">
+          <div className="flex items-center justify-between p-3 bg-muted/10 border-t">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               Itens { ( (currentPage-1)*pageSize + 1 ) }–{ Math.min(currentPage*pageSize, sorted.length) } de { sorted.length }
               <span className="mx-2">•</span>
@@ -482,7 +482,7 @@ function AnexoTable({
             </div>
             <div className="flex items-center gap-3">
               <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                <SelectTrigger className="h-8 w-[110px]">
+                <SelectTrigger className="h-8 w-[120px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -509,11 +509,12 @@ function AnexoTable({
 }
 
 /* =============================================================================
-   PÁGINA FINANCE – com gráfico de rosca melhorado
+   PÁGINA FINANCE – layout arejado + PDF com cabeçalho/rodapé confidencial
 ============================================================================= */
 export default function Finance() {
   const [month, setMonth] = useState<MonthKey>("2025-09")
   const [comparePrev, setComparePrev] = useState(true)
+  const generatedAt = useMemo(() => new Date(), []) // data/hora de emissão fixa durante a sessão
 
   const itemsByMonth: Record<MonthKey, AnexoItem[]> = {
     "2025-08": anexosAgosto,
@@ -558,13 +559,12 @@ export default function Finance() {
     return entries.sort((a, b) => b.value - a.value)
   }, [month])
 
-  // texto do cabeçalho
   const clientesDoMes = useMemo(() => {
     const set = new Set(itemsByMonth[month].map(i => i.cliente))
     return Array.from(set).sort().join(", ")
   }, [month])
 
-  // estilos de impressão
+  // estilos de impressão: cabeçalho e rodapé fixos com confidencialidade
   useEffect(() => {
     const styleId = "finance-print-style"
     if (document.getElementById(styleId)) return
@@ -575,9 +575,16 @@ export default function Finance() {
         .print-header {
           position: fixed; top: 0; left: 0; right: 0;
           border-bottom: 1px solid rgba(0,0,0,0.1);
-          padding: 8px 16px; background: white !important; z-index: 9999;
+          padding: 10px 16px; background: white !important; z-index: 9999;
         }
-        .print-spacer { height: 88px; }
+        .print-footer {
+          position: fixed; bottom: 0; left: 0; right: 0;
+          border-top: 1px solid rgba(0,0,0,0.1);
+          padding: 8px 16px; background: white !important; z-index: 9999;
+          font-size: 11px;
+        }
+        .print-spacer { height: 96px; }      /* espaço do header */
+        .print-footer-spacer { height: 76px; } /* espaço do footer */
         .no-print { display: none !important; }
         .card-break { page-break-inside: avoid; }
       }
@@ -585,8 +592,8 @@ export default function Finance() {
     document.head.appendChild(style)
   }, [])
 
-  // ------------- Rótulo externo do gráfico de rosca (evita poluição) -------------
-  const DONUT_MIN_PCT = 0.06 // só rotula fatias a partir de 6%
+  // rótulos externos do gráfico de rosca
+  const DONUT_MIN_PCT = 0.06
   const renderDonutLabel = (props: any) => {
     const { cx, cy, midAngle, outerRadius, percent, name } = props
     if (!percent || percent < DONUT_MIN_PCT) return null
@@ -604,15 +611,17 @@ export default function Finance() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6 space-y-6">
-      {/* CABEÇALHO FIXO */}
-      <div className="print-header rounded-md border bg-card px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-background">
+      {/* CABEÇALHO FIXO (tela e print) */}
+      <div className="print-header rounded-none border bg-card/90 backdrop-blur px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* <img src="/logo.svg" alt="WE" className="h-7 w-auto" /> */}
+          <Shield className="h-5 w-5 text-primary" />
           <div>
-            <div className="text-base font-semibold">Relatório Financeiro Mensal de Marketing – {monthLabel[month]}</div>
+            <div className="text-base font-semibold">
+              Relatório Financeiro – {monthLabel[month]}
+            </div>
             <div className="text-xs text-muted-foreground">
-              Cliente(s): {clientesDoMes || "—"} • Período: {monthRangeBr[month]} • Responsável: — • Versão: v1 • Critério: Competência
+              Cliente(s): {clientesDoMes || "—"} • Período: {monthRangeBr[month]} • Critério: Competência
             </div>
           </div>
         </div>
@@ -626,244 +635,274 @@ export default function Finance() {
       </div>
       <div className="print-spacer" />
 
-      {/* BARRA DE CONTROLES */}
-      <div className="sticky top-20 z-20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3 mb-2 no-print">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Select value={month} onValueChange={(v) => (setMonth(v as MonthKey))}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Mês" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2025-09">Set/2025</SelectItem>
-                <SelectItem value="2025-08">Ago/2025</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2 pl-2">
-              <Switch id="comparePrev" checked={comparePrev} onCheckedChange={setComparePrev} />
-              <label htmlFor="comparePrev" className="text-sm">Comparar com mês anterior</label>
+      {/* CONTEÚDO */}
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* BARRA DE CONTROLES */}
+        <div className="sticky top-20 z-20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg p-4 no-print">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={month} onValueChange={(v) => (setMonth(v as MonthKey))}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2025-09">Set/2025</SelectItem>
+                  <SelectItem value="2025-08">Ago/2025</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2">
+                <Switch id="comparePrev" checked={comparePrev} onCheckedChange={setComparePrev} />
+                <label htmlFor="comparePrev" className="text-sm">Comparar com mês anterior</label>
+              </div>
             </div>
-          </div>
 
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">
-              Período: {monthRangeBr[month]}
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">
+                Emissão: {generatedAt.toLocaleDateString("pt-BR")} • {generatedAt.toLocaleTimeString("pt-BR")}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 card-break">
-        <KpiCard
-          label="Receita do mês"
-          value={current.receita}
-          prevValue={prev?.receita}
-          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-          highlight
-        />
-        <KpiCard label="Custos diretos" value={current.custos} prevValue={prev?.custos} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
-        <KpiCard label="Honorários (R$)" value={current.honor} prevValue={prev?.honor} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} />
-        <Card className="glass-effect">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              Margem
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">{formatCurrency(current.margem)}</div>
-            <div className="flex items-center text-xs text-muted-foreground mt-1 gap-2">
-              <Badge variant="secondary" className="text-xs">
-                {isFinite(current.margemPct) ? `${current.margemPct.toFixed(1)}%` : "—"}
-              </Badge>
-              {prev ? (
-                (() => {
-                  const d = pctDelta(current.margem, prev.margem)
-                  if (d === null) return <span>—</span>
-                  return d >= 0 ? (
-                    <span className="flex items-center"><TrendingUp className="h-3 w-3 mr-1 text-green-500" />{d.toFixed(1)}%</span>
-                  ) : (
-                    <span className="flex items-center"><TrendingDown className="h-3 w-3 mr-1 text-red-500" />{Math.abs(d).toFixed(1)}%</span>
-                  )
-                })()
-              ) : <span>—</span>}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass-effect">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              Jobs
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{current.jobs}</div>
-            <div className="text-xs text-muted-foreground mt-1">itens faturados</div>
-          </CardContent>
-        </Card>
-        <Card className="glass-effect">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              Clientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{current.clientes}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Ticket por cliente: {formatCurrency(current.ticketCliente)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5 card-break">
+          <KpiCard
+            label="Receita do mês"
+            value={current.receita}
+            prevValue={prev?.receita}
+            icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
+            highlight
+          />
+          <KpiCard label="Custos diretos" value={current.custos} prevValue={prev?.custos} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
+          <KpiCard label="Honorários (R$)" value={current.honor} prevValue={prev?.honor} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} />
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                Margem
+              </CardTitle>
+              <CardDescription className="text-xs">Valor absoluto e variação</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{formatCurrency(current.margem)}</div>
+              <div className="flex items-center text-xs text-muted-foreground mt-1 gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {isFinite(current.margemPct) ? `${current.margemPct.toFixed(1)}%` : "—"}
+                </Badge>
+                {prev ? (
+                  (() => {
+                    const d = pctDelta(current.margem, prev.margem)
+                    if (d === null) return <span>—</span>
+                    return d >= 0 ? (
+                      <span className="flex items-center"><TrendingUp className="h-3 w-3 mr-1 text-green-600" />{d.toFixed(1)}%</span>
+                    ) : (
+                      <span className="flex items-center"><TrendingDown className="h-3 w-3 mr-1 text-red-600" />{Math.abs(d).toFixed(1)}%</span>
+                    )
+                  })()
+                ) : <span>—</span>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Jobs
+              </CardTitle>
+              <CardDescription className="text-xs">Quantidade no mês</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{current.jobs}</div>
+              <div className="text-xs text-muted-foreground mt-1">itens faturados</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Clientes
+              </CardTitle>
+              <CardDescription className="text-xs">Ticket médio por cliente</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{current.clientes}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Ticket por cliente: {formatCurrency(current.ticketCliente)}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* GRÁFICOS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 card-break">
-        {/* Colunas Receita x Custos x Margem (Ago vs Set) */}
-        <Card className="glass-effect">
-          <CardHeader>
-            <CardTitle>Comparativo (Receita × Custos × Margem)</CardTitle>
-            <CardDescription>Agosto vs Setembro/2025</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={seriesBar}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                  formatter={(value: number) => formatCurrency(value)}
-                />
-                <Legend />
-                <Bar dataKey="Receita" fill="hsl(var(--primary))" />
-                <Bar dataKey="Custos" fill="hsl(var(--chart-2))" />
-                <Bar dataKey="Margem" fill="hsl(var(--chart-3))" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* GRÁFICOS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 card-break">
+          {/* Colunas Receita x Custos x Margem */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Comparativo (Receita × Custos × Margem)</CardTitle>
+              <CardDescription>Agosto vs Setembro/2025</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={380}>
+                <BarChart data={seriesBar} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="mes" stroke="hsl(var(--muted-foreground))" />
+                  <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => "R$ " + compact.format(v)} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                    formatter={(value: number) => formatCurrency(value)}
+                  />
+                  <Legend />
+                  <Bar dataKey="Receita" fill="hsl(var(--primary))" />
+                  <Bar dataKey="Custos" fill="hsl(var(--chart-2))" />
+                  <Bar dataKey="Margem" fill="hsl(var(--chart-3))" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-        {/* ROSCA – participação por cliente (com rótulos externos e legenda ao lado) */}
-        <Card className="glass-effect">
-          <CardHeader>
-            <CardTitle>Participação por cliente – {monthLabel[month]}</CardTitle>
-            <CardDescription>Receita do mês por cliente</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-              <div className="md:col-span-3">
-                <ResponsiveContainer width="100%" height={320}>
-                  <PieChart>
-                    <Pie
-                      data={clientsDist}
-                      cx="48%"
-                      cy="52%"
-                      innerRadius={70}
-                      outerRadius={110}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                      labelLine={false}
-                      label={renderDonutLabel}
-                    >
-                      {clientsDist.map((it, idx) => <Cell key={idx} fill={it.color} />)}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                      formatter={(value: number) => formatCurrency(value)}
-                    />
-                    {/* total no centro */}
-                    {/* (usando texto sobreposto) */}
-                    {/* Recharts não tem center label padrão; usamos foreignObject simples */}
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none -mt-40 text-center">
-                  <div className="inline-block rounded-xl px-3 py-1 bg-background/80 backdrop-blur border text-xs text-muted-foreground">
-                    Receita total {monthLabel[month]}
+          {/* Rosca – participação por cliente */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Participação por cliente – {monthLabel[month]}</CardTitle>
+              <CardDescription>Distribuição da receita no mês</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                <div className="md:col-span-3">
+                  <ResponsiveContainer width="100%" height={360}>
+                    <PieChart>
+                      <Pie
+                        data={clientsDist}
+                        cx="48%"
+                        cy="52%"
+                        innerRadius={80}
+                        outerRadius={120}
+                        startAngle={90}
+                        endAngle={-270}
+                        dataKey="value"
+                        labelLine={false}
+                        label={renderDonutLabel}
+                      >
+                        {clientsDist.map((it, idx) => <Cell key={idx} fill={it.color} />)}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                        formatter={(value: number) => formatCurrency(value)}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none -mt-40 text-center">
+                    <div className="inline-block rounded-xl px-3 py-1 bg-background/80 backdrop-blur border text-xs text-muted-foreground">
+                      Receita total {monthLabel[month]}
+                    </div>
+                    <div className="text-lg font-semibold">{formatCurrency(current.receita)}</div>
                   </div>
-                  <div className="text-lg font-semibold">{formatCurrency(current.receita)}</div>
+                </div>
+                <div className="md:col-span-2 max-h-[360px] overflow-auto pr-1">
+                  <ul className="space-y-2">
+                    {clientsDist.map((c, i) => (
+                      <li key={i} className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: c.color }} />
+                          <span className="text-sm">{c.name}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium tabular-nums">{formatCurrency(c.value)}</div>
+                          <div className="text-xs text-muted-foreground">{(c.pct * 100).toFixed(1)}%</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
 
-              {/* legenda detalhada à direita */}
-              <div className="md:col-span-2 max-h-[320px] overflow-auto pr-1">
-                <ul className="space-y-2">
-                  {clientsDist.map((c, i) => (
-                    <li key={i} className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: c.color }} />
-                        <span className="text-sm">{c.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium tabular-nums">{formatCurrency(c.value)}</div>
-                        <div className="text-xs text-muted-foreground">{(c.pct * 100).toFixed(1)}%</div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+        {/* PERFORMANCE POR CLIENTE */}
+        <Card className="card-break">
+          <CardHeader>
+            <CardTitle>Performance por cliente – {monthLabel[month]}</CardTitle>
+            <CardDescription>Receita, custos, honorários e margem</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClientTable monthItems={itemsByMonth[month]} totalResumo={current} />
+          </CardContent>
+        </Card>
+
+        {/* COMPARATIVO ATUAL x ANTERIOR */}
+        {comparePrev && prev && (
+          <Card className="card-break">
+            <CardHeader>
+              <CardTitle>Comparativo {monthLabel[prevKey!]} × {monthLabel[month]}</CardTitle>
+              <CardDescription>Receita, custos e honorários</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={340}>
+                <BarChart data={[
+                  { metric: "Receita", anterior: prev.receita, atual: current.receita },
+                  { metric: "Custos", anterior: prev.custos, atual: current.custos },
+                  { metric: "Honorários", anterior: prev.honor, atual: current.honor },
+                ]} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="metric" stroke="hsl(var(--muted-foreground))" />
+                  <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => "R$ " + compact.format(v)} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                    formatter={(value: number) => formatCurrency(value)}
+                  />
+                  <Legend />
+                  <Bar dataKey="anterior" name={`Período ${monthLabel[prevKey!]}`} fill="hsl(var(--chart-2))" />
+                  <Bar dataKey="atual" name={`Período ${monthLabel[month]}`} fill="hsl(var(--primary))" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ANEXOS – AGO e SET */}
+        <Tabs defaultValue={month === "2025-09" ? "set" : "ago"} className="space-y-4 card-break">
+          <TabsList>
+            <TabsTrigger value="ago">Anexo – Ago/2025</TabsTrigger>
+            <TabsTrigger value="set">Anexo – Set/2025</TabsTrigger>
+          </TabsList>
+          <TabsContent value="ago">
+            <AnexoTable title="Anexo – Itens faturados (Ago/2025)" monthLabelText="Ago/2025" items={anexosAgosto} />
+          </TabsContent>
+          <TabsContent value="set">
+            <AnexoTable title="Anexo – Itens faturados (Set/2025)" monthLabelText="Set/2025" items={anexosSetembro} />
+          </TabsContent>
+        </Tabs>
+
+        {/* NOTA DE SEGURANÇA (visível na tela e no PDF — também repetida no rodapé de impressão) */}
+        <Card className="card-break">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Segurança e Confidencialidade
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground leading-relaxed">
+            Este relatório contém informações financeiras de clientes e fornecedores. É de <strong>uso interno</strong> da
+            WE e está protegido por acordos de confidencialidade e pela <strong>LGPD</strong>. A <strong>divulgação, cópia,
+            encaminhamento a terceiros ou publicação</strong> sem autorização por escrito é estritamente proibida. Em caso de
+            extravio ou suspeita de acesso indevido, notifique imediatamente o time financeiro.
           </CardContent>
         </Card>
       </div>
 
-      {/* PERFORMANCE POR CLIENTE */}
-      <Card className="glass-effect card-break">
-        <CardHeader>
-          <CardTitle>Performance por cliente – {monthLabel[month]}</CardTitle>
-          <CardDescription>Receita, custos, honorários e margem</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ClientTable monthItems={itemsByMonth[month]} totalResumo={current} />
-        </CardContent>
-      </Card>
-
-      {/* COMPARATIVO ATUAL x ANTERIOR */}
-      {comparePrev && prev && (
-        <Card className="glass-effect card-break">
-          <CardHeader>
-            <CardTitle>Comparativo {monthLabel[prevKey!]} × {monthLabel[month]}</CardTitle>
-            <CardDescription>Receita, custos e honorários</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={[
-                { metric: "Receita", anterior: prev.receita, atual: current.receita },
-                { metric: "Custos", anterior: prev.custos, atual: current.custos },
-                { metric: "Honorários", anterior: prev.honor, atual: current.honor },
-              ]}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="metric" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                  formatter={(value: number) => formatCurrency(value)}
-                />
-                <Legend />
-                <Bar dataKey="anterior" name={`Período ${monthLabel[prevKey!]}`} fill="hsl(var(--chart-2))" />
-                <Bar dataKey="atual" name={`Período ${monthLabel[month]}`} fill="hsl(var(--primary))" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ANEXOS – AGO e SET */}
-      <Tabs defaultValue={month === "2025-09" ? "set" : "ago"} className="space-y-4 card-break">
-        <TabsList>
-          <TabsTrigger value="ago">Anexo – Ago/2025</TabsTrigger>
-          <TabsTrigger value="set">Anexo – Set/2025</TabsTrigger>
-        </TabsList>
-        <TabsContent value="ago">
-          <AnexoTable title="Anexo – Itens faturados (Ago/2025)" monthLabelText="Ago/2025" items={anexosAgosto} />
-        </TabsContent>
-        <TabsContent value="set">
-          <AnexoTable title="Anexo – Itens faturados (Set/2025)" monthLabelText="Set/2025" items={anexosSetembro} />
-        </TabsContent>
-      </Tabs>
+      {/* RODAPÉ FIXO PARA IMPRESSÃO */}
+      <div className="print-footer">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px]">
+            <strong>WE – WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</strong> • Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP 04552-030
+          </div>
+          <div className="text-[11px]">
+            Confidencial – Uso interno. Não divulgar. Emissão: {generatedAt.toLocaleDateString("pt-BR")} {generatedAt.toLocaleTimeString("pt-BR")}
+          </div>
+        </div>
+      </div>
+      <div className="print-footer-spacer" />
     </div>
   )
 }
@@ -887,11 +926,11 @@ function ClientTable({ monthItems, totalResumo }: { monthItems: AnexoItem[], tot
   }, [monthItems])
 
   return (
-    <div className="rounded-lg border border-white/10 overflow-hidden">
-      <div className="max-h-[420px] overflow-auto">
+    <div className="rounded-lg border overflow-hidden">
+      <div className="max-h-[460px] overflow-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-background/90 backdrop-blur z-10">
-            <tr className="[&>th]:text-left [&>th]:py-2 [&>th]:px-3 [&>th]:font-medium [&>th]:text-muted-foreground">
+          <thead className="sticky top-0 bg-background/95 backdrop-blur z-10">
+            <tr className="[&>th]:text-left [&>th]:py-2.5 [&>th]:px-3 [&>th]:font-medium [&>th]:text-muted-foreground">
               <th>Cliente</th>
               <th className="text-right">Receita</th>
               <th className="text-right">Custos</th>
@@ -904,26 +943,26 @@ function ClientTable({ monthItems, totalResumo }: { monthItems: AnexoItem[], tot
           </thead>
           <tbody>
             {data.map((row) => (
-              <tr key={row.cliente} className="border-t border-white/5 hover:bg-white/5">
-                <td className="py-2 px-3">{row.cliente}</td>
-                <td className="py-2 px-3 text-right">{formatCurrency(row.receita)}</td>
-                <td className="py-2 px-3 text-right">{formatCurrency(row.custos)}</td>
-                <td className="py-2 px-3 text-right">{formatCurrency(row.honor)}</td>
-                <td className="py-2 px-3 text-right">{formatCurrency(row.margem)}</td>
-                <td className="py-2 px-3 text-right">{row.margemPct.toFixed(1)}%</td>
-                <td className="py-2 px-3 text-right">{row.jobs}</td>
-                <td className="py-2 px-3 text-right">{formatCurrency(row.ticket)}</td>
+              <tr key={row.cliente} className="border-t hover:bg-muted/20">
+                <td className="py-2.5 px-3">{row.cliente}</td>
+                <td className="py-2.5 px-3 text-right">{formatCurrency(row.receita)}</td>
+                <td className="py-2.5 px-3 text-right">{formatCurrency(row.custos)}</td>
+                <td className="py-2.5 px-3 text-right">{formatCurrency(row.honor)}</td>
+                <td className="py-2.5 px-3 text-right">{formatCurrency(row.margem)}</td>
+                <td className="py-2.5 px-3 text-right">{row.margemPct.toFixed(1)}%</td>
+                <td className="py-2.5 px-3 text-right">{row.jobs}</td>
+                <td className="py-2.5 px-3 text-right">{formatCurrency(row.ticket)}</td>
               </tr>
             ))}
-            <tr className="border-t border-white/10 bg-white/[0.03]">
-              <td className="py-2 px-3">Totais do mês</td>
-              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.receita)}</td>
-              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.custos)}</td>
-              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.honor)}</td>
-              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.margem)}</td>
-              <td className="py-2 px-3 text-right">{isFinite(totalResumo.margemPct) ? `${totalResumo.margemPct.toFixed(1)}%` : "—"}</td>
-              <td className="py-2 px-3 text-right">{totalResumo.jobs}</td>
-              <td className="py-2 px-3 text-right">{formatCurrency(totalResumo.ticketJob)}</td>
+            <tr className="border-t bg-muted/10">
+              <td className="py-2.5 px-3">Totais do mês</td>
+              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.receita)}</td>
+              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.custos)}</td>
+              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.honor)}</td>
+              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.margem)}</td>
+              <td className="py-2.5 px-3 text-right">{isFinite(totalResumo.margemPct) ? `${totalResumo.margemPct.toFixed(1)}%` : "—"}</td>
+              <td className="py-2.5 px-3 text-right">{totalResumo.jobs}</td>
+              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.ticketJob)}</td>
             </tr>
           </tbody>
         </table>
