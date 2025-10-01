@@ -127,9 +127,10 @@ export default function OrcamentoNovo() {
       };
 
       // 1) Cria orçamento
-      const { data: createdRes, error: budgetError } = await supabase.rpc("create_simple_budget", {
-        p_type: normalized.type,
-      });
+      const { data: createdRes, error: budgetError } = await supabase.rpc(
+  "create_simple_budget_rpc",
+  { p_type: normalized.type }
+);
 
       if (budgetError) throw budgetError;
       const created = Array.isArray(createdRes) ? createdRes[0] : createdRes;
