@@ -12,6 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import React from "react";
+if (import.meta.env.DEV) {
+  console.log("[React version]", React.version);
+}
+
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
