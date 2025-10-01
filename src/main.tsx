@@ -1,18 +1,14 @@
 // src/main.tsx
-import React, { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
 
-if (import.meta.env.DEV) {
-  console.log('[React version]', React.version) // deve aparecer 18.2.0 ou 18.3.1 UMA vez
-}
+const el = document.getElementById("root");
+if (!el) throw new Error("Elemento #root não encontrado");
 
-const rootEl = document.getElementById('root')
-if (!rootEl) throw new Error('Elemento #root não encontrado no index.html')
-
-createRoot(rootEl).render(
+createRoot(el).render(
   <StrictMode>
     <App />
   </StrictMode>
-)
+);
