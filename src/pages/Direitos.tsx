@@ -93,7 +93,6 @@ function driveVariants(rawUrl: string): {
     const hostOk = /(^|\.)google\.com$/.test(url.hostname);
     if (!hostOk) return { view: rawUrl, isFolder: false };
 
-    // /file/d/<id>/...
     const mFile = url.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
     if (mFile) {
       const id = mFile[1];
@@ -104,7 +103,6 @@ function driveVariants(rawUrl: string): {
       };
     }
 
-    // open?id=<id>  ou  uc?id=<id>
     const id = url.searchParams.get("id");
     if (id) {
       return {
@@ -114,11 +112,8 @@ function driveVariants(rawUrl: string): {
       };
     }
 
-    // /drive/folders/<id>
     const mFolder = url.pathname.match(/\/drive\/folders\/([a-zA-Z0-9_-]+)/);
-    if (mFolder) {
-      return { view: rawUrl, isFolder: true };
-    }
+    if (mFolder) return { view: rawUrl, isFolder: true };
 
     return { view: rawUrl, isFolder: false };
   } catch {
@@ -737,11 +732,11 @@ function UpsertModal({
    PÁGINA
 ============================================================================= */
 type SortMode = "UPCOMING_FIRST" | "EXPIRE_ASC" | "EXPIRE_DESC";
+const ALL = "ALL";
 
 export default function Direitos() {
   const navigate = useNavigate();
 
-  // carregar de localStorage (ou seed, se vazio)
   const [rows, setRows] = useState<RightRow[]>(() => {
     try {
       const raw = localStorage.getItem(LOCAL_KEY);
@@ -750,25 +745,23 @@ export default function Direitos() {
     return SEED_ALL;
   });
 
-  // persistir sempre que mudar
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_KEY, JSON.stringify(rows));
     } catch {}
   }, [rows]);
 
-  // opções de cliente
   const clientOptions = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) if (r.client) set.add(r.client);
     return Array.from(set).sort();
   }, [rows]);
 
-  const [client, setClient] = useState<string>(() => clientOptions[0] || "BYD");
+  // agora começa em "Todos"
+  const [client, setClient] = useState<string>(ALL);
   useEffect(() => {
-    if (!clientOptions.includes(client) && clientOptions.length > 0) {
-      setClient(clientOptions[0]);
-    }
+    // se eu estava em um cliente removido, volto pra "Todos"
+    if (client !== ALL && !clientOptions.includes(client)) setClient(ALL);
   }, [clientOptions, client]);
 
   const [search, setSearch] = useState("");
@@ -778,19 +771,18 @@ export default function Direitos() {
   const [sortMode, setSortMode] = useState<SortMode>("UPCOMING_FIRST");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Modais
   const [openRenew, setOpenRenew] = useState(false);
   const [current, setCurrent] = useState<RightRow | null>(null);
   const [openUpsert, setOpenUpsert] = useState(false);
   const [editTarget, setEditTarget] = useState<RightRow | null>(null);
 
-  // linhas do cliente
-  const rowsClient = useMemo(
-    () => rows.filter((r) => r.client === client),
+  // linhas visíveis conforme aba (Todos ou cliente)
+  const rowsScope = useMemo(
+    () => (client === ALL ? rows : rows.filter((r) => r.client === client)),
     [rows, client]
   );
 
-  // KPIs
+  // KPIs no escopo atual
   const kpis = useMemo(() => {
     let uso = 0,
       le30 = 0,
@@ -798,7 +790,7 @@ export default function Direitos() {
       hoje = 0,
       venc = 0,
       arq = 0;
-    for (const r of rowsClient) {
+    for (const r of rowsScope) {
       if (r.archived) {
         arq++;
         continue;
@@ -812,12 +804,12 @@ export default function Direitos() {
       else uso++;
     }
     return { uso, le30, le15, hoje, venc, arq };
-  }, [rowsClient]);
+  }, [rowsScope]);
 
-  // Filtros + Ordenação
+  // Filtros + Ordenação dentro do escopo
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
-    const base = rowsClient.filter((r) => {
+    const base = rowsScope.filter((r) => {
       if (statusFilter === "ARQ") return r.archived === true;
       if (r.archived) return false;
       const d = daysUntil(r.expire_date);
@@ -828,7 +820,7 @@ export default function Direitos() {
       if (statusFilter === "HOJE") ok = d === 0;
       if (statusFilter === "VENCIDO") ok = d !== undefined && d < 0;
       if (statusFilter === "ALL") ok = true;
-      if (ok && t) ok = (`${r.product} ${r.title}`.toLowerCase().includes(t));
+      if (ok && t) ok = (`${r.client} ${r.product} ${r.title}`.toLowerCase().includes(t));
       return ok;
     });
 
@@ -843,21 +835,21 @@ export default function Direitos() {
       if (sortMode === "EXPIRE_ASC") return byTime(a) - byTime(b);
       if (sortMode === "EXPIRE_DESC") return byTime(b) - byTime(a);
 
-      // UPCOMING_FIRST (default): não vencidos primeiro; dentro de cada grupo, data crescente
+      // DEFAULT: não vencidos primeiro; dentro do grupo, data crescente
       const ga = isExpired(a) ? 1 : 0;
       const gb = isExpired(b) ? 1 : 0;
       if (ga !== gb) return ga - gb;
       return byTime(a) - byTime(b);
     });
-  }, [rowsClient, search, statusFilter, sortMode]);
+  }, [rowsScope, search, statusFilter, sortMode]);
 
   // Atualizações
   function updateRow(id: string, patch: Partial<RightRow>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
   function addRow(row: RightRow) {
+    // não mudo a aba; só adiciono. O botão do cliente aparece automaticamente.
     setRows((prev) => [...prev, row]);
-    setClient(row.client);
   }
   function deleteRow(id: string) {
     if (!confirm("Tem certeza que deseja excluir este registro?")) return;
@@ -899,7 +891,7 @@ export default function Direitos() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `direitos_${client}.csv`;
+    a.download = client === ALL ? `direitos_todos.csv` : `direitos_${client}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -925,7 +917,9 @@ export default function Direitos() {
           >
             <ArrowLeft className="h-4 w-4" /> Início
           </button>
-          <h1 className="text-2xl font-semibold">Direitos por cliente</h1>
+          <h1 className="text-2xl font-semibold">
+            {client === ALL ? "Direitos — Todos os clientes" : `Direitos — ${client}`}
+          </h1>
         </div>
 
         <div className="flex gap-2">
@@ -957,8 +951,17 @@ export default function Direitos() {
         </div>
       </div>
 
-      {/* Abas de clientes */}
+      {/* Abas: Todos + clientes */}
       <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={() => setClient(ALL)}
+          className={classNames(
+            "px-3 py-2 rounded-xl border",
+            client === ALL ? "bg-black text-white" : "bg-white"
+          )}
+        >
+          Todos
+        </button>
         {clientOptions.length === 0 && (
           <span className="text-sm text-gray-500">
             Sem registros. Clique em “Adicionar”.
@@ -986,7 +989,7 @@ export default function Direitos() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por produto ou título"
+              placeholder="Buscar por cliente, produto ou título"
               className="w-full pl-10 pr-3 py-2 rounded-xl border"
             />
           </div>
@@ -1032,6 +1035,7 @@ export default function Direitos() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr className="text-left">
+              <th className="p-3">Cliente</th>
               <th className="p-3">Produto</th>
               <th className="p-3">Título</th>
               <th className="p-3">1ª veiculação</th>
@@ -1045,7 +1049,7 @@ export default function Direitos() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td className="p-6 text-gray-500" colSpan={8}>
+                <td className="p-6 text-gray-500" colSpan={9}>
                   Nada encontrado com esses filtros.
                 </td>
               </tr>
@@ -1063,6 +1067,7 @@ export default function Direitos() {
 
                 return (
                   <tr key={r.id} className={classNames("border-t hover:bg-gray-50", rowTint)}>
+                    <td className="p-3 whitespace-nowrap">{r.client}</td>
                     <td className="p-3 whitespace-nowrap">{r.product}</td>
                     <td className="p-3">
                       <div className="font-medium">{r.title}</div>
@@ -1117,7 +1122,7 @@ export default function Direitos() {
                                 href={drive.download}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                title="Abrir como download (contorna bloqueio de visualização)"
+                                title="Abrir como download"
                               >
                                 ↓
                               </a>
