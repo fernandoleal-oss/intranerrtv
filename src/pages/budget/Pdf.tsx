@@ -1,5 +1,5 @@
 // src/pages/budget/Pdf.tsx
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -64,26 +64,20 @@ export default function PdfView() {
   const [error, setError] = useState<string | null>(null)
   const [logoOk, setLogoOk] = useState<boolean | null>(null)
 
+  // ref do conteúdo imprimível (usado para "caber em 1 página")
+  const printRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const run = async () => {
       setLoading(true)
       setError(null)
       try {
-        // pega a última versão desse orçamento (ordem por created_at é mais segura)
+        // última versão desse orçamento
         const { data, error } = await supabase
           .from('versions')
           .select(`
-            id,
-            payload,
-            created_at,
-            budget_id,
-            budgets!inner(
-              id,
-              display_id,
-              type,
-              status,
-              created_at
-            )
+            id, payload, created_at, budget_id,
+            budgets!inner(id, display_id, type, status, created_at)
           `)
           .eq('budget_id', id)
           .order('created_at', { ascending: false })
@@ -137,7 +131,46 @@ export default function PdfView() {
 
   const isAudio = (view?.type || '').toLowerCase() === 'audio'
 
-  // ----- estados -----
+  // ----- fit-to-one-page (calcula escala antes de imprimir) -----
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      const el = printRef.current
+      if (!el) return
+
+      // Tamanho útil da página A4 com margem de 10mm (ver @page abaixo)
+      // A4 = 297mm x 210mm → em px (~96dpi): 1123(h) x 794(w)
+      // margem vertical total ≈ 20mm ≈ 76px → alvo de ~1047px de altura
+      const TARGET_HEIGHT_PX = 1047
+
+      // primeiro, reseta escala
+      el.style.setProperty('--print-scale', '1')
+      // mede a altura atual
+      const actual = el.scrollHeight
+      if (actual <= TARGET_HEIGHT_PX) {
+        return // já cabe
+      }
+      // escala mínima para não ficar ilegível
+      const MIN_SCALE = 0.7
+      // margem de segurança
+      const scale = Math.max(MIN_SCALE, Math.min(1, (TARGET_HEIGHT_PX / actual) * 0.98))
+      el.style.setProperty('--print-scale', String(scale))
+    }
+
+    const handleAfterPrint = () => {
+      const el = printRef.current
+      if (!el) return
+      el.style.setProperty('--print-scale', '1')
+    }
+
+    window.addEventListener('beforeprint', handleBeforePrint)
+    window.addEventListener('afterprint', handleAfterPrint)
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint)
+      window.removeEventListener('afterprint', handleAfterPrint)
+    }
+  }, [])
+
+  // ----- estados de tela -----
   if (loading) {
     return (
       <div className="min-h-screen bg-background grid place-items-center">
@@ -193,230 +226,215 @@ export default function PdfView() {
         </Button>
       </div>
 
-      {/* Cabeçalho corporativo (preto com logo WE + dados da WE) */}
-      <div className="px-10 pt-10">
-        <div className="rounded-2xl overflow-hidden border">
-          <div className="bg-black text-white p-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img
-                src="/brand/we-white.png"
-                alt="WE"
-                className="h-10 w-auto"
-                onLoad={() => setLogoOk(true)}
-                onError={(e) => { setLogoOk(false); (e.currentTarget.style.display = 'none') }}
-              />
-              <span className="text-xl font-bold">WE</span>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-semibold">Orçamento #{view.displayId}</div>
-              <div className="text-xs opacity-80">
-                {new Date(view.createdAt).toLocaleDateString('pt-BR')}
+      {/* CONTEÚDO IMPRESSO */}
+      <div className="px-6 py-6 print:px-0 print:py-0 flex justify-center">
+        {/* Contêiner com largura A4 útil no print; escalado se necessário */}
+        <div
+          ref={printRef}
+          id="print-root"
+          className="w-full max-w-4xl print:w-[190mm]"
+          style={{
+            // em tela, largura fluida; no print, transform/escala aplicada via CSS
+            transformOrigin: 'top left',
+          }}
+        >
+          {/* Cabeçalho preto + dados da WE */}
+          <div className="rounded-xl overflow-hidden border print:rounded-none print:border-0">
+            <div className="bg-black text-white px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/brand/we-white.png"
+                  alt="WE"
+                  className="h-8 w-auto"
+                  onLoad={() => setLogoOk(true)}
+                  onError={(e) => { setLogoOk(false); (e.currentTarget.style.display = 'none') }}
+                />
+                <span className="text-lg font-bold leading-none">WE</span>
               </div>
-            </div>
-          </div>
-          <div className="p-6 text-sm leading-relaxed">
-            <div className="font-semibold">
-              WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
-            </div>
-            <div>
-              Endereço: Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Selo de NÃO FATURADO / pendente */}
-      {(p.pendente_pagamento === true) && (
-        <div className="px-10 pt-4">
-          <div className="rounded-xl border border-red-200 bg-red-50 text-red-800 px-4 py-3 flex gap-2">
-            <AlertTriangle className="h-5 w-5 mt-0.5" />
-            <div>
-              <div className="font-semibold uppercase">Não faturado</div>
-              <div>Este orçamento está pendente de pagamento e precisa ser incluso em algum faturamento.</div>
-              {p.observacoes_faturamento && (
-                <div className="mt-1 opacity-90">Obs.: {p.observacoes_faturamento}</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sumário de identificação */}
-      <div className="px-10 pt-6">
-        <div className="grid md:grid-cols-3 gap-4 text-sm">
-          <div className="border rounded-xl p-4">
-            <div className="text-muted-foreground">Cliente</div>
-            <div className="font-medium">{fmt(p.cliente)}</div>
-          </div>
-          <div className="border rounded-xl p-4">
-            <div className="text-muted-foreground">Produto</div>
-            <div className="font-medium">{fmt(p.produto)}</div>
-          </div>
-          <div className="border rounded-xl p-4">
-            <div className="text-muted-foreground">Job</div>
-            <div className="font-medium">{fmt(p.job)}</div>
-          </div>
-
-          <div className="border rounded-xl p-4">
-            <div className="text-muted-foreground">Mídias</div>
-            <div className="font-medium">{fmt(p.midias)}</div>
-          </div>
-          <div className="border rounded-xl p-4">
-            <div className="text-muted-foreground">Território</div>
-            <div className="font-medium">{fmt(p.territorio)}</div>
-          </div>
-          <div className="border rounded-xl p-4">
-            <div className="text-muted-foreground">Período</div>
-            <div className="font-medium">{fmt(p.periodo)}</div>
-          </div>
-
-          {/* Esses blocos somem quando for ÁUDIO */}
-          {String(view.type).toLowerCase() !== 'audio' && (
-            <>
-              <div className="border rounded-xl p-4 md:col-span-3">
-                <div className="text-muted-foreground">Entregáveis</div>
-                <div className="font-medium">
-                  {Array.isArray(p.entregaveis) ? p.entregaveis.join(', ') : fmt(p.entregaveis)}
+              <div className="text-right">
+                <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
+                <div className="text-[10px] opacity-80 mt-1 leading-none">
+                  {new Date(view.createdAt).toLocaleDateString('pt-BR')}
                 </div>
               </div>
+            </div>
+            <div className="px-5 py-3 text-xs leading-snug">
+              <div className="font-semibold">
+                WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
+              </div>
+              <div>
+                Endereço: Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
+              </div>
+            </div>
+          </div>
 
-              <div className="border rounded-xl p-4">
-                <div className="text-muted-foreground">Adaptações de Formatos</div>
-                <div className="font-medium">
-                  {Array.isArray(p.formatos) ? p.formatos.join(', ') : fmt(p.formatos)}
+          {/* ALERTA NÃO FATURADO */}
+          {p.pendente_pagamento && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-800 px-4 py-2.5 flex gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-semibold uppercase leading-none">Não faturado</div>
+                <div>Este orçamento está pendente e precisa ser incluso em algum faturamento.</div>
+                {p.observacoes_faturamento && (
+                  <div className="mt-1 opacity-90">Obs.: {p.observacoes_faturamento}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* GRID PRINCIPAL (compacto) */}
+          <div className="mt-3 grid grid-cols-12 gap-3">
+            {/* COLUNA ESQUERDA */}
+            <div className="col-span-12 md:col-span-7">
+              {/* Identificação */}
+              <section className="rounded-lg border px-4 py-3">
+                <h2 className="text-sm font-semibold mb-2">Identificação</h2>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div><span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}</div>
+                  <div><span className="text-neutral-500">Produto:</span> {fmt(p.produto)}</div>
+                  <div><span className="text-neutral-500">Job:</span> {fmt(p.job)}</div>
+                  <div><span className="text-neutral-500">Mídias:</span> {fmt(p.midias)}</div>
+                  <div><span className="text-neutral-500">Território:</span> {fmt(p.territorio)}</div>
+                  <div><span className="text-neutral-500">Período:</span> {fmt(p.periodo)}</div>
                 </div>
-              </div>
-              <div className="border rounded-xl p-4">
-                <div className="text-muted-foreground">Data do Orçamento</div>
-                <div className="font-medium">{fmt(p.data_orcamento)}</div>
-              </div>
-              <div className="border rounded-xl p-4">
-                <div className="text-muted-foreground">Exclusividade de Elenco</div>
-                <div className="font-medium">{fmt(p.exclusividade_elenco)}</div>
-              </div>
-              <div className="border rounded-xl p-4">
-                <div className="text-muted-foreground">Áudio</div>
-                <div className="font-medium">{fmt(p.audio_descr)}</div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+              </section>
 
-      {/* Cotações */}
-      <div className="px-10 pt-6">
-        <div className="rounded-2xl border p-6">
-          <div className="text-lg font-semibold mb-4">Cotações</div>
+              {/* Cotações */}
+              <section className="rounded-lg border px-4 py-3 mt-3">
+                <h2 className="text-sm font-semibold mb-2">Cotações</h2>
 
-          {/* Se não houver linhas, avisa claramente */}
-          {linhas.length === 0 && (
-            <div className="text-sm text-muted-foreground">Nenhuma cotação informada.</div>
-          )}
-
-          {/* ÁUDIO: Produtora / Escopo / Valor Unitário / Qtd / Desconto / Valor Total */}
-          {isAudio && linhas.length > 0 && (
-            <div className="w-full border rounded-md overflow-hidden">
-              <div className="grid grid-cols-6 bg-neutral-100 text-xs font-medium px-3 py-2">
-                <div>Produtora</div>
-                <div>Escopo</div>
-                <div className="text-right">Valor unitário</div>
-                <div className="text-right">Qtd</div>
-                <div className="text-right">Desconto</div>
-                <div className="text-right">Valor total</div>
-              </div>
-              {linhas.map((q) => {
-                const qty = Number(q.quantidade ?? q.qtd ?? 1)
-                const unit = Number(q.valor || 0)
-                const desc = Number(q.desconto || 0)
-                const totalLinha = unit * qty - desc
-                return (
-                  <div key={q.id} className="grid grid-cols-6 px-3 py-2 text-sm border-t">
-                    <div>{fmt(q.produtora)}</div>
-                    <div>{fmt(q.escopo)}</div>
-                    <div className="text-right">{BRL(unit)}</div>
-                    <div className="text-right">{qty}</div>
-                    <div className="text-right">{BRL(desc)}</div>
-                    <div className="text-right">{BRL(totalLinha)}</div>
+                {linhas.length === 0 ? (
+                  <div className="text-xs text-neutral-600">Nenhuma cotação informada.</div>
+                ) : isAudio ? (
+                  // ÁUDIO
+                  <div className="w-full border rounded-md overflow-hidden">
+                    <div className="grid grid-cols-6 bg-neutral-100 text-[11px] font-medium px-2 py-1.5">
+                      <div>Produtora</div>
+                      <div>Escopo</div>
+                      <div className="text-right">Unit.</div>
+                      <div className="text-right">Qtd</div>
+                      <div className="text-right">Desc.</div>
+                      <div className="text-right">Total</div>
+                    </div>
+                    {linhas.map((q) => {
+                      const qty = Number(q.quantidade ?? q.qtd ?? 1)
+                      const unit = Number(q.valor || 0)
+                      const desc = Number(q.desconto || 0)
+                      const totalLinha = unit * qty - desc
+                      return (
+                        <div key={q.id} className="grid grid-cols-6 px-2 py-1.5 text-[11px] border-t leading-tight">
+                          <div className="truncate" title={q.produtora}>{fmt(q.produtora)}</div>
+                          <div className="truncate" title={q.escopo}>{fmt(q.escopo)}</div>
+                          <div className="text-right">{BRL(unit)}</div>
+                          <div className="text-right">{qty}</div>
+                          <div className="text-right">{BRL(desc)}</div>
+                          <div className="text-right">{BRL(totalLinha)}</div>
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                ) : (
+                  // OUTROS TIPOS
+                  <div className="w-full border rounded-md overflow-hidden">
+                    <div className="grid grid-cols-5 bg-neutral-100 text-[11px] font-medium px-2 py-1.5">
+                      <div>Produtora</div>
+                      <div>Escopo</div>
+                      <div>Diretor</div>
+                      <div>Tratamento</div>
+                      <div className="text-right">Valor</div>
+                    </div>
+                    {linhas.map((q) => (
+                      <div key={q.id} className="grid grid-cols-5 px-2 py-1.5 text-[11px] border-t leading-tight">
+                        <div className="truncate" title={q.produtora}>{fmt(q.produtora)}</div>
+                        <div className="truncate" title={q.escopo}>{fmt(q.escopo)}</div>
+                        <div className="truncate" title={q.diretor}>{fmt(q.diretor)}</div>
+                        <div className="truncate" title={q.tratamento}>{fmt(q.tratamento)}</div>
+                        <div className="text-right">{BRL(Number(q.valor) || 0)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-          {/* Outros tipos: Produtora / Escopo / Diretor / Tratamento / Valor */}
-          {!isAudio && linhas.length > 0 && (
-            <div className="w-full border rounded-md overflow-hidden">
-              <div className="grid grid-cols-5 bg-neutral-100 text-xs font-medium px-3 py-2">
-                <div>Produtora</div>
-                <div>Escopo</div>
-                <div>Diretor</div>
-                <div>Tratamento</div>
-                <div className="text-right">Valor</div>
-              </div>
-              {linhas.map((q) => (
-                <div key={q.id} className="grid grid-cols-5 px-3 py-2 text-sm border-t">
-                  <div>{fmt(q.produtora)}</div>
-                  <div>{fmt(q.escopo)}</div>
-                  <div>{fmt(q.diretor)}</div>
-                  <div>{fmt(q.tratamento)}</div>
-                  <div className="text-right">{BRL(Number(q.valor) || 0)}</div>
+                {/* Blocos complementares – ocultos em ÁUDIO */}
+                {String(view.type).toLowerCase() !== 'audio' && (
+                  <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
+                    <div className="border rounded-md p-2">
+                      <div className="text-neutral-500">Entregáveis</div>
+                      <div className="font-medium">
+                        {Array.isArray(p.entregaveis) ? p.entregaveis.join(', ') : fmt(p.entregaveis)}
+                      </div>
+                    </div>
+                    <div className="border rounded-md p-2">
+                      <div className="text-neutral-500">Adaptações</div>
+                      <div className="font-medium">
+                        {Array.isArray(p.formatos) ? p.formatos.join(', ') : fmt(p.formatos)}
+                      </div>
+                    </div>
+                    <div className="border rounded-md p-2">
+                      <div className="text-neutral-500">Exclusividade</div>
+                      <div className="font-medium">{fmt(p.exclusividade_elenco)}</div>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            {/* COLUNA DIREITA */}
+            <div className="col-span-12 md:col-span-5">
+              {/* Resumo Financeiro */}
+              <section className="rounded-lg border px-4 py-3">
+                <h2 className="text-sm font-semibold mb-2">Resumo Financeiro</h2>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-neutral-600">Subtotal cotações</span>
+                    <span>{BRL(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-neutral-600">Honorário ({p.honorario_perc || 0}%)</span>
+                    <span>{BRL(honorario)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-base pt-2 border-t">
+                    <span>Total</span>
+                    <span className="text-black">{BRL(totalGeral)}</span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+              </section>
 
-      {/* Resumo financeiro */}
-      <div className="px-10 pt-6">
-        <div className="rounded-2xl border p-6">
-          <div className="text-lg font-semibold mb-4">Resumo Financeiro</div>
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <div className="border rounded-xl p-4">
-              <div className="text-muted-foreground">Subtotal cotações</div>
-              <div className="font-medium">{BRL(subtotal)}</div>
-            </div>
-            <div className="border rounded-xl p-4">
-              <div className="text-muted-foreground">Honorário ({p.honorario_perc || 0}%)</div>
-              <div className="font-medium">{BRL(honorario)}</div>
-            </div>
-            <div className="border rounded-xl p-4">
-              <div className="text-muted-foreground">Total Geral</div>
-              <div className="font-semibold text-primary">{BRL(totalGeral)}</div>
+              {/* Observações / Termos */}
+              <section className="rounded-lg border px-4 py-3 mt-3">
+                <h2 className="text-sm font-semibold mb-2">Observações</h2>
+                <ul className="list-disc pl-5 space-y-1 text-[11px] text-neutral-700">
+                  {p.pendente_pagamento && <li>NÃO FATURADO — incluir no próximo faturamento.</li>}
+                  {p.observacoes_faturamento && <li>{p.observacoes_faturamento}</li>}
+                  <li>Validade do orçamento: 7 dias a partir da emissão.</li>
+                  <li>Usos e prazos condicionados à aprovação e disponibilidade.</li>
+                </ul>
+              </section>
+
+              <section className="rounded-lg border px-4 py-3 mt-3">
+                <h2 className="text-sm font-semibold mb-2">Termos e Condições</h2>
+                <ul className="list-disc pl-5 space-y-1 text-[11px] text-neutral-700">
+                  <li>Alterações de escopo podem gerar nova versão.</li>
+                  <li>Conforme mídias, território e período informados neste orçamento.</li>
+                </ul>
+              </section>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Observações / Termos */}
-      <div className="px-10 py-8">
-        <div className="grid md:grid-cols-2 gap-6 text-sm">
-          <div className="rounded-2xl border p-6">
-            <div className="font-semibold mb-2">Observações</div>
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              {p.pendente_pagamento && <li>NÃO FATURADO — incluir no próximo faturamento.</li>}
-              {p.observacoes_faturamento && <li>{p.observacoes_faturamento}</li>}
-              <li>Validade do orçamento: 7 dias a partir da emissão.</li>
-              <li>Usos e prazos condicionados à aprovação e disponibilidade.</li>
-            </ul>
-          </div>
-
-          <div className="rounded-2xl border p-6">
-            <div className="font-semibold mb-2">Termos e Condições</div>
-            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              <li>Alterações de escopo podem gerar nova versão.</li>
-              <li>Conforme mídias, território e período informados neste orçamento.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Estilos de impressão A4 */}
+      {/* Estilos de impressão A4 + "fit to page" */}
       <style>{`
         @media print {
-          @page { size: A4; margin: 12mm; }
-          .print\\:hidden { display: none !important; }
-          .print\\:block { display: block !important; }
+          @page { size: A4; margin: 10mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          #print-root { transform: scale(var(--print-scale, 1)); }
+          .no-print { display: none !important; }
+        }
+
+        /* Evitar quebras feias */
+        #print-root, #print-root * {
+          page-break-inside: avoid;
         }
       `}</style>
     </div>
