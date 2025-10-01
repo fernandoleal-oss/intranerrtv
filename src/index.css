@@ -1,70 +1,55 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+// tailwind.config.ts
+import type { Config } from "tailwindcss";
 
-/* Tokens HSL (sem @layer) */
-:root {
-  --background: 0 0% 98%;
-  --foreground: 222.2 47.4% 11.2%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 47.4% 11.2%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 47.4% 11.2%;
-  --primary: 221.2 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83% 53%;
-}
-.dark {
-  --background: 240 10% 6%;
-  --foreground: 210 40% 98%;
-  --card: 240 10% 8%;
-  --card-foreground: 210 40% 98%;
-  --popover: 240 10% 8%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 221.2 83% 55%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 240 5% 16%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 240 5% 16%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 240 5% 16%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 240 5% 16%;
-  --input: 240 5% 16%;
-  --ring: 221.2 83% 55%;
-}
-* { border-color: hsl(var(--border)); }
-body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
-
-/* Botões utilitários */
-.btn {
-  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition
-         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-}
-.btn-primary { @apply btn bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg; }
-.btn-secondary { @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80; }
-.btn-outline { @apply btn border border-input bg-transparent hover:bg-accent hover:text-accent-foreground; }
-
-/* Animações */
-@keyframes fadeIn { from {opacity:0} to {opacity:1} }
-@keyframes fadeInUp { from {opacity:0; transform:translateY(28px)} to {opacity:1; transform:translateY(0)} }
-@keyframes slideInLeft { from {opacity:0; transform:translateX(-50px)} to {opacity:1; transform:translateX(0)} }
-@keyframes slideInRight { from {opacity:0; transform:translateX(50px)} to {opacity:1; transform:translateX(0)} }
-@keyframes float { 0%,100% {transform:translateY(0)} 50% {transform:translateY(-8px)} }
-.animate-fade-in { animation: fadeIn .6s ease-out both }
-.animate-fade-in-up { animation: fadeInUp .7s ease-out both }
-.animate-slide-in-left { animation: slideInLeft .7s ease-out both }
-.animate-slide-in-right { animation: slideInRight .7s ease-out both }
-.animate-float { animation: float 6s ease-in-out infinite }
+export default {
+  darkMode: ["class"],
+  content: [
+    "./index.html",
+    "./src/**/*.{ts,tsx,js,jsx}", // garanta que .tsx está aqui
+  ],
+  theme: {
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config;
