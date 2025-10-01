@@ -49,6 +49,14 @@ const parseCurrency = (val: string): number => {
   const clean = val.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
   return parseFloat(clean) || 0;
 };
+const [data, setData] = useState<BudgetData>({
+  type: "filme",
+  quotes_film: [],
+  honorario_perc: 0,
+  total: 0,
+  pendente_pagamento: false,          // ⬅️ novo
+  observacoes_faturamento: "",        // ⬅️ novo
+});
 
 const formatBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
@@ -361,6 +369,28 @@ export default function OrcamentoNovo() {
                 ))}
               </CardContent>
             </Card>
+            <Card>
+  <CardHeader><CardTitle>Faturamento</CardTitle></CardHeader>
+  <CardContent className="space-y-3">
+    <label className="inline-flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={data.pendente_pagamento || false}
+        onChange={(e) => updateData({ pendente_pagamento: e.target.checked })}
+      />
+      <span>Pendente de pagamento (não faturado)</span>
+    </label>
+    <div>
+      <Label>Observações de faturamento</Label>
+      <Input
+        value={data.observacoes_faturamento || ""}
+        onChange={(e) => updateData({ observacoes_faturamento: e.target.value })}
+        placeholder="Ex.: incluir no faturamento de outubro"
+      />
+    </div>
+  </CardContent>
+</Card>
+
 
             <Card>
               <CardHeader>
