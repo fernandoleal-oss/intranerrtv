@@ -26,7 +26,7 @@ type Payload = {
   territorio?: string
   periodo?: string
 
-  // blocos complementares
+  // complementares
   entregaveis?: string[] | string
   formatos?: string[] | string
   data_orcamento?: string
@@ -64,7 +64,7 @@ export default function PdfView() {
   const [error, setError] = useState<string | null>(null)
   const [logoOk, setLogoOk] = useState<boolean | null>(null)
 
-  // ref do conteúdo imprimível (usado para "caber em 1 página")
+  // ref do conteúdo que será impresso (para caber em 1 página)
   const printRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export default function PdfView() {
       setLoading(true)
       setError(null)
       try {
-        // última versão desse orçamento
+        // pega a última versão desse orçamento
         const { data, error } = await supabase
           .from('versions')
           .select(`
@@ -131,37 +131,26 @@ export default function PdfView() {
 
   const isAudio = (view?.type || '').toLowerCase() === 'audio'
 
-  // ----- fit-to-one-page (calcula escala antes de imprimir) -----
+  // ----- fit-to-one-page (ajusta escala antes/depois da impressão) -----
   useEffect(() => {
     const handleBeforePrint = () => {
       const el = printRef.current
       if (!el) return
+      const TARGET_HEIGHT_PX = 1047 // ~A4 útil (10mm margem sup/inf)
 
-      // Tamanho útil da página A4 com margem de 10mm (ver @page abaixo)
-      // A4 = 297mm x 210mm → em px (~96dpi): 1123(h) x 794(w)
-      // margem vertical total ≈ 20mm ≈ 76px → alvo de ~1047px de altura
-      const TARGET_HEIGHT_PX = 1047
-
-      // primeiro, reseta escala
-      el.style.setProperty('--print-scale', '1')
-      // mede a altura atual
+      el.style.setProperty('--print-scale', '1') // reseta
       const actual = el.scrollHeight
-      if (actual <= TARGET_HEIGHT_PX) {
-        return // já cabe
-      }
-      // escala mínima para não ficar ilegível
-      const MIN_SCALE = 0.7
-      // margem de segurança
-      const scale = Math.max(MIN_SCALE, Math.min(1, (TARGET_HEIGHT_PX / actual) * 0.98))
+      if (actual <= TARGET_HEIGHT_PX) return
+
+      const MIN_SCALE = 0.72
+      const scale = Math.max(MIN_SCALE, Math.min(1, (TARGET_HEIGHT_PX / actual) * 0.985))
       el.style.setProperty('--print-scale', String(scale))
     }
-
     const handleAfterPrint = () => {
       const el = printRef.current
       if (!el) return
       el.style.setProperty('--print-scale', '1')
     }
-
     window.addEventListener('beforeprint', handleBeforePrint)
     window.addEventListener('afterprint', handleAfterPrint)
     return () => {
@@ -228,197 +217,209 @@ export default function PdfView() {
 
       {/* CONTEÚDO IMPRESSO */}
       <div className="px-6 py-6 print:px-0 print:py-0 flex justify-center">
-        {/* Contêiner com largura A4 útil no print; escalado se necessário */}
         <div
           ref={printRef}
           id="print-root"
-          className="w-full max-w-4xl print:w-[190mm]"
-          style={{
-            // em tela, largura fluida; no print, transform/escala aplicada via CSS
-            transformOrigin: 'top left',
-          }}
+          className="w-full max-w-5xl print:w-[190mm]"
+          style={{ transformOrigin: 'top left' }}
         >
-          {/* Cabeçalho preto + dados da WE */}
-          <div className="rounded-xl overflow-hidden border print:rounded-none print:border-0">
-            <div className="bg-black text-white px-5 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img
-                  src="/brand/we-white.png"
-                  alt="WE"
-                  className="h-8 w-auto"
-                  onLoad={() => setLogoOk(true)}
-                  onError={(e) => { setLogoOk(false); (e.currentTarget.style.display = 'none') }}
-                />
-                <span className="text-lg font-bold leading-none">WE</span>
+          <div id="page-body" className="flex flex-col">
+            {/* Cabeçalho preto + dados da WE */}
+            <div className="rounded-xl overflow-hidden border print:rounded-none print:border-0">
+              <div className="bg-black text-white px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/brand/we-white.png"
+                    alt="WE"
+                    className="h-8 w-auto"
+                    onLoad={() => setLogoOk(true)}
+                    onError={(e) => { setLogoOk(false); (e.currentTarget.style.display = 'none') }}
+                  />
+                  <span className="text-lg font-bold leading-none">WE</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
+                  <div className="text-[10px] opacity-80 mt-1 leading-none">
+                    {new Date(view.createdAt).toLocaleDateString('pt-BR')}
+                  </div>
+                </div>
               </div>
-              <div className="text-right">
-                <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
-                <div className="text-[10px] opacity-80 mt-1 leading-none">
-                  {new Date(view.createdAt).toLocaleDateString('pt-BR')}
+              <div className="px-5 py-3 text-xs leading-snug">
+                <div className="font-semibold">
+                  WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
+                </div>
+                <div>
+                  Endereço: Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
                 </div>
               </div>
             </div>
-            <div className="px-5 py-3 text-xs leading-snug">
-              <div className="font-semibold">
+
+            {/* ALERTA NÃO FATURADO */}
+            {p.pendente_pagamento && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-800 px-4 py-2.5 flex gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5" />
+                <div className="text-xs">
+                  <div className="font-semibold uppercase leading-none">Não faturado</div>
+                  <div>Este orçamento está pendente e precisa ser incluso em algum faturamento.</div>
+                  {p.observacoes_faturamento && (
+                    <div className="mt-1 opacity-90">Obs.: {p.observacoes_faturamento}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* GRID PRINCIPAL (cotações maiores) */}
+            <div className="mt-3 grid grid-cols-12 gap-3">
+              {/* ESQUERDA = 9/12 (cotações grandes) */}
+              <div className="col-span-12 md:col-span-9">
+                {/* Identificação (compacta) */}
+                <section className="rounded-lg border px-4 py-3">
+                  <h2 className="text-sm font-semibold mb-2">Identificação</h2>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div><span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}</div>
+                    <div><span className="text-neutral-500">Produto:</span> {fmt(p.produto)}</div>
+                    <div><span className="text-neutral-500">Job:</span> {fmt(p.job)}</div>
+                    <div><span className="text-neutral-500">Mídias:</span> {fmt(p.midias)}</div>
+                    <div><span className="text-neutral-500">Território:</span> {fmt(p.territorio)}</div>
+                    <div><span className="text-neutral-500">Período:</span> {fmt(p.periodo)}</div>
+                  </div>
+                </section>
+
+                {/* Cotações (maiores e legíveis) */}
+                <section className="rounded-lg border px-4 py-3 mt-3">
+                  <h2 className="text-sm font-semibold mb-2">Cotações</h2>
+
+                  {linhas.length === 0 ? (
+                    <div className="text-xs text-neutral-600">Nenhuma cotação informada.</div>
+                  ) : isAudio ? (
+                    // ÁUDIO — Escopo com largura dupla e quebra de linha
+                    <div className="w-full border rounded-md overflow-hidden">
+                      <div className="grid grid-cols-12 bg-neutral-100 text-[12px] font-medium px-3 py-2">
+                        <div className="col-span-2">Produtora</div>
+                        <div className="col-span-5">Escopo</div>
+                        <div className="col-span-1 text-right">Unit.</div>
+                        <div className="col-span-1 text-right">Qtd</div>
+                        <div className="col-span-1 text-right">Desc.</div>
+                        <div className="col-span-2 text-right">Total</div>
+                      </div>
+                      {linhas.map((q) => {
+                        const qty = Number(q.quantidade ?? q.qtd ?? 1)
+                        const unit = Number(q.valor || 0)
+                        const desc = Number(q.desconto || 0)
+                        const totalLinha = unit * qty - desc
+                        return (
+                          <div key={q.id} className="grid grid-cols-12 px-3 py-2 text-[12px] border-t leading-snug">
+                            <div className="col-span-2 break-words">{fmt(q.produtora)}</div>
+                            <div className="col-span-5 whitespace-pre-wrap break-words">{fmt(q.escopo)}</div>
+                            <div className="col-span-1 text-right">{BRL(unit)}</div>
+                            <div className="col-span-1 text-right">{qty}</div>
+                            <div className="col-span-1 text-right">{BRL(desc)}</div>
+                            <div className="col-span-2 text-right">{BRL(totalLinha)}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    // OUTROS TIPOS — Escopo amplo; Diretor/Tratamento quando couber
+                    <div className="w-full border rounded-md overflow-hidden">
+                      <div className="grid grid-cols-12 bg-neutral-100 text-[12px] font-medium px-3 py-2">
+                        <div className="col-span-2">Produtora</div>
+                        <div className="col-span-6">Escopo</div>
+                        <div className="col-span-2">Diretor</div>
+                        <div className="col-span-1">Trat.</div>
+                        <div className="col-span-1 text-right">Valor</div>
+                      </div>
+                      {linhas.map((q) => (
+                        <div key={q.id} className="grid grid-cols-12 px-3 py-2 text-[12px] border-t leading-snug">
+                          <div className="col-span-2 break-words">{fmt(q.produtora)}</div>
+                          <div className="col-span-6 whitespace-pre-wrap break-words">{fmt(q.escopo)}</div>
+                          <div className="col-span-2 break-words">{fmt(q.diretor)}</div>
+                          <div className="col-span-1 break-words">{fmt(q.tratamento)}</div>
+                          <div className="col-span-1 text-right">{BRL(Number(q.valor) || 0)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Complementares – ocultos em ÁUDIO para não poluir */}
+                  {String(view.type).toLowerCase() !== 'audio' && (
+                    <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
+                      <div className="border rounded-md p-2">
+                        <div className="text-neutral-500">Entregáveis</div>
+                        <div className="font-medium">
+                          {Array.isArray(p.entregaveis) ? p.entregaveis.join(', ') : fmt(p.entregaveis)}
+                        </div>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <div className="text-neutral-500">Adaptações</div>
+                        <div className="font-medium">
+                          {Array.isArray(p.formatos) ? p.formatos.join(', ') : fmt(p.formatos)}
+                        </div>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <div className="text-neutral-500">Exclusividade</div>
+                        <div className="font-medium">{fmt(p.exclusividade_elenco)}</div>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              {/* DIREITA = 3/12 (resumo e observações) */}
+              <div className="col-span-12 md:col-span-3">
+                {/* Resumo Financeiro */}
+                <section className="rounded-lg border px-4 py-3">
+                  <h2 className="text-sm font-semibold mb-2">Resumo Financeiro</h2>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-neutral-600">Subtotal</span>
+                      <span>{BRL(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-neutral-600">Honorário ({p.honorario_perc || 0}%)</span>
+                      <span>{BRL(honorario)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-base pt-2 border-t">
+                      <span>Total</span>
+                      <span className="text-black">{BRL(totalGeral)}</span>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Observações */}
+                <section className="rounded-lg border px-4 py-3 mt-3">
+                  <h2 className="text-sm font-semibold mb-2">Observações</h2>
+                  <ul className="list-disc pl-5 space-y-1 text-[11px] text-neutral-700">
+                    {p.pendente_pagamento && <li>NÃO FATURADO — incluir no próximo faturamento.</li>}
+                    {p.observacoes_faturamento && <li>{p.observacoes_faturamento}</li>}
+                    <li>Validade do orçamento: 7 dias a partir da emissão.</li>
+                    <li>Usos e prazos condicionados à aprovação e disponibilidade.</li>
+                  </ul>
+                </section>
+
+                {/* Termos */}
+                <section className="rounded-lg border px-4 py-3 mt-3">
+                  <h2 className="text-sm font-semibold mb-2">Termos e Condições</h2>
+                  <ul className="list-disc pl-5 space-y-1 text-[11px] text-neutral-700">
+                    <li>Alterações de escopo podem gerar nova versão.</li>
+                    <li>Conforme mídias, território e período informados neste orçamento.</li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+
+            {/* RODAPÉ (fixo na base da página) */}
+            <footer className="mt-4 border-t pt-2 text-[10px] text-neutral-600 flex flex-wrap items-center justify-between">
+              <div className="font-medium">
                 WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
               </div>
-              <div>
-                Endereço: Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
+              <div className="opacity-90">
+                Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
               </div>
-            </div>
-          </div>
-
-          {/* ALERTA NÃO FATURADO */}
-          {p.pendente_pagamento && (
-            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-800 px-4 py-2.5 flex gap-2">
-              <AlertTriangle className="h-4 w-4 mt-0.5" />
-              <div className="text-xs">
-                <div className="font-semibold uppercase leading-none">Não faturado</div>
-                <div>Este orçamento está pendente e precisa ser incluso em algum faturamento.</div>
-                {p.observacoes_faturamento && (
-                  <div className="mt-1 opacity-90">Obs.: {p.observacoes_faturamento}</div>
-                )}
+              <div className="opacity-90">
+                Orçamento #{view.displayId} • {new Date(view.createdAt).toLocaleDateString('pt-BR')} • Validade 7 dias • Confidencial
               </div>
-            </div>
-          )}
-
-          {/* GRID PRINCIPAL (compacto) */}
-          <div className="mt-3 grid grid-cols-12 gap-3">
-            {/* COLUNA ESQUERDA */}
-            <div className="col-span-12 md:col-span-7">
-              {/* Identificação */}
-              <section className="rounded-lg border px-4 py-3">
-                <h2 className="text-sm font-semibold mb-2">Identificação</h2>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <div><span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}</div>
-                  <div><span className="text-neutral-500">Produto:</span> {fmt(p.produto)}</div>
-                  <div><span className="text-neutral-500">Job:</span> {fmt(p.job)}</div>
-                  <div><span className="text-neutral-500">Mídias:</span> {fmt(p.midias)}</div>
-                  <div><span className="text-neutral-500">Território:</span> {fmt(p.territorio)}</div>
-                  <div><span className="text-neutral-500">Período:</span> {fmt(p.periodo)}</div>
-                </div>
-              </section>
-
-              {/* Cotações */}
-              <section className="rounded-lg border px-4 py-3 mt-3">
-                <h2 className="text-sm font-semibold mb-2">Cotações</h2>
-
-                {linhas.length === 0 ? (
-                  <div className="text-xs text-neutral-600">Nenhuma cotação informada.</div>
-                ) : isAudio ? (
-                  // ÁUDIO
-                  <div className="w-full border rounded-md overflow-hidden">
-                    <div className="grid grid-cols-6 bg-neutral-100 text-[11px] font-medium px-2 py-1.5">
-                      <div>Produtora</div>
-                      <div>Escopo</div>
-                      <div className="text-right">Unit.</div>
-                      <div className="text-right">Qtd</div>
-                      <div className="text-right">Desc.</div>
-                      <div className="text-right">Total</div>
-                    </div>
-                    {linhas.map((q) => {
-                      const qty = Number(q.quantidade ?? q.qtd ?? 1)
-                      const unit = Number(q.valor || 0)
-                      const desc = Number(q.desconto || 0)
-                      const totalLinha = unit * qty - desc
-                      return (
-                        <div key={q.id} className="grid grid-cols-6 px-2 py-1.5 text-[11px] border-t leading-tight">
-                          <div className="truncate" title={q.produtora}>{fmt(q.produtora)}</div>
-                          <div className="truncate" title={q.escopo}>{fmt(q.escopo)}</div>
-                          <div className="text-right">{BRL(unit)}</div>
-                          <div className="text-right">{qty}</div>
-                          <div className="text-right">{BRL(desc)}</div>
-                          <div className="text-right">{BRL(totalLinha)}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  // OUTROS TIPOS
-                  <div className="w-full border rounded-md overflow-hidden">
-                    <div className="grid grid-cols-5 bg-neutral-100 text-[11px] font-medium px-2 py-1.5">
-                      <div>Produtora</div>
-                      <div>Escopo</div>
-                      <div>Diretor</div>
-                      <div>Tratamento</div>
-                      <div className="text-right">Valor</div>
-                    </div>
-                    {linhas.map((q) => (
-                      <div key={q.id} className="grid grid-cols-5 px-2 py-1.5 text-[11px] border-t leading-tight">
-                        <div className="truncate" title={q.produtora}>{fmt(q.produtora)}</div>
-                        <div className="truncate" title={q.escopo}>{fmt(q.escopo)}</div>
-                        <div className="truncate" title={q.diretor}>{fmt(q.diretor)}</div>
-                        <div className="truncate" title={q.tratamento}>{fmt(q.tratamento)}</div>
-                        <div className="text-right">{BRL(Number(q.valor) || 0)}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Blocos complementares – ocultos em ÁUDIO */}
-                {String(view.type).toLowerCase() !== 'audio' && (
-                  <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
-                    <div className="border rounded-md p-2">
-                      <div className="text-neutral-500">Entregáveis</div>
-                      <div className="font-medium">
-                        {Array.isArray(p.entregaveis) ? p.entregaveis.join(', ') : fmt(p.entregaveis)}
-                      </div>
-                    </div>
-                    <div className="border rounded-md p-2">
-                      <div className="text-neutral-500">Adaptações</div>
-                      <div className="font-medium">
-                        {Array.isArray(p.formatos) ? p.formatos.join(', ') : fmt(p.formatos)}
-                      </div>
-                    </div>
-                    <div className="border rounded-md p-2">
-                      <div className="text-neutral-500">Exclusividade</div>
-                      <div className="font-medium">{fmt(p.exclusividade_elenco)}</div>
-                    </div>
-                  </div>
-                )}
-              </section>
-            </div>
-
-            {/* COLUNA DIREITA */}
-            <div className="col-span-12 md:col-span-5">
-              {/* Resumo Financeiro */}
-              <section className="rounded-lg border px-4 py-3">
-                <h2 className="text-sm font-semibold mb-2">Resumo Financeiro</h2>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-neutral-600">Subtotal cotações</span>
-                    <span>{BRL(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-neutral-600">Honorário ({p.honorario_perc || 0}%)</span>
-                    <span>{BRL(honorario)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-base pt-2 border-t">
-                    <span>Total</span>
-                    <span className="text-black">{BRL(totalGeral)}</span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Observações / Termos */}
-              <section className="rounded-lg border px-4 py-3 mt-3">
-                <h2 className="text-sm font-semibold mb-2">Observações</h2>
-                <ul className="list-disc pl-5 space-y-1 text-[11px] text-neutral-700">
-                  {p.pendente_pagamento && <li>NÃO FATURADO — incluir no próximo faturamento.</li>}
-                  {p.observacoes_faturamento && <li>{p.observacoes_faturamento}</li>}
-                  <li>Validade do orçamento: 7 dias a partir da emissão.</li>
-                  <li>Usos e prazos condicionados à aprovação e disponibilidade.</li>
-                </ul>
-              </section>
-
-              <section className="rounded-lg border px-4 py-3 mt-3">
-                <h2 className="text-sm font-semibold mb-2">Termos e Condições</h2>
-                <ul className="list-disc pl-5 space-y-1 text-[11px] text-neutral-700">
-                  <li>Alterações de escopo podem gerar nova versão.</li>
-                  <li>Conforme mídias, território e período informados neste orçamento.</li>
-                </ul>
-              </section>
-            </div>
+            </footer>
           </div>
         </div>
       </div>
@@ -429,13 +430,14 @@ export default function PdfView() {
           @page { size: A4; margin: 10mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           #print-root { transform: scale(var(--print-scale, 1)); }
+          #print-root { min-height: 277mm; display: flex; flex-direction: column; }
+          #page-body { flex: 1 0 auto; display: flex; flex-direction: column; }
+          #page-body footer { margin-top: auto; }
           .no-print { display: none !important; }
         }
 
-        /* Evitar quebras feias */
-        #print-root, #print-root * {
-          page-break-inside: avoid;
-        }
+        /* Evitar quebras no meio dos blocos */
+        #print-root, #print-root * { page-break-inside: avoid; }
       `}</style>
     </div>
   )
