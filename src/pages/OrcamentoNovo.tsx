@@ -1,7 +1,7 @@
 // src/pages/OrcamentoNovo.tsx
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, FileText, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, FileText, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -36,6 +38,10 @@ interface BudgetData {
   quotes_film?: QuoteFilm[];
   honorario_perc?: number;
   total: number;
+
+  // NOVO: status de pagamento e observações de faturamento
+  pendente_pagamento?: boolean;
+  observacoes_faturamento?: string;
 }
 
 const parseCurrency = (val: string): number => {
@@ -43,6 +49,9 @@ const parseCurrency = (val: string): number => {
   const clean = val.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
   return parseFloat(clean) || 0;
 };
+
+const formatBRL = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
 
 export default function OrcamentoNovo() {
   const navigate = useNavigate();
@@ -54,6 +63,8 @@ export default function OrcamentoNovo() {
     quotes_film: [],
     honorario_perc: 0,
     total: 0,
+    pendente_pagamento: false,
+    observacoes_faturamento: "",
   });
 
   const updateData = useCallback((updates: Partial<BudgetData>) => {
@@ -62,11 +73,15 @@ export default function OrcamentoNovo() {
 
   // Recalcular totais
   useEffect(() => {
-    const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
+    const filmSubtotal = (data.quotes_film || []).reduce(
+      (s, q) => s + (Number(q.valor) - (Number(q.desconto) || 0)),
+      0
+    );
     const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100);
     const total = filmSubtotal + honorario;
     setData((prev) => ({ ...prev, total }));
-  }, [data.quotes_film, data.honorario_perc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(data.quotes_film), data.honorario_perc]);
 
   const addQuote = () => {
     const newQuote: QuoteFilm = {
@@ -98,31 +113,58 @@ export default function OrcamentoNovo() {
 
     setSaving(true);
     try {
-      // Criar orçamento
-      const { data: created, error: budgetError } = await supabase.rpc("create_simple_budget", {
-        p_type: data.type,
-      }) as { data: { id: string; display_id: string; version_id: string } | null; error: any };
+      // Normaliza payload numérico
+      const normalized: BudgetData = {
+        ...data,
+        quotes_film: (data.quotes_film || []).map((q) => ({
+          ...q,
+          valor: Number.isFinite(q.valor as number) ? Number(q.valor) : 0,
+          desconto: Number.isFinite(q.desconto as number) ? Number(q.desconto) : 0,
+        })),
+        honorario_perc: Number.isFinite(data.honorario_perc as number) ? Number(data.honorario_perc) : 0,
+        total: Number.isFinite(data.total) ? Number(data.total) : 0,
+        pendente_pagamento: !!data.pendente_pagamento,
+      };
 
-      if (budgetError || !created) throw budgetError || new Error("Falha ao criar orçamento");
+      // 1) Cria orçamento
+      const { data: createdRes, error: budgetError } = await supabase.rpc("create_simple_budget", {
+        p_type: normalized.type,
+      });
 
-      // Salvar payload na versão
-      const { error: versionError } = await supabase
+      if (budgetError) throw budgetError;
+      const created = Array.isArray(createdRes) ? createdRes[0] : createdRes;
+      if (!created?.version_id || !created?.id) {
+        throw new Error("create_simple_budget não retornou { id, version_id }");
+      }
+
+      // 2) Atualiza a versão com o payload
+      const { data: upd, error: versionError } = await supabase
         .from("versions")
         .update({
-          payload: data as any,
-          total_geral: data.total,
+          payload: normalized as any,
+          // ajuste o nome da coluna se necessário: total_geral vs total
+          total_geral: normalized.total,
         })
-        .eq("id", created.version_id);
+        .eq("id", created.version_id)
+        .select("id")
+        .single();
 
       if (versionError) throw versionError;
+      if (!upd?.id) throw new Error("Falha ao atualizar a versão");
 
       toast({ title: "Orçamento salvo com sucesso!" });
-      
-      // Redirecionar para o PDF (auto-gerado)
       navigate(`/budget/${created.id}/pdf`);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Erro ao salvar orçamento", variant: "destructive" });
+    } catch (e: any) {
+      console.error("SAVE_BUDGET_ERROR", {
+        message: e?.message,
+        details: e?.details,
+        hint: e?.hint,
+      });
+      toast({
+        title: "Erro ao salvar orçamento",
+        description: e?.message || "Veja o console para detalhes.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -144,14 +186,7 @@ export default function OrcamentoNovo() {
           </div>
 
           <Button onClick={handleSave} disabled={saving} className="gap-2">
-            {saving ? (
-              <>Salvando...</>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Salvar e Gerar PDF
-              </>
-            )}
+            {saving ? "Salvando..." : (<><Save className="h-4 w-4" />Salvar e Gerar PDF</>)}
           </Button>
         </div>
 
@@ -159,8 +194,14 @@ export default function OrcamentoNovo() {
           {/* Formulário */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Identificação</CardTitle>
+                {data.pendente_pagamento ? (
+                  <Badge variant="destructive" className="flex items-center gap-1 text-[12px]">
+                    <AlertTriangle className="h-3 w-3" />
+                    Pendente de pagamento
+                  </Badge>
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -280,7 +321,7 @@ export default function OrcamentoNovo() {
                         <Label>Valor (R$)</Label>
                         <Input
                           inputMode="decimal"
-                          value={q.valor || ""}
+                          value={Number.isFinite(q.valor) ? String(q.valor) : ""}
                           onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
                           placeholder="0,00"
                         />
@@ -303,7 +344,7 @@ export default function OrcamentoNovo() {
                         <Label>Desconto (R$)</Label>
                         <Input
                           inputMode="decimal"
-                          value={q.desconto || ""}
+                          value={Number.isFinite(q.desconto) ? String(q.desconto) : ""}
                           onChange={(e) => updateQuote(q.id, { desconto: parseCurrency(e.target.value) })}
                           placeholder="0,00"
                         />
@@ -322,17 +363,43 @@ export default function OrcamentoNovo() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Honorário</CardTitle>
+                <CardTitle>Honorário & Faturamento</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Label>Percentual de Honorário (%)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={data.honorario_perc || 0}
-                  onChange={(e) => updateData({ honorario_perc: parseFloat(e.target.value) || 0 })}
-                />
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="md:col-span-1">
+                    <Label>Percentual de Honorário (%)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={data.honorario_perc || 0}
+                      onChange={(e) => updateData({ honorario_perc: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        Pendente de pagamento
+                      </Label>
+                      <Switch
+                        checked={!!data.pendente_pagamento}
+                        onCheckedChange={(v) => updateData({ pendente_pagamento: v })}
+                      />
+                    </div>
+                    <p className="text-xs text-neutral-500">
+                      Quando marcado, este orçamento será destacado como “precisa ser incluso em algum faturamento”.
+                    </p>
+                    <div>
+                      <Label>Observações de faturamento (opcional)</Label>
+                      <Input
+                        placeholder="ex.: incluir no faturamento de abril / PO em emissão / ratear com KV..."
+                        value={data.observacoes_faturamento || ""}
+                        onChange={(e) => updateData({ observacoes_faturamento: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -348,6 +415,21 @@ export default function OrcamentoNovo() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {data.pendente_pagamento ? (
+                    <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 mt-0.5" />
+                      <div>
+                        <div className="font-semibold">Pendente de pagamento</div>
+                        <div>Precisa ser incluso em algum faturamento.</div>
+                        {data.observacoes_faturamento ? (
+                          <div className="mt-1 text-red-800/80">
+                            Obs.: {data.observacoes_faturamento}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="text-sm space-y-2">
                     <div className="flex justify-between">
                       <span className="text-neutral-500">Cliente:</span>
@@ -369,16 +451,22 @@ export default function OrcamentoNovo() {
                       <div className="flex justify-between">
                         <span className="text-neutral-500">Subtotal Cotações:</span>
                         <span>
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                            (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
+                          {formatBRL(
+                            (data.quotes_film || []).reduce(
+                              (s, q) => s + (Number(q.valor) - (Number(q.desconto) || 0)),
+                              0
+                            )
                           )}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-neutral-500">Honorário ({data.honorario_perc || 0}%):</span>
                         <span>
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                            ((data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0) *
+                          {formatBRL(
+                            ((data.quotes_film || []).reduce(
+                              (s, q) => s + (Number(q.valor) - (Number(q.desconto) || 0)),
+                              0
+                            ) *
                               (data.honorario_perc || 0)) /
                               100
                           )}
@@ -387,7 +475,7 @@ export default function OrcamentoNovo() {
                       <div className="flex justify-between font-bold text-base pt-2 border-t">
                         <span>Total:</span>
                         <span className="text-primary">
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.total)}
+                          {formatBRL(data.total)}
                         </span>
                       </div>
                     </div>
