@@ -8,12 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-
-      // 🔒 Força TODAS as dependências a usarem a MESMA instância local
       react: path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
     },
-    // 🔒 Evita cópias duplicadas vindas de libs
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
