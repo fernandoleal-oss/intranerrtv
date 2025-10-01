@@ -1,22 +1,22 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./index.css";
+// src/main.tsx
+import React, { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App'
 
-import React from 'react'
-import * as ReactDOMClient from 'react-dom/client'
-
+// ✅ Log de versão (apenas em dev)
 if (import.meta.env.DEV) {
-  // Deve imprimir 18.2.0 uma única vez
+  // Deve aparecer UMA vez e mostrar 18.2.0
   console.log('[React version]', React.version)
-  // Algumas builds expõem .version no ReactDOM também:
-  // @ts-ignore
-  console.log('[ReactDOM version]', (ReactDOMClient as any).version || 'n/a')
 }
 
+const rootEl = document.getElementById('root')
+if (!rootEl) {
+  throw new Error('Elemento #root não encontrado no index.html')
+}
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+createRoot(rootEl).render(
+  <StrictMode>
     <App />
-  </React.StrictMode>
-);
+  </StrictMode>
+)
