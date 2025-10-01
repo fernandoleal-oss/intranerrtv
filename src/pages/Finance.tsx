@@ -1,730 +1,515 @@
-// src/pages/Finance.tsx
-import React, { useEffect, useMemo, useState } from "react"
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select"
-import {
-  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts"
-import {
-  TrendingUp, TrendingDown, DollarSign, FileText, Users,
-  ChevronLeft, ChevronRight, Printer, Download, Filter, X, ArrowUpDown, Shield, Sparkles,
-} from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+// src/pages/OrcamentoNovo.tsx
+import { useState, useCallback, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { ArrowLeft, Save, FileText, Plus, Trash2, Eye, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { supabase } from "@/integrations/supabase/client"
+import { useToast } from "@/hooks/use-toast"
+import { motion } from "framer-motion"
 
-/* =============================================================================
-   TIPOS
-============================================================================= */
-type MonthKey = "2025-08" | "2025-09"
+type BudgetType = "filme" | "audio" | "imagem" | "cc"
 
-type AnexoItem = {
-  cliente: string
-  ap: string | null
-  descricao: string
-  fornecedor: string
-  valor_fornecedor: number
-  honorario_rs: number
+interface QuoteFilm {
+  id: string
+  produtora: string
+  escopo: string
+  valor: number
+  diretor: string
+  tratamento: string
+  desconto: number
+}
+
+interface BudgetData {
+  type: BudgetType
+  produtor?: string
+  email?: string
+  cliente?: string
+  produto?: string
+  job?: string
+  midias?: string
+  territorio?: string
+  periodo?: string
+  quotes_film?: QuoteFilm[]
+  honorario_perc?: number
   total: number
-  competencia: MonthKey
+  pendente_faturamento?: boolean
 }
 
-/* =============================================================================
-   DADOS – ANEXOS (os mesmos que você já tinha)
-============================================================================= */
-const anexosAgosto: AnexoItem[] = [
-  { cliente: "BRIDGSTONES", ap: "27.738", descricao: "PNEU NOVO, TANQUE CHEIO", fornecedor: "CANJA", valor_fornecedor: 20300, honorario_rs: 2030, total: 22330, competencia: "2025-08" },
-  { cliente: "BRIDGSTONES", ap: "27.528", descricao: "BOLEIA - CAMINHÃO", fornecedor: "CAIO SOARES DIRECAO DE ARTE", valor_fornecedor: 20100, honorario_rs: 2010, total: 22110, competencia: "2025-08" },
-  { cliente: "BRIDGSTONES", ap: "27.709", descricao: "PEGADA", fornecedor: "LE MONSTER", valor_fornecedor: 44000, honorario_rs: 4400, total: 48400, competencia: "2025-08" },
-  { cliente: "SHOPEE", ap: null, descricao: "CLOSED CAPTION CAMPANHA 8.8", fornecedor: "INTERNO", valor_fornecedor: 0, honorario_rs: 4500, total: 4500, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.723", descricao: "REGISTRO ANCINE__RAKING_1x30\"_12 MESES", fornecedor: "RAIZ STUDIO", valor_fornecedor: 9605, honorario_rs: 0, total: 9605, competencia: "2025-08" },
-  { cliente: "BYD", ap: null, descricao: "LOCUÇÃO E REGRAVAÇÃO", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 11000, honorario_rs: 0, total: 11000, competencia: "2025-08" },
-  { cliente: "BYD", ap: null, descricao: "ANIMAÇÃO DE LETREIRO", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 9895, honorario_rs: 9895, total: 19790, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.788", descricao: "COMPRA DE IMAGENS (IDs diversas)", fornecedor: "SHUTTERSTOCK", valor_fornecedor: 4600, honorario_rs: 0, total: 4600, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.866", descricao: "VAREJO SONG PRO 0105 (áudio)", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.866", descricao: "VAREJO SONG PRO 0105 (pós/letreiros)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 26000, total: 52000, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.870", descricao: "DOLPHIN MINI | FILME EMERSON (áudio)", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.870", descricao: "DOLPHIN MINI | FILME EMERSON (pós)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 15500, honorario_rs: 15500, total: 31000, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.894", descricao: "REGISTRO ANCINE | FILME DOLPHIN MINI", fornecedor: "CUSTO INTERNO", valor_fornecedor: 4466.26, honorario_rs: 0, total: 4466.26, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.901", descricao: "COMPRA DE IMAGEM ID: 1308231094", fornecedor: "GETTY IMAGES", valor_fornecedor: 3000, honorario_rs: 0, total: 3000, competencia: "2025-08" },
-  { cliente: "BYD", ap: "27.902", descricao: "COMPRA DE IMAGEM ID: 3549650059", fornecedor: "SHUTTERSTOCK", valor_fornecedor: 1273, honorario_rs: 0, total: 1273, competencia: "2025-08" },
-]
-const anexosSetembro: AnexoItem[] = [
-  { cliente: "BYD", ap: "28.186", descricao: "BYD SONG PRO - varejo 30\" v2/5", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.189", descricao: "BYD SONG PRO - varejo 5\" v3/5", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 10000, honorario_rs: 0, total: 10000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.190", descricao: "VAREJO SONG PRO 0405", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 10500, honorario_rs: 0, total: 10500, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.190", descricao: "VAREJO SONG PRO 0405", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 9500, honorario_rs: 0, total: 9500, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.096", descricao: "Compra de imagens (links planilha)", fornecedor: "SHUTTERSTOCK", valor_fornecedor: 4600, honorario_rs: 0, total: 4600, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.106", descricao: "REGISTRO ANCINE | BYD - Dolphin Mini 2026", fornecedor: "INTERNO", valor_fornecedor: 5550.22, honorario_rs: 0, total: 5550.22, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.192", descricao: "Animação de letreiro", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 25999.78, honorario_rs: 0, total: 25999.78, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.192", descricao: "Trilha 30” com vocal + reduções", fornecedor: "ANTFOOD", valor_fornecedor: 65000, honorario_rs: 0, total: 65000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.116", descricao: "COMPRA DE IMAGEM: ID 1701646153", fornecedor: "SHUTTERSTOCK", valor_fornecedor: 1150, honorario_rs: 0, total: 1150, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.124", descricao: "DENZA – compra de imagem 2287137241", fornecedor: "SHUTTERSTOCK", valor_fornecedor: 1150, honorario_rs: 0, total: 1150, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.129", descricao: "CONDECINE institucional 1x30\" – 12 meses", fornecedor: "02 FILMES", valor_fornecedor: 5583, honorario_rs: 0, total: 5583, competencia: "2025-09" },
-  { cliente: "BYD", ap: null, descricao: "Locutor + adaptação de trilha (Satelite)", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: null, descricao: "Edição/letterings/animação de letreiros", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.127", descricao: "BYD | SONG PLUS | FILME MARINA RUY", fornecedor: "MELANINA FILMES", valor_fornecedor: 17359.51, honorario_rs: 0, total: 17359.51, competencia: "2025-09" },
-  { cliente: "BYD", ap: null, descricao: "BYD | SONG PLUS | FILME MARINA RUY", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 0, honorario_rs: 0, total: 0, competencia: "2025-09" },
-  { cliente: "BYD", ap: null, descricao: "BYD | SONG PLUS | FILME MARINA RUY", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 0, honorario_rs: 0, total: 0, competencia: "2025-09" },
-  { cliente: "BYD", ap: null, descricao: "BYD - SATISFAÇÃO (áudio)", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: null, descricao: "BYD - SATISFAÇÃO (pós)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.267", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.267", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.268", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.268", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.271", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 22000, honorario_rs: 0, total: 22000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.271", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.272", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 8500, honorario_rs: 0, total: 8500, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.272", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 11500, honorario_rs: 0, total: 11500, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.273", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.273", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 6000, honorario_rs: 0, total: 6000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.274", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 8500, honorario_rs: 0, total: 8500, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.274", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 11500, honorario_rs: 0, total: 11500, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.275", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "SUBSOUND AUDIO PRODUÇÕES LTDA", valor_fornecedor: 14000, honorario_rs: 0, total: 14000, competencia: "2025-09" },
-  { cliente: "BYD", ap: "28.275", descricao: "Locução + trilha adaptada + edição/motion 30\"", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 26000, honorario_rs: 0, total: 26000, competencia: "2025-09" },
-  { cliente: "BYD FROTA", ap: "28.278", descricao: "6 vinhetas 5\" Seleção Globo (montagem, sem áudio)", fornecedor: "MONALISA STUDIO LTDA.", valor_fornecedor: 35000, honorario_rs: 0, total: 35000, competencia: "2025-09" },
-  { cliente: "EMS", ap: "28.034", descricao: "Campanhas Repoflor / Beng Pro / Caladryl (produção principal)", fornecedor: "BOILER FILMES", valor_fornecedor: 1342000, honorario_rs: 0, total: 1342000, competencia: "2025-09" },
-  { cliente: "EMS", ap: "28.034", descricao: "Campanhas áudio/música", fornecedor: "CANJA", valor_fornecedor: 126000, honorario_rs: 0, total: 126000, competencia: "2025-09" },
-  { cliente: "EMS", ap: "28.034", descricao: "Efeitos / mockups", fornecedor: "MOCKUP10 PRODUÇÕES E EFEITOS ESPECIAIS EIRELI-ME", valor_fornecedor: 3700, honorario_rs: 0, total: 3700, competencia: "2025-09" },
-  { cliente: "EMS", ap: "28.034", descricao: "Criação/áudio adicional", fornecedor: "BUMBLEBEAT - CREATIVE AUDIO HIVE", valor_fornecedor: 28000, honorario_rs: 0, total: 28000, competencia: "2025-09" },
-  { cliente: "EMS", ap: "28.034", descricao: "Link para monitoramento remoto – 2 diárias", fornecedor: "BOILER FILMES", valor_fornecedor: 6000, honorario_rs: 0, total: 6000, competencia: "2025-09" },
-  { cliente: "SHOPEE", ap: null, descricao: "CAMPANHA 10.10 - TVC - envio de material", fornecedor: "INTERNO", valor_fornecedor: 3600, honorario_rs: 0, total: 3600, competencia: "2025-09" },
-  { cliente: "BRIDGESTONE", ap: "28.006", descricao: "FIRESTONE – IA/Locução – 12 meses – Digital", fornecedor: "CANJA", valor_fornecedor: 20300, honorario_rs: 0, total: 20300, competencia: "2025-09" },
-  { cliente: "BRIDGESTONE", ap: "28.007", descricao: "FIRESTONE – IA/Locução – 12 meses – Digital", fornecedor: "INTERNO", valor_fornecedor: 2300, honorario_rs: 0, total: 2300, competencia: "2025-09" },
-  { cliente: "LOJAS TORRA", ap: "28258", descricao: "Closed Caption – Dia das Crianças", fornecedor: "INTERNO", valor_fornecedor: 900, honorario_rs: 0, total: 900, competencia: "2025-09" },
-  { cliente: "NOVIBET", ap: "28041", descricao: "Tradução – custo absorvido pela agência", fornecedor: "GIOVANNI", valor_fornecedor: 4100, honorario_rs: 0, total: 4100, competencia: "2025-09" },
-  { cliente: "WE", ap: "28123", descricao: "Tradução apresentação WE – custo absorvido", fornecedor: "GIOVANNI", valor_fornecedor: 3500, honorario_rs: 0, total: 3500, competencia: "2025-09" },
-]
-
-/* =============================================================================
-   HELPERS
-============================================================================= */
-const formatCurrency = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0)
-const compact = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 })
-
-const monthLabel: Record<MonthKey, string> = { "2025-08": "Ago/2025", "2025-09": "Set/2025" }
-const monthRangeBr: Record<MonthKey, string> = { "2025-08": "01–31/08/2025", "2025-09": "01–30/09/2025" }
-
-function summarize(items: AnexoItem[]) {
-  const receita = items.reduce((a, b) => a + (b.total || 0), 0)
-  const custos = items.reduce((a, b) => a + (b.valor_fornecedor || 0), 0)
-  const honor = items.reduce((a, b) => a + (b.honorario_rs || 0), 0)
-  const margem = receita - custos
-  const margemPct = receita > 0 ? (margem / receita) * 100 : 0
-  const jobs = items.length
-  const clientes = new Set(items.map(i => i.cliente)).size
-  const ticketCliente = clientes > 0 ? receita / clientes : 0
-  const ticketJob = jobs > 0 ? receita / jobs : 0
-  return { receita, custos, honor, margem, margemPct, jobs, clientes, ticketCliente, ticketJob }
+const parseCurrency = (val: string): number => {
+  if (!val) return 0
+  const clean = val.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".")
+  return parseFloat(clean) || 0
 }
-function groupBy<T, K extends string | number>(arr: T[], keyFn: (x: T) => K) {
-  return arr.reduce((acc, item) => { const k = keyFn(item); (acc[k] ||= []).push(item); return acc }, {} as Record<K, T[]>)
-}
-const pctDelta = (curr?: number, prev?: number) => (prev == null || prev === 0 || curr == null) ? null : ((curr - prev) / prev) * 100
 
-/** Lê as cores do tema (CSS vars) para usar no Recharts — mais consistência com o UI */
-function useChartPalette() {
-  const read = (name: string, fallback: string) =>
-    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
-  const [colors, setColors] = useState(() => ({
-    primary: `hsl(${read("--primary", "220 90% 50%")})`,
-    c2: `hsl(${read("--chart-2", "10 84% 56%")})`,
-    c3: `hsl(${read("--chart-3", "160 84% 40%")})`,
-    c4: `hsl(${read("--chart-4", "45 93% 47%")})`,
-    c5: `hsl(${read("--chart-5", "280 84% 60%")})`,
-    axis: `hsl(${read("--muted-foreground", "215 16% 47%")})`,
-    grid: `hsl(${read("--border", "215 16% 85%")})`,
-    card: `hsl(${read("--card", "0 0% 100%")})`,
-  }))
-  useEffect(() => {
-    const obs = new MutationObserver(() => setColors({
-      primary: `hsl(${read("--primary", "220 90% 50%")})`,
-      c2: `hsl(${read("--chart-2", "10 84% 56%")})`,
-      c3: `hsl(${read("--chart-3", "160 84% 40%")})`,
-      c4: `hsl(${read("--chart-4", "45 93% 47%")})`,
-      c5: `hsl(${read("--chart-5", "280 84% 60%")})`,
-      axis: `hsl(${read("--muted-foreground", "215 16% 47%")})`,
-      grid: `hsl(${read("--border", "215 16% 85%")})`,
-      card: `hsl(${read("--card", "0 0% 100%")})`,
-    }))
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] })
-    return () => obs.disconnect()
+const money = (n: number | undefined) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0)
+
+export default function OrcamentoNovo() {
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const [saving, setSaving] = useState(false)
+
+  const [data, setData] = useState<BudgetData>({
+    type: "filme",
+    quotes_film: [],
+    honorario_perc: 0,
+    total: 0,
+    pendente_faturamento: false,
+  })
+
+  const updateData = useCallback((updates: Partial<BudgetData>) => {
+    setData((prev) => ({ ...prev, ...updates }))
   }, [])
-  return colors
-}
 
-/* =============================================================================
-   UI AUXILIAR (KPIs, Th ordenável)
-============================================================================= */
-function KpiCard({ label, value, prevValue, icon, currency = true, highlight = false }: {
-  label: string; value: number | string; prevValue?: number; icon: React.ReactNode; currency?: boolean; highlight?: boolean
-}) {
-  const delta = typeof value === "number" ? pctDelta(value, prevValue) : null
-  const positive = (delta ?? 0) >= 0
-  return (
-    <Card className={`${highlight ? "border-primary/40 shadow-sm" : "border-muted/50"} bg-gradient-to-br from-card to-muted/20`}>
-      <CardHeader className="pb-2">
-        <CardTitle className={`text-sm font-semibold tracking-wide flex items-center gap-2 ${highlight ? "text-primary" : ""}`}>
-          {icon}{label}
-        </CardTitle>
-        <CardDescription className="text-[12px]">Período selecionado</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className={`text-3xl leading-tight font-extrabold ${highlight ? "text-primary" : "text-foreground"}`}>
-          {typeof value === "number" && currency ? formatCurrency(value) : value}
-        </div>
-        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-          {delta === null ? "—" : (
-            <>
-              {positive ? <TrendingUp className="h-3.5 w-3.5 text-green-600" /> : <TrendingDown className="h-3.5 w-3.5 text-red-600" />}
-              <span>{`${positive ? "+" : ""}${Math.abs(delta).toFixed(1)}% vs mês anterior`}</span>
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-function ThSortable({ label, onClick, active, dir, className = "" }: {
-  label: string; onClick: () => void; active?: boolean; dir?: "asc" | "desc"; className?: string
-}) {
-  return (
-    <th className={className}>
-      <button type="button" onClick={onClick} className="inline-flex items-center gap-1 hover:underline decoration-dotted underline-offset-4">
-        {label}
-        <ArrowUpDown className={`h-3.5 w-3.5 ${active ? "opacity-100" : "opacity-30"}`} />
-        {active ? <span className="sr-only">{dir === "asc" ? "asc" : "desc"}</span> : null}
-      </button>
-    </th>
-  )
-}
+  // Recalcular totais (subtotal de cotações + honorário)
+  useEffect(() => {
+    const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
+    const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100)
+    const total = filmSubtotal + honorario
+    setData((prev) => ({ ...prev, total }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.quotes_film, data.honorario_perc])
 
-/* =============================================================================
-   TABELA ANEXO (com zebra + cabeçalho com sombra)
-============================================================================= */
-type SortKey = keyof Pick<AnexoItem, "cliente" | "ap" | "descricao" | "fornecedor" | "valor_fornecedor" | "honorario_rs" | "total">
-function AnexoTable({ title, subtitle = "Detalhamento linha a linha", items, monthLabelText }:{
-  title: string; subtitle?: string; items: AnexoItem[]; monthLabelText: string
-}) {
-  const [q, setQ] = useState(""), [cliente, setCliente] = useState<string>("__all"), [fornecedor, setFornecedor] = useState<string>("__all")
-  const [minTotal, setMinTotal] = useState(""), [maxTotal, setMaxTotal] = useState("")
-  const [pageSize, setPageSize] = useState(10), [page, setPage] = useState(1)
-  const [sortKey, setSortKey] = useState<SortKey>("total"), [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-
-  const uniqueClientes = useMemo(() => Array.from(new Set(items.map(i => i.cliente))).sort(), [items])
-  const uniqueFornecedores = useMemo(() => Array.from(new Set(items.map(i => i.fornecedor))).sort(), [items])
-
-  const filtered = useMemo(() => {
-    const qLower = q.trim().toLowerCase()
-    const min = minTotal ? Number(minTotal.replace(/\./g, "").replace(",", ".")) : null
-    const max = maxTotal ? Number(maxTotal.replace(/\./g, "").replace(",", ".")) : null
-    return items.filter(i => {
-      const textMatch = !qLower || i.cliente.toLowerCase().includes(qLower) || (i.ap ?? "").toLowerCase().includes(qLower) ||
-        i.descricao.toLowerCase().includes(qLower) || i.fornecedor.toLowerCase().includes(qLower)
-      const clienteOk = cliente === "__all" || i.cliente === cliente
-      const fornecedorOk = fornecedor === "__all" || i.fornecedor === fornecedor
-      const minOk = min === null || i.total >= min
-      const maxOk = max === null || i.total <= max
-      return textMatch && clienteOk && fornecedorOk && minOk && maxOk
-    })
-  }, [items, q, cliente, fornecedor, minTotal, maxTotal])
-
-  const sorted = useMemo(() => {
-    const arr = [...filtered]
-    arr.sort((a, b) => {
-      const dir = sortDir === "asc" ? 1 : -1
-      const va = a[sortKey] as any, vb = b[sortKey] as any
-      if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir
-      return String(va ?? "").localeCompare(String(vb ?? "")) * dir
-    })
-    return arr
-  }, [filtered, sortKey, sortDir])
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
-  const currentPage = Math.min(page, totalPages)
-  const paged = useMemo(() => sorted.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize), [sorted, currentPage, pageSize])
-
-  const totals = useMemo(() => ({
-    fornecedor: filtered.reduce((a, b) => a + (b.valor_fornecedor || 0), 0),
-    honor: filtered.reduce((a, b) => a + (b.honorario_rs || 0), 0),
-    total: filtered.reduce((a, b) => a + (b.total || 0), 0),
-    count: filtered.length
-  }), [filtered])
-
-  function resetFilters() { setQ(""); setCliente("__all"); setFornecedor("__all"); setMinTotal(""); setMaxTotal(""); setPage(1) }
-  function toggleSort(k: SortKey) { k === sortKey ? setSortDir(d => d === "asc" ? "desc" : "asc") : (setSortKey(k), setSortDir("asc")) }
-  function exportCsv() {
-    const header = ["Cliente","AP","Descrição","Fornecedor","Valor fornecedor","Honorário (R$)","Total","Competência"]
-    const rows = sorted.map(i => [i.cliente, i.ap ?? "", i.descricao.replace(/\n/g, " "), i.fornecedor,
-      i.valor_fornecedor.toFixed(2).replace(".", ","), i.honorario_rs.toFixed(2).replace(".", ","), i.total.toFixed(2).replace(".", ","), i.competencia ])
-    const csv = [header, ...rows].map(r => r.join(";")).join("\n")
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url
-    a.download = `anexo_${monthLabelText.replace("/","-")}.csv`; a.click(); URL.revokeObjectURL(url)
+  const addQuote = () => {
+    const newQuote: QuoteFilm = {
+      id: crypto.randomUUID(),
+      produtora: "",
+      escopo: "",
+      valor: 0,
+      diretor: "",
+      tratamento: "",
+      desconto: 0,
+    }
+    updateData({ quotes_film: [...(data.quotes_film || []), newQuote] })
   }
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <CardTitle className="text-xl flex items-center gap-2">
-              {title} <Sparkles className="h-4 w-4 text-primary" />
-            </CardTitle>
-            <CardDescription>{subtitle}</CardDescription>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" />PDF</Button>
-              <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4 mr-2" />CSV</Button>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground justify-end">
-              <Badge variant="secondary">Itens: {totals.count}</Badge>
-              <Badge variant="secondary">Fornecedor: {formatCurrency(totals.fornecedor)}</Badge>
-              <Badge variant="secondary">Honorários: {formatCurrency(totals.honor)}</Badge>
-              <Badge variant="secondary">Total: {formatCurrency(totals.total)}</Badge>
-            </div>
-          </div>
-        </div>
+  const updateQuote = (id: string, updates: Partial<QuoteFilm>) => {
+    const updated = (data.quotes_film || []).map((q) => (q.id === id ? { ...q, ...updates } : q))
+    updateData({ quotes_film: updated })
+  }
 
-        {/* Toolbar */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          <div className="col-span-2">
-            <div className="text-xs mb-1 flex items-center gap-2 text-muted-foreground"><Filter className="h-3 w-3" /> Filtro rápido</div>
-            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} placeholder="Buscar por cliente, AP, fornecedor ou descrição…" />
-          </div>
-          <div>
-            <div className="text-xs mb-1 text-muted-foreground">Cliente</div>
-            <Select value={cliente} onValueChange={(v) => { setCliente(v); setPage(1) }}>
-              <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-              <SelectContent><SelectItem value="__all">Todos</SelectItem>{uniqueClientes.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <div className="text-xs mb-1 text-muted-foreground">Fornecedor</div>
-            <Select value={fornecedor} onValueChange={(v) => { setFornecedor(v); setPage(1) }}>
-              <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-              <SelectContent><SelectItem value="__all">Todos</SelectItem>{uniqueFornecedores.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <div className="text-xs mb-1 text-muted-foreground">Total mín. (R$)</div>
-            <Input value={minTotal} onChange={(e) => { setMinTotal(e.target.value); setPage(1) }} placeholder="0,00" inputMode="decimal" pattern="[0-9.,]*" />
-          </div>
-          <div>
-            <div className="text-xs mb-1 text-muted-foreground">Total máx. (R$)</div>
-            <Input value={maxTotal} onChange={(e) => { setMaxTotal(e.target.value); setPage(1) }} placeholder="—" inputMode="decimal" pattern="[0-9.,]*" />
-          </div>
-          <div className="flex items-end"><Button variant="ghost" onClick={resetFilters} className="text-muted-foreground"><X className="h-4 w-4 mr-1" />Limpar</Button></div>
-        </div>
-      </CardHeader>
+  const removeQuote = (id: string) => {
+    updateData({ quotes_film: (data.quotes_film || []).filter((q) => q.id !== id) })
+  }
 
-      <CardContent>
-        <div className="rounded-lg border overflow-hidden">
-          <div className="max-h-[600px] overflow-auto">
-            <table className="w-full text-[13.5px]">
-              <thead className="sticky top-0 bg-background/95 backdrop-blur z-10 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
-                <tr className="[&>th]:text-left [&>th]:py-2.5 [&>th]:px-3 [&>th]:font-semibold [&>th]:text-muted-foreground">
-                  <ThSortable label="Cliente" onClick={() => toggleSort("cliente")} active={sortKey==="cliente"} dir={sortDir} />
-                  <ThSortable label="AP" onClick={() => toggleSort("ap")} active={sortKey==="ap"} dir={sortDir} />
-                  <ThSortable label="Descrição" onClick={() => toggleSort("descricao")} active={sortKey==="descricao"} dir={sortDir} className="min-w-[460px]" />
-                  <ThSortable label="Fornecedor" onClick={() => toggleSort("fornecedor")} active={sortKey==="fornecedor"} dir={sortDir} />
-                  <ThSortable label="Valor fornecedor" onClick={() => toggleSort("valor_fornecedor")} active={sortKey==="valor_fornecedor"} dir={sortDir} className="text-right" />
-                  <ThSortable label="Honorário (R$)" onClick={() => toggleSort("honorario_rs")} active={sortKey==="honorario_rs"} dir={sortDir} className="text-right" />
-                  <ThSortable label="Total" onClick={() => toggleSort("total")} active={sortKey==="total"} dir={sortDir} className="text-right" />
-                </tr>
-              </thead>
-              <tbody className="[&>tr:nth-child(odd)]:bg-muted/10">
-                {paged.map((i, idx) => (
-                  <tr key={`${i.cliente}-${i.ap}-${idx}`} className="border-t hover:bg-muted/20">
-                    <td className="py-2.5 px-3">{i.cliente}</td>
-                    <td className="py-2.5 px-3">{i.ap ?? "—"}</td>
-                    <td className="py-2.5 px-3 whitespace-pre-line leading-relaxed">{i.descricao}</td>
-                    <td className="py-2.5 px-3">{i.fornecedor}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(i.valor_fornecedor)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(i.honorario_rs)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums font-semibold">{formatCurrency(i.total)}</td>
-                  </tr>
-                ))}
-                <tr className="border-t bg-muted/20">
-                  <td className="py-2.5 px-3" colSpan={4}>Totais do relatório ({monthLabelText})</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(totals.fornecedor)}</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums">{formatCurrency(totals.honor)}</td>
-                  <td className="py-2.5 px-3 text-right tabular-nums font-bold">{formatCurrency(totals.total)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+  /**
+   * Salva o orçamento:
+   * 1) cria (RPC create_simple_budget_rpc) -> budgets + versions (vazia)
+   * 2) atualiza a version com o payload preenchido
+   * 3) se pendente de faturamento, tenta marcar status na tabela (best-effort)
+   */
+  const handleSave = async (goToPdf = true) => {
+    if (!data.cliente || !data.produto) {
+      toast({ title: "Preencha cliente e produto", variant: "destructive" })
+      return
+    }
 
-          {/* Paginação */}
-          <div className="flex items-center justify-between p-3 bg-muted/10 border-t">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              Itens { ((currentPage-1)*pageSize + 1) }–{ Math.min(currentPage*pageSize, sorted.length) } de { sorted.length }
-              <span className="mx-2">•</span>
-              Página <strong className="mx-1">{currentPage}</strong> de <strong className="mx-1">{totalPages}</strong>
-            </div>
-            <div className="flex items-center gap-3">
-              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                <SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 / pág.</SelectItem>
-                  <SelectItem value="25">25 / pág.</SelectItem>
-                  <SelectItem value="50">50 / pág.</SelectItem>
-                  <SelectItem value={String(Math.max(1, sorted.length))}>Todos</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex gap-1">
-                <Button size="icon" variant="outline" onClick={() => setPage(p => Math.max(1, p-1))} disabled={currentPage===1}><ChevronLeft className="h-4 w-4" /></Button>
-                <Button size="icon" variant="outline" onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={currentPage===totalPages}><ChevronRight className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+    setSaving(true)
+    try {
+      // 1) cria via RPC sem ambiguidade
+      const { data: created, error: budgetError } = (await supabase.rpc("create_simple_budget_rpc", {
+        p_type_text: data.type,
+      })) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
 
-/* =============================================================================
-   FINANCE (dashboard + impressão elegante)
-============================================================================= */
-export default function Finance() {
-  const [month, setMonth] = useState<MonthKey>("2025-09")
-  const [comparePrev, setComparePrev] = useState(true)
-  const generatedAt = useMemo(() => new Date(), [])
-  const palette = useChartPalette()
-
-  const itemsByMonth: Record<MonthKey, AnexoItem[]> = { "2025-08": anexosAgosto, "2025-09": anexosSetembro }
-  const current = useMemo(() => summarize(itemsByMonth[month]), [month])
-  const prevKey = month === "2025-09" ? "2025-08" : undefined
-  const prev = useMemo(() => (prevKey ? summarize(itemsByMonth[prevKey]) : undefined), [prevKey])
-
-  const seriesBar = useMemo(() => {
-    const aug = summarize(anexosAgosto), sep = summarize(anexosSetembro)
-    return [
-      { mes: "Ago/2025", Receita: aug.receita, Custos: aug.custos, Margem: aug.margem },
-      { mes: "Set/2025", Receita: sep.receita, Custos: sep.custos, Margem: sep.margem },
-    ]
-  }, [])
-
-  const clientsDist = useMemo(() => {
-    const grouped = groupBy(itemsByMonth[month], x => x.cliente)
-    const total = Object.values(grouped).flat().reduce((a, b) => a + (b.total || 0), 0) || 1
-    const base = [palette.primary, palette.c2, palette.c3, palette.c4, palette.c5]
-    const entries = Object.entries(grouped).map(([cliente, arr], idx) => {
-      const value = arr.reduce((a, b) => a + (b.total || 0), 0)
-      return { name: cliente, value, pct: value / total, color: base[idx % base.length] }
-    })
-    return entries.sort((a, b) => b.value - a.value)
-  }, [month, palette])
-
-  const clientesDoMes = useMemo(() => Array.from(new Set(itemsByMonth[month].map(i => i.cliente))).sort().join(", "), [month])
-
-  // Estilos de impressão + marca d’água
-  useEffect(() => {
-    const styleId = "finance-print-style"
-    if (document.getElementById(styleId)) return
-    const style = document.createElement("style")
-    style.id = styleId
-    style.innerHTML = `
-      @media print {
-        .print-header {
-          position: fixed; top: 0; left: 0; right: 0;
-          border-bottom: 1px solid rgba(0,0,0,0.08);
-          padding: 10px 16px; background: white !important; z-index: 9999;
-        }
-        .print-footer {
-          position: fixed; bottom: 0; left: 0; right: 0;
-          border-top: 1px solid rgba(0,0,0,0.08);
-          padding: 8px 16px; background: white !important; z-index: 9999; font-size: 11px;
-        }
-        .print-spacer { height: 92px; }
-        .print-footer-spacer { height: 72px; }
-        .no-print { display: none !important; }
-        .card-break { page-break-inside: avoid; }
-        body::after {
-          content: "CONFIDENCIAL • USO INTERNO WE"; 
-          position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-20deg);
-          font-size: 36px; letter-spacing: .2em; color: rgba(0,0,0,0.06); white-space: nowrap;
-          z-index: 0; pointer-events: none;
-        }
+      if (budgetError || !created) {
+        throw new Error(budgetError?.message ?? "Falha ao criar orçamento")
       }
-    `
-    document.head.appendChild(style)
-  }, [])
 
-  const DONUT_MIN_PCT = 0.06
-  const renderDonutLabel = (props: any) => {
-    const { cx, cy, midAngle, outerRadius, percent, name } = props
-    if (!percent || percent < DONUT_MIN_PCT) return null
-    const RAD = Math.PI / 180, r = outerRadius + 18
-    const x = cx + r * Math.cos(-midAngle * RAD), y = cy + r * Math.sin(-midAngle * RAD)
-    const anchor = x > cx ? "start" as const : "end" as const
-    return <text x={x} y={y} fill="currentColor" textAnchor={anchor} dominantBaseline="central" className="text-xs">{name} {(percent * 100).toFixed(0)}%</text>
+      // 2) atualiza a versão com payload completo
+      const { error: versionError } = await supabase
+        .from("versions")
+        .update({
+          payload: data as any,
+          total_geral: data.total,
+        })
+        .eq("id", created.version_id)
+
+      if (versionError) throw new Error(versionError.message)
+
+      // 3) se marcado como pendente, tenta atualizar o status (se a tabela permitir)
+      if (data.pendente_faturamento) {
+        await supabase.from("budgets").update({ status: "pendente" }).eq("id", created.id)
+        // erros aqui não são fatais; ignoramos se RLS bloquear
+      }
+
+      toast({ title: "Orçamento salvo com sucesso!" })
+      if (goToPdf) navigate(`/budget/${created.id}/pdf`)
+    } catch (err: any) {
+      console.error(err)
+      toast({
+        title: "Erro ao salvar orçamento",
+        description: err?.message ?? "Tente novamente ou verifique o RPC",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
+  const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
+  const honorValue = (filmSubtotal * (data.honorario_perc || 0)) / 100
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
-      {/* Cabeçalho */}
-      <div className="print-header border-b bg-card/90 backdrop-blur px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Shield className="h-5 w-5 text-primary" />
-          <div>
-            <div className="text-base font-semibold">Relatório Financeiro – {monthLabel[month]}</div>
-            <div className="text-xs text-muted-foreground">Cliente(s): {clientesDoMes || "—"} • Período: {monthRangeBr[month]} • Critério: Competência</div>
-          </div>
-        </div>
-        <div className="hidden md:flex items-center gap-3 no-print">
-          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" />Exportar PDF</Button>
-        </div>
-      </div>
-      <div className="print-spacer" />
-
-      {/* Conteúdo */}
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {/* Controles */}
-        <div className="sticky top-20 z-20 bg-card/70 backdrop-blur border rounded-lg p-4 no-print">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Select value={month} onValueChange={(v) => (setMonth(v as MonthKey))}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Mês" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2025-09">Set/2025</SelectItem>
-                  <SelectItem value="2025-08">Ago/2025</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex items-center gap-2">
-                <Switch id="comparePrev" checked={comparePrev} onCheckedChange={setComparePrev} />
-                <label htmlFor="comparePrev" className="text-sm">Comparar com mês anterior</label>
-              </div>
+    <div className="min-h-screen bg-neutral-950">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Top bar */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/orcamentos")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">
+                Novo Orçamento {data.type ? `- ${data.type.charAt(0).toUpperCase() + data.type.slice(1)}` : ""}
+              </h1>
+              <p className="text-neutral-400">Preencha os dados e visualize em tempo real</p>
             </div>
-            <div className="text-right"><div className="text-xs text-muted-foreground">Emissão: {generatedAt.toLocaleDateString("pt-BR")} • {generatedAt.toLocaleTimeString("pt-BR")}</div></div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => handleSave(true)} disabled={saving} className="gap-2">
+              <Eye className="h-4 w-4" />
+              Visualizar Preview
+            </Button>
+            <Button onClick={() => handleSave(true)} disabled={saving} className="gap-2">
+              {saving ? (
+                <>Salvando...</>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Salvar e Gerar PDF
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5 card-break">
-          <KpiCard label="Receita do mês" value={current.receita} prevValue={prev?.receita} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} highlight />
-          <KpiCard label="Custos diretos" value={current.custos} prevValue={prev?.custos} icon={<FileText className="h-4 w-4 text-muted-foreground" />} />
-          <KpiCard label="Honorários (R$)" value={current.honor} prevValue={prev?.honor} icon={<DollarSign className="h-4 w-4 text-muted-foreground" />} />
-          <Card className="bg-gradient-to-br from-card to-muted/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground" />Margem</CardTitle>
-              <CardDescription className="text-[12px]">Valor absoluto e variação</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-extrabold">{formatCurrency(current.margem)}</div>
-              <div className="flex items-center text-xs text-muted-foreground mt-1 gap-2">
-                <Badge variant="secondary" className="text-xs">{isFinite(current.margemPct) ? `${current.margemPct.toFixed(1)}%` : "—"}</Badge>
-                {prev ? (() => { const d = pctDelta(current.margem, prev.margem); if (d === null) return <span>—</span>
-                  return d >= 0 ? <span className="flex items-center"><TrendingUp className="h-3 w-3 mr-1 text-green-600" />{d.toFixed(1)}%</span>
-                                : <span className="flex items-center"><TrendingDown className="h-3 w-3 mr-1 text-red-600" />{Math.abs(d).toFixed(1)}%</span> })() : <span>—</span>}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-card to-muted/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" />Jobs</CardTitle>
-              <CardDescription className="text-[12px]">Quantidade no mês</CardDescription>
-            </CardHeader>
-            <CardContent><div className="text-3xl font-extrabold">{current.jobs}</div><div className="text-xs text-muted-foreground mt-1">itens faturados</div></CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-card to-muted/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2"><Users className="h-4 w-4 text-muted-foreground" />Clientes</CardTitle>
-              <CardDescription className="text-[12px]">Ticket médio por cliente</CardDescription>
-            </CardHeader>
-            <CardContent><div className="text-3xl font-extrabold">{current.clientes}</div><div className="text-xs text-muted-foreground mt-1">Ticket: {formatCurrency(current.ticketCliente)}</div></CardContent>
-          </Card>
-        </div>
-
-        {/* GRÁFICOS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 card-break">
-          <Card>
-            <CardHeader><CardTitle>Comparativo (Receita × Custos × Margem)</CardTitle><CardDescription>Agosto vs Setembro/2025</CardDescription></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={380}>
-                <BarChart data={seriesBar} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={palette.grid} />
-                  <XAxis dataKey="mes" stroke={palette.axis} />
-                  <YAxis stroke={palette.axis} tickFormatter={(v) => "R$ " + compact.format(v)} />
-                  <Tooltip contentStyle={{ backgroundColor: palette.card, border: `1px solid ${palette.grid}`, borderRadius: 8 }} formatter={(value: number) => formatCurrency(value)} />
-                  <Legend />
-                  <Bar dataKey="Receita" fill={palette.primary} />
-                  <Bar dataKey="Custos" fill={palette.c2} />
-                  <Bar dataKey="Margem" fill={palette.c3} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle>Participação por cliente – {monthLabel[month]}</CardTitle><CardDescription>Distribuição da receita no mês</CardDescription></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                <div className="md:col-span-3">
-                  <ResponsiveContainer width="100%" height={360}>
-                    <PieChart>
-                      <Pie data={clientsDist} cx="48%" cy="52%" innerRadius={80} outerRadius={120} startAngle={90} endAngle={-270}
-                           dataKey="value" labelLine={false} label={renderDonutLabel}>
-                        {clientsDist.map((it, idx) => <Cell key={idx} fill={it.color} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: palette.card, border: `1px solid ${palette.grid}`, borderRadius: 8 }}
-                               formatter={(value: number) => formatCurrency(value)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none -mt-40 text-center">
-                    <div className="inline-block rounded-xl px-3 py-1 bg-background/80 backdrop-blur border text-xs text-muted-foreground">Receita total {monthLabel[month]}</div>
-                    <div className="text-lg font-semibold">{formatCurrency(current.receita)}</div>
-                  </div>
-                </div>
-                <div className="md:col-span-2 max-h-[360px] overflow-auto pr-1">
-                  <ul className="space-y-2">
-                    {clientsDist.map((c, i) => (
-                      <li key={i} className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: c.color }} />
-                          <span className="text-sm">{c.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium tabular-nums">{formatCurrency(c.value)}</div>
-                          <div className="text-xs text-muted-foreground">{(c.pct * 100).toFixed(1)}%</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* PERFORMANCE POR CLIENTE */}
-        <Card className="card-break">
-          <CardHeader><CardTitle>Performance por cliente – {monthLabel[month]}</CardTitle><CardDescription>Receita, custos, honorários e margem</CardDescription></CardHeader>
-          <CardContent><ClientTable monthItems={itemsByMonth[month]} totalResumo={current} /></CardContent>
-        </Card>
-
-        {/* COMPARATIVO ATUAL x ANTERIOR */}
-        {comparePrev && prev && (
-          <Card className="card-break">
-            <CardHeader><CardTitle>Comparativo {monthLabel[prevKey!]} × {monthLabel[month]}</CardTitle><CardDescription>Receita, custos e honorários</CardDescription></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={340}>
-                <BarChart data={[
-                  { metric: "Receita", anterior: prev.receita, atual: current.receita },
-                  { metric: "Custos", anterior: prev.custos, atual: current.custos },
-                  { metric: "Honorários", anterior: prev.honor, atual: current.honor },
-                ]} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={palette.grid} />
-                  <XAxis dataKey="metric" stroke={palette.axis} />
-                  <YAxis stroke={palette.axis} tickFormatter={(v) => "R$ " + compact.format(v)} />
-                  <Tooltip contentStyle={{ backgroundColor: palette.card, border: `1px solid ${palette.grid}`, borderRadius: 8 }} formatter={(value: number) => formatCurrency(value)} />
-                  <Legend />
-                  <Bar dataKey="anterior" name={`Período ${monthLabel[prevKey!]}`} fill={palette.c2} />
-                  <Bar dataKey="atual" name={`Período ${monthLabel[month]}`} fill={palette.primary} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ANEXOS */}
-        <Tabs defaultValue={month === "2025-09" ? "set" : "ago"} className="space-y-4 card-break">
-          <TabsList><TabsTrigger value="ago">Anexo – Ago/2025</TabsTrigger><TabsTrigger value="set">Anexo – Set/2025</TabsTrigger></TabsList>
-          <TabsContent value="ago"><AnexoTable title="Anexo – Itens faturados (Ago/2025)" monthLabelText="Ago/2025" items={anexosAgosto} /></TabsContent>
-          <TabsContent value="set"><AnexoTable title="Anexo – Itens faturados (Set/2025)" monthLabelText="Set/2025" items={anexosSetembro} /></TabsContent>
-        </Tabs>
-
-        {/* Segurança & Confidencialidade */}
-        <Card className="card-break">
-          <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" />Segurança e Confidencialidade</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground leading-relaxed">
-            Este relatório contém informações financeiras de clientes e fornecedores. É de <strong>uso interno</strong> da WE e está protegido por acordos de confidencialidade e pela <strong>LGPD</strong>.
-            A <strong>divulgação, cópia, encaminhamento a terceiros ou publicação</strong> sem autorização por escrito é proibida. Em caso de extravio ou suspeita de acesso indevido, notifique o time financeiro.
+        {/* Instruções */}
+        <Card className="mb-6 border-neutral-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-400">
+              <AlertCircle className="h-5 w-5" />
+              Instruções de Preenchimento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-neutral-300 space-y-1">
+            <p>
+              • <b>Cliente</b> e <b>Produto</b>: Campos obrigatórios para identificação do orçamento.
+            </p>
+            <p>
+              • <b>Cotações</b>: Adicione todas as produtoras cotadas com valores e descontos.
+            </p>
+            <p>
+              • <b>Honorário</b>: Percentual aplicado sobre o subtotal das cotações.
+            </p>
+            <p>
+              • <b>Preview</b>: O PDF mostra o logo da WE em fundo preto e destaca quando marcado como
+              <b> pendente de faturamento</b>.
+            </p>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Rodapé impressão */}
-      <div className="print-footer">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px]"><strong>WE – WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</strong> • Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP 04552-030</div>
-          <div className="text-[11px]">Confidencial – Uso interno. Não divulgar. Emissão: {generatedAt.toLocaleDateString("pt-BR")} {generatedAt.toLocaleTimeString("pt-BR")}</div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Formulário */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-neutral-800">
+              <CardHeader>
+                <CardTitle>Identificação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Tipo</Label>
+                    <Select value={data.type} onValueChange={(v) => updateData({ type: v as BudgetType })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="filme">Filme</SelectItem>
+                        <SelectItem value="audio">Áudio</SelectItem>
+                        <SelectItem value="imagem">Imagem</SelectItem>
+                        <SelectItem value="cc">Closed Caption</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Produtor</Label>
+                    <Input
+                      value={data.produtor || ""}
+                      onChange={(e) => updateData({ produtor: e.target.value })}
+                      placeholder="Nome do produtor"
+                    />
+                  </div>
+                  <div>
+                    <Label>E-mail</Label>
+                    <Input
+                      type="email"
+                      value={data.email || ""}
+                      onChange={(e) => updateData({ email: e.target.value })}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-neutral-800">
+              <CardHeader>
+                <CardTitle>Cliente & Produto</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Cliente *</Label>
+                    <Input
+                      value={data.cliente || ""}
+                      onChange={(e) => updateData({ cliente: e.target.value })}
+                      placeholder="Nome do cliente"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Produto *</Label>
+                    <Input
+                      value={data.produto || ""}
+                      onChange={(e) => updateData({ produto: e.target.value })}
+                      placeholder="Nome do produto"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Job</Label>
+                    <Input value={data.job || ""} onChange={(e) => updateData({ job: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Mídias</Label>
+                    <Input value={data.midias || ""} onChange={(e) => updateData({ midias: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Território</Label>
+                    <Input value={data.territorio || ""} onChange={(e) => updateData({ territorio: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Período</Label>
+                    <Input value={data.periodo || ""} onChange={(e) => updateData({ periodo: e.target.value })} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-neutral-800">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Cotações</CardTitle>
+                <Button size="sm" variant="outline" onClick={addQuote} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Adicionar
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(data.quotes_film || []).map((q) => (
+                  <motion.div
+                    key={q.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="border rounded-lg p-4 space-y-3 border-neutral-800"
+                  >
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <div>
+                        <Label>Produtora</Label>
+                        <Input
+                          value={q.produtora}
+                          onChange={(e) => updateQuote(q.id, { produtora: e.target.value })}
+                          placeholder="Nome da produtora"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Escopo</Label>
+                        <Input
+                          value={q.escopo}
+                          onChange={(e) => updateQuote(q.id, { escopo: e.target.value })}
+                          placeholder="Descrição detalhada da proposta"
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Diretor</Label>
+                        <Input value={q.diretor} onChange={(e) => updateQuote(q.id, { diretor: e.target.value })} />
+                      </div>
+                      <div>
+                        <Label>Tratamento</Label>
+                        <Input
+                          value={q.tratamento}
+                          onChange={(e) => updateQuote(q.id, { tratamento: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Valor (R$)</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={q.valor ? String(q.valor) : ""}
+                          onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div>
+                        <Label>Desconto (R$)</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={q.desconto ? String(q.desconto) : ""}
+                          onChange={(e) => updateQuote(q.id, { desconto: parseCurrency(e.target.value) })}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div className="flex items-end justify-end">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeQuote(q.id)}
+                          className="text-red-500 gap-1"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+
+                {(!data.quotes_film || data.quotes_film.length === 0) && (
+                  <div className="text-sm text-neutral-500">Nenhuma cotação adicionada.</div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card className="border-neutral-800">
+                <CardHeader>
+                  <CardTitle>Honorário</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label>Percentual de Honorário (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={data.honorario_perc || 0}
+                    onChange={(e) => updateData({ honorario_perc: parseFloat(e.target.value) || 0 })}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="border-neutral-800">
+                <CardHeader>
+                  <CardTitle>Faturamento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="pendente_faturamento"
+                      checked={!!data.pendente_faturamento}
+                      onCheckedChange={(checked) =>
+                        updateData({ pendente_faturamento: Boolean(checked) })
+                      }
+                    />
+                    <div>
+                      <Label htmlFor="pendente_faturamento">Marcar como pendente de faturamento</Label>
+                      <p className="text-xs text-neutral-400">
+                        Quando marcado, o PDF exibirá um destaque “PENDENTE DE FATURAMENTO” e o orçamento
+                        deverá ser incluído no próximo faturamento.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-4">
+              <Card className="border-neutral-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Preview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {data.pendente_faturamento && (
+                    <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 text-yellow-300 text-xs px-2 py-1 inline-block">
+                      PENDENTE DE FATURAMENTO
+                    </div>
+                  )}
+
+                  <div className="text-sm space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Cliente:</span>
+                      <span className="font-medium">{data.cliente || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Produto:</span>
+                      <span className="font-medium">{data.produto || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Cotações:</span>
+                      <span className="font-medium">{data.quotes_film?.length || 0}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <div className="text-sm font-semibold mb-2">Resumo Financeiro</div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Subtotal Cotações:</span>
+                        <span>{money(filmSubtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">
+                          Honorário ({data.honorario_perc || 0}%):
+                        </span>
+                        <span>{money(honorValue)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-base pt-2 border-t">
+                        <span>Total:</span>
+                        <span className="text-primary">{money(data.total)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => handleSave(true)}
+                    disabled={saving}
+                  >
+                    <Eye className="h-4 w-4" /> Visualizar PDF
+                  </Button>
+                  <Button className="w-full gap-2" onClick={() => handleSave(true)} disabled={saving}>
+                    <Save className="h-4 w-4" /> Salvar e Gerar PDF
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="mt-4 border-neutral-800">
+                <CardHeader>
+                  <CardTitle className="text-sm">Dicas</CardTitle>
+                </CardHeader>
+                <CardContent className="text-xs text-neutral-400 space-y-1">
+                  <p>• Use descrições claras no escopo das cotações.</p>
+                  <p>• Conferir descontos e honorários antes de salvar.</p>
+                  <p>• O logo da WE será inserido automaticamente no PDF.</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="print-footer-spacer" />
-    </div>
-  )
-}
-
-/* =============================================================================
-   TABELA POR CLIENTE
-============================================================================= */
-function ClientTable({ monthItems, totalResumo }: { monthItems: AnexoItem[], totalResumo: ReturnType<typeof summarize> }) {
-  const data = useMemo(() => {
-    const grouped = groupBy(monthItems, x => x.cliente)
-    return Object.entries(grouped).map(([cliente, arr]) => {
-      const receita = arr.reduce((a, b) => a + (b.total || 0), 0)
-      const custos = arr.reduce((a, b) => a + (b.valor_fornecedor || 0), 0)
-      const honor = arr.reduce((a, b) => a + (b.honorario_rs || 0), 0)
-      const margem = receita - custos
-      const margemPct = receita > 0 ? (margem / receita) * 100 : 0
-      const jobs = arr.length
-      const ticket = jobs > 0 ? receita / jobs : 0
-      return { cliente, receita, custos, honor, margem, margemPct, jobs, ticket }
-    }).sort((a, b) => b.receita - a.receita)
-  }, [monthItems])
-
-  return (
-    <div className="rounded-lg border overflow-hidden">
-      <div className="max-h-[460px] overflow-auto">
-        <table className="w-full text-[13.5px]">
-          <thead className="sticky top-0 bg-background/95 backdrop-blur z-10 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
-            <tr className="[&>th]:text-left [&>th]:py-2.5 [&>th]:px-3 [&>th]:font-semibold [&>th]:text-muted-foreground">
-              <th>Cliente</th>
-              <th className="text-right">Receita</th>
-              <th className="text-right">Custos</th>
-              <th className="text-right">Honorários (R$)</th>
-              <th className="text-right">Margem (R$)</th>
-              <th className="text-right">Margem (%)</th>
-              <th className="text-right"># Jobs</th>
-              <th className="text-right">Ticket médio</th>
-            </tr>
-          </thead>
-          <tbody className="[&>tr:nth-child(odd)]:bg-muted/10">
-            {data.map((row) => (
-              <tr key={row.cliente} className="border-t hover:bg-muted/20">
-                <td className="py-2.5 px-3">{row.cliente}</td>
-                <td className="py-2.5 px-3 text-right">{formatCurrency(row.receita)}</td>
-                <td className="py-2.5 px-3 text-right">{formatCurrency(row.custos)}</td>
-                <td className="py-2.5 px-3 text-right">{formatCurrency(row.honor)}</td>
-                <td className="py-2.5 px-3 text-right">{formatCurrency(row.margem)}</td>
-                <td className="py-2.5 px-3 text-right">{row.margemPct.toFixed(1)}%</td>
-                <td className="py-2.5 px-3 text-right">{row.jobs}</td>
-                <td className="py-2.5 px-3 text-right">{formatCurrency(row.ticket)}</td>
-              </tr>
-            ))}
-            <tr className="border-t bg-muted/20">
-              <td className="py-2.5 px-3">Totais do mês</td>
-              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.receita)}</td>
-              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.custos)}</td>
-              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.honor)}</td>
-              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.margem)}</td>
-              <td className="py-2.5 px-3 text-right">{isFinite(totalResumo.margemPct) ? `${totalResumo.margemPct.toFixed(1)}%` : "—"}</td>
-              <td className="py-2.5 px-3 text-right">{totalResumo.jobs}</td>
-              <td className="py-2.5 px-3 text-right">{formatCurrency(totalResumo.ticketJob)}</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   )
