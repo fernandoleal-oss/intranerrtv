@@ -147,36 +147,28 @@ export default function Home() {
 
   const budgetTypes = [
     {
-      id: 'filme',
-      title: 'Produção de Filme',
-      description: 'Cotações com múltiplas produtoras, comparador e honorários',
-      icon: Film,
-      gradient: 'from-blue-500 to-purple-600',
-      path: '/new/filme'
+      id: 'orcamentos',
+      title: 'Orçamentos',
+      description: 'Gerenciar e criar novos orçamentos',
+      icon: FileText,
+      color: 'from-blue-500 to-indigo-600',
+      path: '/orcamentos'
     },
     {
-      id: 'audio',
-      title: 'Produção de Áudio', 
-      description: 'Serviços de áudio com trilha, locução e spots',
-      icon: Headphones,
-      gradient: 'from-green-500 to-teal-600',
-      path: '/new/audio'
+      id: 'direitos',
+      title: 'Direitos',
+      description: 'Gestão de direitos autorais',
+      icon: Eye,
+      color: 'from-purple-500 to-pink-600',
+      path: '/direitos'
     },
     {
-      id: 'imagem',
-      title: 'Compra de Imagem',
-      description: 'Parser automático para Shutterstock, Getty Images e personalizados',
-      icon: Image,
-      gradient: 'from-orange-500 to-red-600', 
-      path: '/new/imagem'
-    },
-    {
-      id: 'cc',
-      title: 'Closed Caption',
-      description: 'R$ 900 por versão - Legendas acessíveis',
-      icon: Subtitles,
-      gradient: 'from-purple-500 to-pink-600',
-      path: '/new/cc'
+      id: 'financeiro',
+      title: 'Financeiro',
+      description: 'Controle financeiro',
+      icon: DollarSign,
+      color: 'from-green-500 to-emerald-600',
+      path: '/financeiro'
     }
   ]
 
@@ -391,7 +383,7 @@ export default function Home() {
                   className="group cursor-pointer glass-card hover-lift h-full"
                 >
                   <CardHeader className="text-center pb-4">
-                    <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-r ${type.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
+                    <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-r ${type.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
                       <type.icon className="w-8 h-8 text-white" />
                     </div>
                     <CardTitle className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
