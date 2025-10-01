@@ -133,17 +133,18 @@ export default function OrcamentoNovo() {
 
       // 3) se marcado como pendente, tenta atualizar o status (se a tabela permitir)
       if (data.pendente_faturamento) {
+        // se budgets.status for enum, garanta que 'pendente' exista nele. Caso contrário, remova esta linha.
         await supabase.from("budgets").update({ status: "pendente" }).eq("id", created.id)
-        // erros aqui não são fatais; ignoramos se RLS bloquear
       }
 
       toast({ title: "Orçamento salvo com sucesso!" })
       if (goToPdf) navigate(`/budget/${created.id}/pdf`)
     } catch (err: any) {
-      console.error(err)
+      console.error("[save-budget] error:", err)
+      const msg = err?.message || err?.details || err?.hint || "Falha ao salvar. Verifique o RPC."
       toast({
         title: "Erro ao salvar orçamento",
-        description: err?.message ?? "Tente novamente ou verifique o RPC",
+        description: msg,
         variant: "destructive",
       })
     } finally {
@@ -199,19 +200,10 @@ export default function OrcamentoNovo() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-neutral-300 space-y-1">
-            <p>
-              • <b>Cliente</b> e <b>Produto</b>: Campos obrigatórios para identificação do orçamento.
-            </p>
-            <p>
-              • <b>Cotações</b>: Adicione todas as produtoras cotadas com valores e descontos.
-            </p>
-            <p>
-              • <b>Honorário</b>: Percentual aplicado sobre o subtotal das cotações.
-            </p>
-            <p>
-              • <b>Preview</b>: O PDF mostra o logo da WE em fundo preto e destaca quando marcado como
-              <b> pendente de faturamento</b>.
-            </p>
+            <p>• <b>Cliente</b> e <b>Produto</b>: Campos obrigatórios para identificação do orçamento.</p>
+            <p>• <b>Cotações</b>: Adicione todas as produtoras cotadas com valores e descontos.</p>
+            <p>• <b>Honorário</b>: Percentual aplicado sobre o subtotal das cotações.</p>
+            <p>• <b>Preview</b>: O PDF mostra o logo da WE em fundo preto e destaca quando marcado como <b>pendente de faturamento</b>.</p>
           </CardContent>
         </Card>
 
@@ -414,15 +406,13 @@ export default function OrcamentoNovo() {
                     <Checkbox
                       id="pendente_faturamento"
                       checked={!!data.pendente_faturamento}
-                      onCheckedChange={(checked) =>
-                        updateData({ pendente_faturamento: Boolean(checked) })
-                      }
+                      onCheckedChange={(checked) => updateData({ pendente_faturamento: Boolean(checked) })}
                     />
                     <div>
                       <Label htmlFor="pendente_faturamento">Marcar como pendente de faturamento</Label>
                       <p className="text-xs text-neutral-400">
-                        Quando marcado, o PDF exibirá um destaque “PENDENTE DE FATURAMENTO” e o orçamento
-                        deverá ser incluído no próximo faturamento.
+                        Quando marcado, o PDF exibirá um destaque “PENDENTE DE FATURAMENTO” e o orçamento deverá
+                        ser incluído no próximo faturamento.
                       </p>
                     </div>
                   </div>
@@ -471,9 +461,7 @@ export default function OrcamentoNovo() {
                         <span>{money(filmSubtotal)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-neutral-500">
-                          Honorário ({data.honorario_perc || 0}%):
-                        </span>
+                        <span className="text-neutral-500">Honorário ({data.honorario_perc || 0}%):</span>
                         <span>{money(honorValue)}</span>
                       </div>
                       <div className="flex justify-between font-bold text-base pt-2 border-t">
@@ -483,12 +471,7 @@ export default function OrcamentoNovo() {
                     </div>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2"
-                    onClick={() => handleSave(true)}
-                    disabled={saving}
-                  >
+                  <Button variant="outline" className="w-full gap-2" onClick={() => handleSave(true)} disabled={saving}>
                     <Eye className="h-4 w-4" /> Visualizar PDF
                   </Button>
                   <Button className="w-full gap-2" onClick={() => handleSave(true)} disabled={saving}>
@@ -503,7 +486,7 @@ export default function OrcamentoNovo() {
                 </CardHeader>
                 <CardContent className="text-xs text-neutral-400 space-y-1">
                   <p>• Use descrições claras no escopo das cotações.</p>
-                  <p>• Conferir descontos e honorários antes de salvar.</p>
+                  <p>• Confira descontos e honorários antes de salvar.</p>
                   <p>• O logo da WE será inserido automaticamente no PDF.</p>
                 </CardContent>
               </Card>
