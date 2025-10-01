@@ -1,10 +1,7 @@
-import React, { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+// ❌ REMOVER estas linhas se aparecerem
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
-import { AuthProvider, useAuth } from '@/components/AuthProvider'
 
 /**
  * 💡 Lazy-load das páginas “pesadas” para melhorar o TTI.
