@@ -1,6 +1,6 @@
 // vite.config.ts
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import path from 'path'
 
 export default defineConfig({
@@ -8,11 +8,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // 🔒 Garante que TODAS as dependências usem a MESMA instância
+
+      // 🔒 Força TODAS as dependências a usarem a MESMA instância local
       react: path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
     },
-    // 🔒 Se alguma lib tentar resolver 'react' própria, força dedupe
+    // 🔒 Evita cópias duplicadas vindas de libs
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
