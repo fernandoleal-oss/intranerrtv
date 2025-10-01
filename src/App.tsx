@@ -10,18 +10,18 @@ import { AuthProvider, useAuth } from '@/components/AuthProvider'
  * 💡 Lazy-load das páginas “pesadas” para melhorar o TTI.
  * (o Vite faz code-splitting automático por rota)
  */
-const Login       = lazy(() => import('@/pages/Login'))
-const Home        = lazy(() => import('@/pages/Home'))
-const NovoFilme   = lazy(() => import('@/pages/new/Filme'))
-const NovoAudio   = lazy(() => import('@/pages/new/Audio'))
-const NovoCC      = lazy(() => import('@/pages/new/CC'))
-const NovaImagem  = lazy(() => import('@/pages/new/Imagem'))
-const PdfView     = lazy(() => import('@/pages/budget/Pdf'))
-const BudgetList  = lazy(() => import('@/pages/BudgetList'))
-const BudgetEdit  = lazy(() => import('@/pages/budget/Edit'))
-const Finance     = lazy(() => import('@/pages/Finance'))
-const Direitos    = lazy(() => import('@/pages/Direitos'))
-const Orcamentos  = lazy(() => import('@/pages/Orcamentos'))
+const Login         = lazy(() => import('@/pages/Login'))
+const Home          = lazy(() => import('@/pages/Home'))
+const NovoFilme     = lazy(() => import('@/pages/new/Filme'))
+const NovoAudio     = lazy(() => import('@/pages/new/Audio'))
+const NovoCC        = lazy(() => import('@/pages/new/CC'))
+const NovaImagem    = lazy(() => import('@/pages/new/Imagem'))
+const PdfView       = lazy(() => import('@/pages/budget/Pdf'))
+const BudgetList    = lazy(() => import('@/pages/BudgetList'))
+const BudgetEdit    = lazy(() => import('@/pages/budget/Edit'))
+const Finance       = lazy(() => import('@/pages/Finance'))
+const Direitos      = lazy(() => import('@/pages/Direitos'))
+const Orcamentos    = lazy(() => import('@/pages/Orcamentos'))
 const OrcamentoNovo = lazy(() => import('@/pages/OrcamentoNovo'))
 const ComparadorBYD = lazy(() => import('@/pages/ComparadorBYD'))
 
@@ -43,7 +43,8 @@ function LoadingScreen() {
 function ScrollToTop() {
   const { pathname } = useLocation()
   React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+    // 'instant' não é válido em ScrollBehavior; use 'auto' ou 'smooth'
+    window.scrollTo({ top: 0, behavior: 'auto' })
   }, [pathname])
   return null
 }
@@ -149,8 +150,7 @@ const App = () => (
                 }
               />
 
-              {/* 🔧 Correção importante: /budget/:id deve abrir o orçamento,
-                  não a lista. Mantive também /budget/:id/edit por compatibilidade. */}
+              {/* /budget/:id → edição; /budget/:id/edit mantido por compatibilidade */}
               <Route
                 path="/budget/:id"
                 element={
@@ -222,8 +222,7 @@ const App = () => (
                 }
               />
 
-              {/* 404 — se estiver logado, mostra uma página amigável;
-                  se não, o ProtectedRoute acima já redireciona para /login. */}
+              {/* 404 autenticado */}
               <Route
                 path="*"
                 element={
@@ -239,8 +238,5 @@ const App = () => (
     </TooltipProvider>
   </QueryClientProvider>
 )
-
-<Route path="/budget/:id/pdf" element={<BudgetPdf />} />
-
 
 export default App
