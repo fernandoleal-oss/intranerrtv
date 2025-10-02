@@ -59,26 +59,27 @@ export default function PdfView() {
       setLoading(true)
       setErrMsg(null)
       try {
-        const { data, error } = await supabase.rpc("get_budget_view_rpc", {
+        const { data, error } = await supabase.rpc("get_budget_view_rpc" as any, {
           p_budget_id: id,
-        })
+        }) as { data: any; error: any }
+        
         if (error) throw error
         if (!data) throw new Error("Orçamento não encontrado.")
 
         const row = Array.isArray(data) ? data[0] : data
-        const payload: Payload = (row.payload as Payload) || {}
+        const payload: Payload = (row?.payload as Payload) || {}
 
         if (mounted) {
           setView({
-            budgetId: row.budget_id,
-            displayId: row.display_id,
-            type: row.type,
-            status: row.status,
-            createdAt: row.created_at,
-            versionId: row.version_id,
-            versao: row.versao,
+            budgetId: row?.budget_id || "",
+            displayId: row?.display_id || "",
+            type: row?.type || "",
+            status: row?.status || "",
+            createdAt: row?.created_at || "",
+            versionId: row?.version_id || "",
+            versao: row?.versao || 1,
             payload,
-            totalGeral: Number(row.total_geral || payload.total || 0),
+            totalGeral: Number(row?.total_geral || payload.total || 0),
           })
         }
       } catch (e: any) {
