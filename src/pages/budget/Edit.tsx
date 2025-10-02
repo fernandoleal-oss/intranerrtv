@@ -105,18 +105,17 @@ export default function BudgetEdit() {
       try {
         const { data: row, error } = await supabase
           .from("versions")
-          .select(
-            `
-            id,
-            payload,
-            budgets!inner(
-              id,
-              display_id,
-              type,
-              status
-            )
-          `
-          )
+         + .select(`
++   id,
++   payload,
++   versao,
++   budgets!inner(
++     id,
++     display_id,
++     type,
++     status
++   )
++`)
           .eq("budget_id", id)
           .order("versao", { ascending: false })
           .limit(1)
