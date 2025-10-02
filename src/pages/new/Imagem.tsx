@@ -12,8 +12,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { useAutosave } from '@/hooks/useAutosave'
-import { ArrowLeft, Plus, Trash2, Link, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Link, AlertCircle, Sparkles } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ImageQuickForm } from '@/components/budget/ImageQuickForm'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const steps = ['Identificação', 'Banco', 'Itens', 'Revisão', 'Exportar']
 
@@ -32,6 +34,7 @@ interface ImagemData {
   email?: string
   bank?: 'getty' | 'shutterstock' | 'personalizado' | ''
   items: ImageItem[]
+  assets?: any[] // Assets da nova abordagem (ImageQuickForm)
   total: number
 }
 
@@ -190,9 +193,36 @@ export default function NovaImagem() {
       case 3:
         return (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            {/* Add by Link */}
-            <div className="p-4 border border-white/20 rounded-lg bg-white/5">
-              <h3 className="text-lg font-semibold text-white mb-4">Adicionar por link</h3>
+            <Tabs defaultValue="quick" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="quick" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Modo Rápido (Recomendado)
+                </TabsTrigger>
+                <TabsTrigger value="manual">Modo Manual</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="quick">
+                <ImageQuickForm
+                  onSave={(formData) => {
+                    updateData({
+                      produtor: formData.producer.name,
+                      email: formData.producer.email,
+                      assets: formData.assets,
+                    })
+                    setStep(4)
+                  }}
+                  initialData={{
+                    producer: { name: data.produtor || '', email: data.email || '' },
+                    assets: data.assets || [],
+                  }}
+                />
+              </TabsContent>
+
+              <TabsContent value="manual">
+                {/* Add by Link */}
+                <div className="p-4 border border-white/20 rounded-lg bg-white/5">
+                  <h3 className="text-lg font-semibold text-white mb-4">Adicionar por link</h3>
               <div className="flex gap-2">
                 <Input
                   placeholder="Cole o link da imagem (ex.: https://www.shutterstock.com/...)"
@@ -305,14 +335,16 @@ export default function NovaImagem() {
               </div>
             )}
 
-            <Button 
-              onClick={() => setStep(4)} 
-              size="lg" 
-              className="w-full"
-              disabled={data.items.length === 0}
-            >
-              Revisar ({data.items.length} {data.items.length === 1 ? 'item' : 'itens'})
-            </Button>
+                <Button 
+                  onClick={() => setStep(4)} 
+                  size="lg" 
+                  className="w-full"
+                  disabled={data.items.length === 0}
+                >
+                  Revisar ({data.items.length} {data.items.length === 1 ? 'item' : 'itens'})
+                </Button>
+              </TabsContent>
+            </Tabs>
           </motion.div>
         )
 
@@ -322,14 +354,24 @@ export default function NovaImagem() {
             <div className="p-6 border border-white/20 rounded-lg bg-white/5">
               <h3 className="text-lg font-semibold text-white mb-4">Resumo do Orçamento</h3>
               <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-white/70">Banco:</span>
-                  <span className="font-medium text-white capitalize">{data.bank}</span>
-                </div>
+                {data.bank && (
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Banco:</span>
+                    <span className="font-medium text-white capitalize">{data.bank}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-white/70">Total de itens:</span>
-                  <span className="font-medium text-white">{data.items.length}</span>
+                  <span className="font-medium text-white">
+                    {(data.items?.length || 0) + (data.assets?.length || 0)}
+                  </span>
                 </div>
+                {data.assets && data.assets.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Assets (modo rápido):</span>
+                    <span className="font-medium text-white">{data.assets.length}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-semibold">
                   <span className="text-white/70">Total:</span>
                   <span className="text-white">
@@ -419,7 +461,15 @@ export default function NovaImagem() {
           </div>
 
           {/* Preview Sidebar */}
-          <PreviewSidebar data={{ imagens: { qtd: data.items.length, total: data.total }, total: data.total }} />
+          <PreviewSidebar 
+            data={{ 
+              imagens: { 
+                qtd: (data.items?.length || 0) + (data.assets?.length || 0), 
+                total: data.total 
+              }, 
+              total: data.total 
+            }} 
+          />
         </div>
       </div>
     </div>
