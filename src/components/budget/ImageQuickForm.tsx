@@ -26,6 +26,8 @@ interface AssetMetadata {
   price?: number
   customDescription?: string
   isManual?: boolean
+  referenciaImageUrl?: string
+  referenciaImageId?: string
 }
 
 interface Producer {
@@ -40,7 +42,7 @@ interface FormData {
   midias: string
   banco: 'shutterstock' | 'getty' | 'personalizado' | ''
   assets: AssetMetadata[]
-  referenciaImageUrl?: string
+  observacoes?: string
 }
 
 interface ImageQuickFormProps {
@@ -62,8 +64,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
   const [linksInput, setLinksInput] = useState('')
   const [assets, setAssets] = useState<AssetMetadata[]>(initialData?.assets || [])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [referenciaImageUrl, setReferenciaImageUrl] = useState(initialData?.referenciaImageUrl || '')
-  const [referenciaImageFile, setReferenciaImageFile] = useState<File | null>(null)
+  const [observacoes, setObservacoes] = useState(initialData?.observacoes || '')
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualAsset, setManualAsset] = useState({
     type: 'image' as 'video' | 'image',
@@ -74,6 +75,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     price: 0,
     description: ''
   })
+  const [uploadingImageFor, setUploadingImageFor] = useState<number | null>(null)
 
   /**
    * Processa múltiplas URLs (separadas por quebra de linha, vírgula, ponto-e-vírgula ou espaço)
@@ -187,17 +189,47 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     setProduto('')
     setMidias('Visualizar')
     setBanco('')
-    setReferenciaImageUrl('')
-    setReferenciaImageFile(null)
+    setObservacoes('')
   }
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, assetIndex: number) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setReferenciaImageFile(file)
+    if (!file) return
+
+    setUploadingImageFor(assetIndex)
+    
+    try {
       // Criar URL temporária para preview
       const url = URL.createObjectURL(file)
-      setReferenciaImageUrl(url)
+      
+      // Pedir ID da imagem ao usuário
+      const imageId = window.prompt('Qual o ID desta imagem de referência?', assets[assetIndex].id || '')
+      
+      if (imageId) {
+        setAssets(prev => {
+          const updated = [...prev]
+          updated[assetIndex] = { 
+            ...updated[assetIndex], 
+            referenciaImageUrl: url,
+            referenciaImageId: imageId
+          }
+          return updated
+        })
+        
+        toast({ 
+          title: 'Imagem adicionada', 
+          description: `Imagem de referência vinculada ao ID: ${imageId}` 
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao processar imagem:', error)
+      toast({ 
+        title: 'Erro', 
+        description: 'Não foi possível processar a imagem', 
+        variant: 'destructive' 
+      })
+    } finally {
+      setUploadingImageFor(null)
     }
   }
 
@@ -259,8 +291,14 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     // Se o banco não foi definido, usa 'personalizado' como padrão
     const finalBanco = banco || 'personalizado'
 
-    onSave({ producer, cliente, produto, midias, banco: finalBanco, assets, referenciaImageUrl })
-    toast({ title: 'Salvo!', description: `${assets.length} asset(s) adicionado(s) ao orçamento` })
+    // Calcular total
+    const total = assets.reduce((sum, asset) => sum + (asset.price || 0), 0)
+
+    onSave({ producer, cliente, produto, midias, banco: finalBanco, assets, observacoes })
+    toast({ 
+      title: 'Salvo!', 
+      description: `${assets.length} asset(s) adicionado(s). Total: R$ ${total.toFixed(2)}` 
+    })
   }
 
   const formatDuration = (seconds?: number) => {
@@ -348,26 +386,17 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
               )}
             </div>
             <div>
-              <Label htmlFor="referencia-image">Imagem de Referência</Label>
-              <Input
-                id="referencia-image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageFileChange}
-                className="cursor-pointer"
+              <Label htmlFor="observacoes">Observações</Label>
+              <Textarea
+                id="observacoes"
+                rows={4}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="Adicione observações sobre o orçamento..."
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Opcional: Faça upload de uma imagem de referência
+                Opcional: Informações adicionais sobre o orçamento
               </p>
-              {referenciaImageUrl && (
-                <div className="mt-2">
-                  <img 
-                    src={referenciaImageUrl} 
-                    alt="Preview"
-                    className="max-h-32 rounded border"
-                  />
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -625,6 +654,41 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                       />
                     </div>
 
+                    {/* Imagem de Referência */}
+                    <div>
+                      <Label htmlFor={`ref-image-${index}`}>Imagem de Referência</Label>
+                      <Input
+                        id={`ref-image-${index}`}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageFileChange(e, index)}
+                        className="cursor-pointer"
+                        disabled={uploadingImageFor === index}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {uploadingImageFor === index 
+                          ? 'Processando...' 
+                          : 'Adicione uma imagem de referência para este asset'}
+                      </p>
+                      {asset.referenciaImageUrl && (
+                        <div className="mt-2 space-y-1">
+                          <img 
+                            src={asset.referenciaImageUrl} 
+                            alt="Referência"
+                            className="max-h-24 rounded border"
+                          />
+                          {asset.referenciaImageId && (
+                            <p className="text-xs text-muted-foreground">
+                              ID vinculado: {asset.referenciaImageId}
+                              {asset.id === asset.referenciaImageId && (
+                                <span className="ml-2 text-green-600 font-semibold">✓ Correspondente</span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Link para abrir */}
                     <a
                       href={asset.pageUrl}
@@ -641,9 +705,22 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
             )}
 
             {assets.length > 0 && (
-              <Button onClick={handleSubmit} className="w-full mt-6" size="lg">
-                Usar no orçamento
-              </Button>
+              <div className="mt-6 space-y-4">
+                <div className="border-t pt-4">
+                  <div className="flex justify-between items-center text-lg font-semibold">
+                    <span>Total:</span>
+                    <span>
+                      R$ {assets.reduce((sum, asset) => sum + (asset.price || 0), 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Soma de {assets.length} asset(s)
+                  </p>
+                </div>
+                <Button onClick={handleSubmit} className="w-full" size="lg">
+                  Usar no orçamento
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

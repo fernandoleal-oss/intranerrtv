@@ -26,7 +26,7 @@ export default function NovaImagem() {
         midias: formData.midias,
         banco: formData.banco,
         assets: formData.assets,
-        referenciaImageUrl: formData.referenciaImageUrl
+        observacoes: formData.observacoes || ''
       }
 
       // Criar o orçamento básico primeiro
