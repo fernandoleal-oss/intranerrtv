@@ -1,6 +1,6 @@
 // Deno edge function for Clube de Criação news
 
-const CLUBE_URL = "https://ccsp.com.br/ultimas/";
+const CLUBE_URL = "https://www.clubedecriacao.com.br/ultimas/";
 
 function cors(res: Response) {
   const h = new Headers(res.headers);
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       const titleMatch = article.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i);
       
       if (linkMatch && titleMatch) {
-        const url = linkMatch[1].startsWith("http") ? linkMatch[1] : "https://ccsp.com.br" + linkMatch[1];
+        const url = linkMatch[1].startsWith("http") ? linkMatch[1] : "https://www.clubedecriacao.com.br" + linkMatch[1];
         const title = titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
         items.push({ title, url });
       }
