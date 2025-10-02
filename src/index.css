@@ -4,26 +4,40 @@
 
 @layer base {
   :root {
-    --background: 220 15% 8%;
-    --foreground: 210 20% 98%;
-    --card: 220 15% 12%;
-    --card-foreground: 210 20% 98%;
-    --popover: 220 15% 12%;
-    --popover-foreground: 210 20% 98%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
     --primary: 217 91% 60%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 220 15% 18%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 91% 60%;
-    --accent-foreground: 210 20% 98%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
     --ring: 217 91% 60%;
-    --radius: 1rem;
+    --radius: 0.75rem;
+    --chart-1: 217 91% 60%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 271 81% 56%;
+    --chart-5: 0 84% 60%;
+  }
+  
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-inter;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
@@ -58,27 +72,51 @@
 .animate-shimmer { animation: shimmer 2s infinite linear }
 
 /* Componentes modernos */
+.container-page {
+  @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6;
+}
+
 .btn {
-  @apply inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200;
 }
 .btn-primary { 
-  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30;
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm;
 }
-.btn-secondary { 
-  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border;
-}
-.btn-ghost { 
-  @apply bg-transparent border border-border text-foreground hover:bg-secondary/50;
+.btn-outline { 
+  @apply border border-input bg-background hover:bg-accent hover:text-accent-foreground;
 }
 
 .card {
-  @apply rounded-3xl border border-border bg-card shadow-xl backdrop-blur-sm;
+  @apply rounded-xl border border-border bg-card shadow-sm;
 }
 
-.glass-card {
-  @apply rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl;
+.pill {
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
 }
 
-.input-modern {
-  @apply rounded-2xl border border-border bg-secondary/50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all;
+/* Marcas d'água para impressão */
+@media print {
+  .wm-aprovacao::before {
+    content: "EM APROVAÇÃO";
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 120px;
+    font-weight: bold;
+    color: rgba(255, 193, 7, 0.15);
+    z-index: 9999;
+    pointer-events: none;
+  }
+  
+  .wm-confidencial::after {
+    content: "CONFIDENCIAL";
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: rgba(0, 0, 0, 0.4);
+    font-weight: 600;
+  }
 }

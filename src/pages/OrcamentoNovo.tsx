@@ -1,17 +1,16 @@
-// src/pages/OrcamentoNovo.tsx
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, FileText, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Save, FileText, Plus, Trash2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
+import { HeaderBar } from "@/components/HeaderBar";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -38,10 +37,8 @@ interface BudgetData {
   quotes_film?: QuoteFilm[];
   honorario_perc?: number;
   total: number;
-
-  // NOVO: status de pagamento e observações de faturamento
-  pendente_pagamento?: boolean;
-  observacoes_faturamento?: string;
+  pendente_faturamento?: boolean;
+  observacoes?: string;
 }
 
 const parseCurrency = (val: string): number => {
@@ -49,17 +46,9 @@ const parseCurrency = (val: string): number => {
   const clean = val.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
   return parseFloat(clean) || 0;
 };
-const [data, setData] = useState<BudgetData>({
-  type: "filme",
-  quotes_film: [],
-  honorario_perc: 0,
-  total: 0,
-  pendente_pagamento: false,          // ⬅️ novo
-  observacoes_faturamento: "",        // ⬅️ novo
-});
 
-const formatBRL = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
+const money = (n: number | undefined) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 
 export default function OrcamentoNovo() {
   const navigate = useNavigate();
@@ -71,8 +60,7 @@ export default function OrcamentoNovo() {
     quotes_film: [],
     honorario_perc: 0,
     total: 0,
-    pendente_pagamento: false,
-    observacoes_faturamento: "",
+    pendente_faturamento: false,
   });
 
   const updateData = useCallback((updates: Partial<BudgetData>) => {
@@ -81,15 +69,11 @@ export default function OrcamentoNovo() {
 
   // Recalcular totais
   useEffect(() => {
-    const filmSubtotal = (data.quotes_film || []).reduce(
-      (s, q) => s + (Number(q.valor) - (Number(q.desconto) || 0)),
-      0
-    );
+    const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
     const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100);
     const total = filmSubtotal + honorario;
     setData((prev) => ({ ...prev, total }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(data.quotes_film), data.honorario_perc]);
+  }, [data.quotes_film, data.honorario_perc]);
 
   const addQuote = () => {
     const newQuote: QuoteFilm = {
@@ -121,57 +105,41 @@ export default function OrcamentoNovo() {
 
     setSaving(true);
     try {
-      // Normaliza payload numérico
-      const normalized: BudgetData = {
-        ...data,
-        quotes_film: (data.quotes_film || []).map((q) => ({
-          ...q,
-          valor: Number.isFinite(q.valor as number) ? Number(q.valor) : 0,
-          desconto: Number.isFinite(q.desconto as number) ? Number(q.desconto) : 0,
-        })),
-        honorario_perc: Number.isFinite(data.honorario_perc as number) ? Number(data.honorario_perc) : 0,
-        total: Number.isFinite(data.total) ? Number(data.total) : 0,
-        pendente_pagamento: !!data.pendente_pagamento,
-      };
-
-      // 1) Cria orçamento
-      const { data: createdRes, error: budgetError } = await supabase.rpc(
-  "create_simple_budget_rpc",
-  { p_type: normalized.type }
-);
+      const payload = { ...data };
+      
+      // Usar create_budget_with_version que existe no DB
+      const { data: budgetData, error: budgetError } = await supabase
+        .from("budgets")
+        .insert({
+          type: data.type,
+          status: "rascunho",
+        })
+        .select()
+        .single();
 
       if (budgetError) throw budgetError;
-      const created = Array.isArray(createdRes) ? createdRes[0] : createdRes;
-      if (!created?.version_id || !created?.id) {
-        throw new Error("create_simple_budget não retornou { id, version_id }");
-      }
 
-      // 2) Atualiza a versão com o payload
-      const { data: upd, error: versionError } = await supabase
+      // Criar versão inicial
+      const { data: versionData, error: versionError } = await supabase
         .from("versions")
-        .update({
-          payload: normalized as any,
-          // ajuste o nome da coluna se necessário: total_geral vs total
-          total_geral: normalized.total,
-        })
-        .eq("id", created.version_id)
-        .select("id")
+        .insert([{
+          budget_id: budgetData.id,
+          versao: 1,
+          payload: payload as any,
+          total_geral: data.total,
+        }])
+        .select()
         .single();
 
       if (versionError) throw versionError;
-      if (!upd?.id) throw new Error("Falha ao atualizar a versão");
 
       toast({ title: "Orçamento salvo com sucesso!" });
-      navigate(`/budget/${created.id}/pdf`);
-    } catch (e: any) {
-      console.error("SAVE_BUDGET_ERROR", {
-        message: e?.message,
-        details: e?.details,
-        hint: e?.hint,
-      });
+      navigate(`/budget/${budgetData.id}/pdf`);
+    } catch (err: any) {
+      console.error("[save-budget] error:", err);
       toast({
         title: "Erro ao salvar orçamento",
-        description: e?.message || "Veja o console para detalhes.",
+        description: err?.message || "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -179,41 +147,53 @@ export default function OrcamentoNovo() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/orcamentos")} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Novo Orçamento</h1>
-              <p className="text-neutral-600">Preencha os dados e visualize em tempo real</p>
-            </div>
-          </div>
+  const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
+  const honorValue = (filmSubtotal * (data.honorario_perc || 0)) / 100;
 
+  return (
+    <div className="min-h-screen bg-background">
+      <HeaderBar
+        title="Novo Orçamento"
+        subtitle="Preencha os dados e visualize em tempo real"
+        backTo="/orcamentos"
+        actions={
           <Button onClick={handleSave} disabled={saving} className="gap-2">
-            {saving ? "Salvando..." : (<><Save className="h-4 w-4" />Salvar e Gerar PDF</>)}
+            {saving ? "Salvando..." : (
+              <>
+                <Save className="h-4 w-4" />
+                Salvar e Gerar PDF
+              </>
+            )}
           </Button>
-        </div>
+        }
+      />
+
+      <div className="container-page">
+        {/* Instruções */}
+        <Card className="mb-6 border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-700 text-base">
+              <AlertCircle className="h-5 w-5" />
+              Instruções de Preenchimento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-blue-900/70 space-y-1">
+            <p>• <b>Cliente</b> e <b>Produto</b>: Campos obrigatórios para identificação.</p>
+            <p>• <b>Cotações</b>: Adicione todas as produtoras com valores e descontos.</p>
+            <p>• <b>Honorário</b>: Percentual aplicado sobre o subtotal das cotações.</p>
+            <p>• <b>Pendente de faturamento</b>: Marca o orçamento para inclusão em próximo faturamento.</p>
+          </CardContent>
+        </Card>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Formulário */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader>
                 <CardTitle>Identificação</CardTitle>
-                {data.pendente_pagamento ? (
-                  <Badge variant="destructive" className="flex items-center gap-1 text-[12px]">
-                    <AlertTriangle className="h-3 w-3" />
-                    Pendente de pagamento
-                  </Badge>
-                ) : null}
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-3 gap-4">
                   <div>
                     <Label>Tipo</Label>
                     <Select value={data.type} onValueChange={(v) => updateData({ type: v as BudgetType })}>
@@ -305,8 +285,8 @@ export default function OrcamentoNovo() {
                 {(data.quotes_film || []).map((q) => (
                   <motion.div
                     key={q.id}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className="border rounded-lg p-4 space-y-3"
                   >
                     <div className="grid md:grid-cols-3 gap-3">
@@ -315,32 +295,20 @@ export default function OrcamentoNovo() {
                         <Input
                           value={q.produtora}
                           onChange={(e) => updateQuote(q.id, { produtora: e.target.value })}
-                          placeholder="Nome"
+                          placeholder="Nome da produtora"
                         />
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <Label>Escopo</Label>
                         <Input
                           value={q.escopo}
                           onChange={(e) => updateQuote(q.id, { escopo: e.target.value })}
-                          placeholder="Descrição"
-                        />
-                      </div>
-                      <div>
-                        <Label>Valor (R$)</Label>
-                        <Input
-                          inputMode="decimal"
-                          value={Number.isFinite(q.valor) ? String(q.valor) : ""}
-                          onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
-                          placeholder="0,00"
+                          placeholder="Descrição detalhada"
                         />
                       </div>
                       <div>
                         <Label>Diretor</Label>
-                        <Input
-                          value={q.diretor}
-                          onChange={(e) => updateQuote(q.id, { diretor: e.target.value })}
-                        />
+                        <Input value={q.diretor} onChange={(e) => updateQuote(q.id, { diretor: e.target.value })} />
                       </div>
                       <div>
                         <Label>Tratamento</Label>
@@ -350,94 +318,96 @@ export default function OrcamentoNovo() {
                         />
                       </div>
                       <div>
+                        <Label>Valor (R$)</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={q.valor ? String(q.valor) : ""}
+                          onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
+                          placeholder="0,00"
+                        />
+                      </div>
+                      <div>
                         <Label>Desconto (R$)</Label>
                         <Input
                           inputMode="decimal"
-                          value={Number.isFinite(q.desconto) ? String(q.desconto) : ""}
+                          value={q.desconto ? String(q.desconto) : ""}
                           onChange={(e) => updateQuote(q.id, { desconto: parseCurrency(e.target.value) })}
                           placeholder="0,00"
                         />
                       </div>
                     </div>
                     <div className="flex justify-end">
-                      <Button size="sm" variant="ghost" onClick={() => removeQuote(q.id)} className="text-red-500 gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeQuote(q.id)}
+                        className="text-destructive gap-1"
+                      >
                         <Trash2 className="h-3 w-3" />
                         Remover
                       </Button>
                     </div>
                   </motion.div>
                 ))}
+                {(!data.quotes_film || data.quotes_film.length === 0) && (
+                  <div className="text-sm text-muted-foreground">Nenhuma cotação adicionada.</div>
+                )}
               </CardContent>
             </Card>
-            <Card>
-  <CardHeader><CardTitle>Faturamento</CardTitle></CardHeader>
-  <CardContent className="space-y-3">
-    <label className="inline-flex items-center gap-2">
-      <input
-        type="checkbox"
-        checked={data.pendente_pagamento || false}
-        onChange={(e) => updateData({ pendente_pagamento: e.target.checked })}
-      />
-      <span>Pendente de pagamento (não faturado)</span>
-    </label>
-    <div>
-      <Label>Observações de faturamento</Label>
-      <Input
-        value={data.observacoes_faturamento || ""}
-        onChange={(e) => updateData({ observacoes_faturamento: e.target.value })}
-        placeholder="Ex.: incluir no faturamento de outubro"
-      />
-    </div>
-  </CardContent>
-</Card>
 
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Honorário</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label>Percentual (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={data.honorario_perc || 0}
+                    onChange={(e) => updateData({ honorario_perc: parseFloat(e.target.value) || 0 })}
+                  />
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Honorário & Faturamento</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="md:col-span-1">
-                    <Label>Percentual de Honorário (%)</Label>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Faturamento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="pendente"
+                      checked={!!data.pendente_faturamento}
+                      onCheckedChange={(checked) => updateData({ pendente_faturamento: Boolean(checked) })}
+                    />
+                    <div>
+                      <Label htmlFor="pendente" className="cursor-pointer">
+                        Pendente de faturamento
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Marcará visualmente no PDF
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Observações</Label>
                     <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={data.honorario_perc || 0}
-                      onChange={(e) => updateData({ honorario_perc: parseFloat(e.target.value) || 0 })}
+                      value={data.observacoes || ""}
+                      onChange={(e) => updateData({ observacoes: e.target.value })}
+                      placeholder="Ex.: incluir em outubro"
                     />
                   </div>
-                  <div className="md:col-span-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="flex items-center gap-2">
-                        Pendente de pagamento
-                      </Label>
-                      <Switch
-                        checked={!!data.pendente_pagamento}
-                        onCheckedChange={(v) => updateData({ pendente_pagamento: v })}
-                      />
-                    </div>
-                    <p className="text-xs text-neutral-500">
-                      Quando marcado, este orçamento será destacado como “precisa ser incluso em algum faturamento”.
-                    </p>
-                    <div>
-                      <Label>Observações de faturamento (opcional)</Label>
-                      <Input
-                        placeholder="ex.: incluir no faturamento de abril / PO em emissão / ratear com KV..."
-                        value={data.observacoes_faturamento || ""}
-                        onChange={(e) => updateData({ observacoes_faturamento: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Preview */}
           <div className="lg:col-span-1">
-            <div className="sticky top-4">
+            <div className="sticky top-24">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -446,69 +416,39 @@ export default function OrcamentoNovo() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {data.pendente_pagamento ? (
-                    <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 mt-0.5" />
-                      <div>
-                        <div className="font-semibold">Pendente de pagamento</div>
-                        <div>Precisa ser incluso em algum faturamento.</div>
-                        {data.observacoes_faturamento ? (
-                          <div className="mt-1 text-red-800/80">
-                            Obs.: {data.observacoes_faturamento}
-                          </div>
-                        ) : null}
-                      </div>
+                  {data.pendente_faturamento && (
+                    <div className="rounded-md border border-yellow-600 bg-yellow-50 text-yellow-800 text-xs px-3 py-2">
+                      <strong>PENDENTE DE FATURAMENTO</strong>
                     </div>
-                  ) : null}
+                  )}
 
                   <div className="text-sm space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-neutral-500">Cliente:</span>
+                      <span className="text-muted-foreground">Cliente:</span>
                       <span className="font-medium">{data.cliente || "—"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-neutral-500">Produto:</span>
+                      <span className="text-muted-foreground">Produto:</span>
                       <span className="font-medium">{data.produto || "—"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-neutral-500">Cotações:</span>
+                      <span className="text-muted-foreground">Cotações:</span>
                       <span className="font-medium">{data.quotes_film?.length || 0}</span>
                     </div>
                   </div>
 
-                  <div className="border-t pt-4">
-                    <div className="text-sm font-semibold mb-2">Resumo Financeiro</div>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Subtotal Cotações:</span>
-                        <span>
-                          {formatBRL(
-                            (data.quotes_film || []).reduce(
-                              (s, q) => s + (Number(q.valor) - (Number(q.desconto) || 0)),
-                              0
-                            )
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Honorário ({data.honorario_perc || 0}%):</span>
-                        <span>
-                          {formatBRL(
-                            ((data.quotes_film || []).reduce(
-                              (s, q) => s + (Number(q.valor) - (Number(q.desconto) || 0)),
-                              0
-                            ) *
-                              (data.honorario_perc || 0)) /
-                              100
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between font-bold text-base pt-2 border-t">
-                        <span>Total:</span>
-                        <span className="text-primary">
-                          {formatBRL(data.total)}
-                        </span>
-                      </div>
+                  <div className="border-t pt-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-mono">{money(filmSubtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Honorário ({data.honorario_perc || 0}%):</span>
+                      <span className="font-mono">{money(honorValue)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-base border-t pt-2">
+                      <span>Total:</span>
+                      <span className="font-mono">{money(data.total)}</span>
                     </div>
                   </div>
                 </CardContent>

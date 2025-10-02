@@ -3,8 +3,9 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Car, Zap, Battery, Gauge, DollarSign, Check, X } from "lucide-react";
+import { Car, Zap, Battery, Gauge, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { HeaderBar } from "@/components/HeaderBar";
 
 interface CarModel {
   id: string;
@@ -129,22 +130,13 @@ export default function ComparadorBYD() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/")} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                <Car className="h-8 w-8 text-primary" />
-                Comparador BYD Brasil
-              </h1>
-              <p className="text-muted-foreground">Compare modelos e encontre o carro elétrico ideal</p>
-            </div>
-          </div>
-        </div>
+      <HeaderBar
+        title="Comparador BYD Brasil"
+        subtitle="Compare modelos e encontre o carro elétrico ideal"
+        backTo="/"
+      />
+
+      <div className="container-page">
 
         {/* Seleção de modelos */}
         <Card className="mb-8">

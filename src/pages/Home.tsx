@@ -1,647 +1,148 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Input } from '@/components/ui/input'
-import { 
-  Film, 
-  Headphones, 
-  Image, 
-  Subtitles,
-  Plus,
-  Search,
-  Settings,
-  LogOut,
-  Filter,
-  Calendar,
-  Users,
-  DollarSign,
-  TrendingUp,
-  FileText,
-  Eye
-} from 'lucide-react'
-import { useAuth } from '@/components/AuthProvider'
-import { supabase } from '@/integrations/supabase/client'
-import AnimatedCard from '@/components/AnimatedCard'
-
-interface Campaign {
-  id: string
-  name: string
-  status: 'rascunho' | 'enviado_atendimento' | 'aprovado'
-  client_name: string
-  product_name: string
-  responsible_name: string
-  updated_at: string
-  budget_count: number
-  total_value: number
-}
-
-interface DashboardStats {
-  total_campaigns: number
-  active_budgets: number
-  approved_value: number
-  pending_approval: number
-}
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FileText, DollarSign, Eye, LogOut, Settings, Car, TrendingUp } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
+import { motion } from "framer-motion";
 
 export default function Home() {
-  const navigate = useNavigate()
-  const { profile, signOut } = useAuth()
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [recentBudgets, setRecentBudgets] = useState<any[]>([])
-  const [stats, setStats] = useState<DashboardStats>({
-    total_campaigns: 0,
-    active_budgets: 0,
-    approved_value: 0,
-    pending_approval: 0
-  })
-  const [searchTerm, setSearchTerm] = useState('')
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
-    try {
-      // Fetch campaigns with related data
-      const { data: campaignsData } = await supabase
-        .from('campaigns')
-        .select(`
-          id,
-          name,
-          status,
-          updated_at,
-          clients!inner(name),
-          products!inner(name),
-          profiles!inner(name),
-          budgets(id)
-        `)
-        .order('updated_at', { ascending: false })
-        .limit(10)
-
-      // Fetch recent budgets for history
-      const { data: budgetsData } = await supabase
-        .from('budgets')
-        .select(`
-          id,
-          display_id,
-          type,
-          status,
-          created_at,
-          updated_at,
-          versions!inner(total_geral, payload)
-        `)
-        .order('updated_at', { ascending: false })
-        .limit(5)
-
-      const processedCampaigns = campaignsData?.map(campaign => ({
-        id: campaign.id,
-        name: campaign.name,
-        status: campaign.status,
-        client_name: campaign.clients.name,
-        product_name: campaign.products.name,
-        responsible_name: campaign.profiles.name || 'N/A',
-        updated_at: campaign.updated_at,
-        budget_count: campaign.budgets?.length || 0,
-        total_value: campaign.budgets?.length * 50000 || 0 // Placeholder calculation
-      })) || []
-
-      setCampaigns(processedCampaigns)
-      
-      // Set recent budgets for history section
-      setRecentBudgets(budgetsData?.map(budget => ({
-        id: budget.id,
-        display_id: budget.display_id,
-        type: budget.type,
-        status: budget.status || 'rascunho',
-        created_at: budget.created_at,
-        updated_at: budget.updated_at,
-        total_value: budget.versions?.[0]?.total_geral || 0,
-        has_data: Object.keys(budget.versions?.[0]?.payload || {}).length > 0
-      })) || [])
-
-      // Calculate stats
-      const totalCampaigns = campaignsData?.length || 0
-      const activeBudgets = processedCampaigns.reduce((sum, c) => sum + c.budget_count, 0)
-      const approvedValue = processedCampaigns
-        .filter(c => c.status === 'aprovado')
-        .reduce((sum, c) => sum + c.total_value, 0)
-      const pendingApproval = processedCampaigns.filter(c => c.status === 'enviado_atendimento').length
-
-      setStats({
-        total_campaigns: totalCampaigns,
-        active_budgets: activeBudgets,
-        approved_value: approvedValue,
-        pending_approval: pendingApproval
-      })
-      
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const budgetTypes = [
+  const sections = [
     {
-      id: 'orcamentos',
-      title: 'Orçamentos',
-      description: 'Gerenciar e criar novos orçamentos',
+      title: "Orçamentos",
+      description: "Criar e gerenciar orçamentos de produção",
       icon: FileText,
-      color: 'from-blue-500 to-indigo-600',
-      path: '/orcamentos'
+      color: "from-blue-500 to-indigo-600",
+      path: "/orcamentos",
     },
     {
-      id: 'direitos',
-      title: 'Direitos',
-      description: 'Gestão de direitos autorais',
+      title: "Direitos",
+      description: "Gestão de direitos autorais e renovações",
       icon: Eye,
-      color: 'from-purple-500 to-pink-600',
-      path: '/direitos'
+      color: "from-purple-500 to-pink-600",
+      path: "/direitos",
     },
     {
-      id: 'financeiro',
-      title: 'Financeiro',
-      description: 'Controle financeiro',
+      title: "Financeiro",
+      description: "Controle financeiro e relatórios",
       icon: DollarSign,
-      color: 'from-green-500 to-emerald-600',
-      path: '/financeiro'
+      color: "from-green-500 to-emerald-600",
+      path: "/financeiro",
     },
     {
-      id: 'comparador-byd',
-      title: 'Comparador BYD',
-      description: 'Compare modelos de carros elétricos',
-      icon: TrendingUp,
-      color: 'from-orange-500 to-red-600',
-      path: '/comparador-byd'
-    }
-  ]
-
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      rascunho: 'secondary',
-      enviado_atendimento: 'default',
-      aprovado: 'success'
-    }
-    
-    const labels = {
-      rascunho: 'Rascunho',
-      enviado_atendimento: 'Enviado', 
-      aprovado: 'Aprovado'
-    }
-
-    return (
-      <Badge variant={variants[status as keyof typeof variants] as any} className="text-xs">
-        {labels[status as keyof typeof labels]}
-      </Badge>
-    )
-  }
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'filme': return '🎬'
-      case 'audio': return '🎵'
-      case 'imagem': return '🖼️'
-      case 'cc': return '📝'
-      default: return '📄'
-    }
-  }
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('pt-BR', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    })
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-muted flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Carregando dashboard...</p>
-        </div>
-      </div>
-    )
-  }
+      title: "Comparador BYD",
+      description: "Compare modelos de carros elétricos",
+      icon: Car,
+      color: "from-orange-500 to-red-600",
+      path: "/comparador-byd",
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-muted">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+      <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
+        <div className="container-page">
+          <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                 <span className="text-primary-foreground font-bold">WE</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">Orçamento de Produção</h1>
+                <h1 className="text-xl font-semibold">Sistema de Orçamentos</h1>
                 <p className="text-sm text-muted-foreground">RTV WE</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              {profile?.role === 'admin' && (
+            <div className="flex items-center gap-3">
+              {profile?.role === "admin" && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate('/admin')}
+                  onClick={() => navigate("/admin")}
                   className="gap-2"
                 >
                   <Settings className="w-4 h-4" />
                   Admin
                 </Button>
               )}
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/financeiro')}
-                className="gap-2"
-              >
-                <DollarSign className="w-4 h-4" />
-                Financeiro
-              </Button>
+
+              <Avatar className="h-8 w-8">
+                <AvatarImage
+                  src={`https://api.dicebear.com/7.x/initials/svg?seed=${profile?.name || profile?.email}`}
+                />
+                <AvatarFallback>{profile?.name?.[0] || profile?.email?.[0] || "U"}</AvatarFallback>
+              </Avatar>
+
+              <div className="hidden md:block text-right">
+                <p className="text-sm font-medium">{profile?.name || "Usuário"}</p>
+                <p className="text-xs text-muted-foreground capitalize">{profile?.role}</p>
+              </div>
 
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={() => navigate('/direitos')}
-                className="gap-2"
+                onClick={signOut}
+                className="text-muted-foreground hover:text-destructive"
               >
-                <FileText className="w-4 h-4" />
-                Direitos
+                <LogOut className="w-4 h-4" />
               </Button>
-              
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${profile?.name || profile?.email}`} />
-                  <AvatarFallback>{profile?.name?.[0] || profile?.email?.[0] || 'U'}</AvatarFallback>
-                </Avatar>
-                <div className="hidden md:block text-right">
-                  <p className="text-sm font-medium text-foreground">{profile?.name || 'Usuário'}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{profile?.role}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={signOut}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
-              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8 space-y-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Campanhas Ativas</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.total_campaigns}</p>
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Users className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Orçamentos</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.active_budgets}</p>
-                </div>
-                <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
-                  <Film className="w-6 h-6 text-success" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Valor Aprovado</p>
-                  <p className="text-2xl font-bold text-success">{formatCurrency(stats.approved_value)}</p>
-                </div>
-                <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-success" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Aguardando Aprovação</p>
-                  <p className="text-2xl font-bold text-warning">{stats.pending_approval}</p>
-                </div>
-                <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-warning" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Main */}
+      <main className="container-page py-12">
+        <div className="text-center mb-12">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-3xl font-bold mb-2"
+          >
+            Bem-vindo, {profile?.name || "Usuário"}
+          </motion.h2>
+          <p className="text-muted-foreground text-lg">
+            Escolha uma área para começar
+          </p>
         </div>
 
-        {/* Action Cards */}
-        <section className="space-y-6">
-          <div className="text-center space-y-2">
-            <motion.h2 
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          {sections.map((section, index) => (
+            <motion.div
+              key={section.path}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-bold text-foreground"
+              transition={{ delay: index * 0.1 }}
             >
-              Criar Novo Orçamento
-            </motion.h2>
-            <p className="text-muted-foreground text-lg">
-              Escolha o tipo de produção para começar
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {budgetTypes.map((type, index) => (
-              <motion.div
-                key={type.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+              <Card
+                className="cursor-pointer hover:shadow-lg transition-all group"
+                onClick={() => navigate(section.path)}
               >
-                <AnimatedCard
-                  onClick={() => navigate(type.path)}
-                  className="group cursor-pointer glass-card hover-lift h-full"
-                >
-                  <CardHeader className="text-center pb-4">
-                    <div className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-r ${type.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200`}>
-                      <type.icon className="w-8 h-8 text-white" />
-                    </div>
-                    <CardTitle className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
-                      {type.title}
-                    </CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground">
-                      {type.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 pb-6">
-                    <Button className="w-full gap-2 btn-gradient">
-                      <Plus className="w-4 h-4" />
-                      Começar
-                    </Button>
-                  </CardContent>
-                </AnimatedCard>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* Recent Budgets History */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold text-foreground">Histórico de Orçamentos</h3>
-              <p className="text-muted-foreground">Últimos orçamentos criados e editados</p>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2"
-              onClick={() => navigate('/budgets')}
-            >
-              <Filter className="w-4 h-4" />
-              Ver Todos
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            {recentBudgets.length === 0 ? (
-              <Card className="glass-card">
-                <CardContent className="p-8 text-center">
-                  <div className="w-16 h-16 bg-muted/20 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <FileText className="w-8 h-8 text-muted-foreground" />
+                <CardHeader className="text-center pb-4">
+                  <div
+                    className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-r ${section.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
+                  >
+                    <section.icon className="w-8 h-8 text-white" />
                   </div>
-                  <h4 className="text-lg font-semibold text-foreground mb-2">Nenhum orçamento encontrado</h4>
-                  <p className="text-muted-foreground">Crie seu primeiro orçamento usando as opções acima</p>
+                  <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                    {section.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <p className="text-sm text-muted-foreground mb-4">{section.description}</p>
+                  <Button variant="outline" className="w-full">
+                    Acessar
+                  </Button>
                 </CardContent>
               </Card>
-            ) : (
-              recentBudgets.map((budget, index) => (
-                <Card key={budget.id} className="glass-card hover-lift cursor-pointer group">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
-                            {budget.display_id}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {budget.type?.toUpperCase()}
-                          </Badge>
-                          <Badge 
-                            variant={budget.status === 'aprovado' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {budget.status}
-                          </Badge>
-                          {budget.has_data && (
-                            <Badge variant="outline" className="text-green-500 border-green-500/30 bg-green-500/10 text-xs">
-                              ✓ Preenchido
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <span className="mr-4">
-                            {getTypeIcon(budget.type)} {new Date(budget.updated_at).toLocaleDateString('pt-BR')}
-                          </span>
-                          {budget.total_value > 0 && (
-                            <span className="font-semibold text-success">
-                              {formatCurrency(budget.total_value)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => navigate(`/budget/${budget.id}/pdf`)}
-                          className="opacity-60 hover:opacity-100 transition-opacity"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => navigate(`/budget/${budget.id}/edit`)}
-                          className="opacity-60 hover:opacity-100 transition-opacity"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* Recent Campaigns Dashboard */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-bold text-foreground">Campanhas Recentes</h3>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Buscar campanhas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-            </div>
-          </div>
-
-          <Card className="glass-card">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="border-b border-border/50">
-                    <tr>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Campanha</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Cliente</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Produto</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Status</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Orçamentos</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Total</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Responsável</th>
-                      <th className="text-left p-4 font-medium text-muted-foreground">Atualizado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {campaigns.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="text-center p-8 text-muted-foreground">
-                          Nenhuma campanha encontrada
-                        </td>
-                      </tr>
-                    ) : (
-                      campaigns
-                        .filter(campaign => 
-                          campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          campaign.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          campaign.product_name.toLowerCase().includes(searchTerm.toLowerCase())
-                        )
-                        .map((campaign) => (
-                          <tr 
-                            key={campaign.id} 
-                            className="border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-colors"
-                            onClick={() => navigate(`/campaign/${campaign.id}`)}
-                          >
-                            <td className="p-4">
-                              <div className="font-medium text-foreground">{campaign.name}</div>
-                            </td>
-                            <td className="p-4 text-muted-foreground">{campaign.client_name}</td>
-                            <td className="p-4 text-muted-foreground">{campaign.product_name}</td>
-                            <td className="p-4">{getStatusBadge(campaign.status)}</td>
-                            <td className="p-4 text-muted-foreground">{campaign.budget_count}</td>
-                            <td className="p-4 font-medium text-foreground">
-                              {formatCurrency(campaign.total_value)}
-                            </td>
-                            <td className="p-4 text-muted-foreground">{campaign.responsible_name}</td>
-                            <td className="p-4 text-muted-foreground">{formatDate(campaign.updated_at)}</td>
-                          </tr>
-                        ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Recent Budgets History */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-bold text-foreground">Orçamentos Recentes</h3>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2"
-              onClick={() => navigate('/budgets')}
-            >
-              Ver Todos
-            </Button>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recentBudgets.map((budget) => (
-              <Card key={budget.id} className="glass-card hover-lift cursor-pointer" onClick={() => navigate(`/budget/${budget.id}`)}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{getTypeIcon(budget.type)}</span>
-                      <div>
-                        <p className="font-semibold text-foreground text-sm">{budget.display_id}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{budget.type}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {getStatusBadge(budget.status)}
-                      {budget.has_data && (
-                        <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20">
-                          Preenchido
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between">
-                      <span>Criado:</span>
-                      <span>{formatDate(budget.created_at)}</span>
-                    </div>
-                    {budget.total_value > 0 && (
-                      <div className="flex items-center justify-between font-medium text-foreground">
-                        <span>Total:</span>
-                        <span>{formatCurrency(budget.total_value)}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-1 mt-3">
-                    <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); navigate(`/budget/${budget.id}/edit`) }}>
-                      Editar
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); navigate(`/budget/${budget.id}/pdf`) }}>
-                      PDF
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
+            </motion.div>
+          ))}
+        </div>
       </main>
     </div>
-  )
+  );
 }
