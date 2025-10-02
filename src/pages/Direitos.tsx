@@ -4,8 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RefreshCcw, Download, Settings, ArrowLeft } from "lucide-react";
+import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,6 +17,15 @@ export default function Direitos() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [sheetId, setSheetId] = useState("1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw");
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newRight, setNewRight] = useState({
+    client: "",
+    product: "",
+    title: "",
+    contract_signed_production: "",
+    first_air: "",
+    link_drive: "",
+  });
 
   useEffect(() => {
     loadRights();
@@ -69,6 +79,45 @@ export default function Direitos() {
     }
   };
 
+  const addRight = async () => {
+    if (!newRight.client || !newRight.product || !newRight.title) {
+      toast({ title: "Preencha os campos obrigatórios", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('rights').insert([{
+        client: newRight.client,
+        product: newRight.product,
+        title: newRight.title,
+        contract_signed_production: newRight.contract_signed_production || null,
+        first_air: newRight.first_air || null,
+        link_drive: newRight.link_drive || null,
+      }]);
+
+      if (error) throw error;
+
+      toast({ title: "Direito adicionado com sucesso!" });
+      setAddDialogOpen(false);
+      setNewRight({
+        client: "",
+        product: "",
+        title: "",
+        contract_signed_production: "",
+        first_air: "",
+        link_drive: "",
+      });
+      await loadRights();
+    } catch (error: any) {
+      console.error("Erro ao adicionar direito:", error);
+      toast({
+        title: "Erro ao adicionar",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   const exportToCSV = () => {
     const headers = ["Cliente", "Produto", "Título", "Status", "Vencimento"];
     const rows = rights.map(r => [
@@ -114,6 +163,84 @@ export default function Direitos() {
           </div>
 
           <div className="flex gap-2">
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Adicionar Direito
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Adicionar Novo Direito</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client">Cliente *</Label>
+                    <Input
+                      id="client"
+                      value={newRight.client}
+                      onChange={(e) => setNewRight({ ...newRight, client: e.target.value })}
+                      placeholder="Nome do cliente"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product">Produto *</Label>
+                    <Input
+                      id="product"
+                      value={newRight.product}
+                      onChange={(e) => setNewRight({ ...newRight, product: e.target.value })}
+                      placeholder="Nome do produto"
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="title">Título do Filme *</Label>
+                    <Input
+                      id="title"
+                      value={newRight.title}
+                      onChange={(e) => setNewRight({ ...newRight, title: e.target.value })}
+                      placeholder="Nome do filme"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contract_date">Data de Assinatura</Label>
+                    <Input
+                      id="contract_date"
+                      type="date"
+                      value={newRight.contract_signed_production}
+                      onChange={(e) => setNewRight({ ...newRight, contract_signed_production: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="first_air">Data de Primeira Veiculação</Label>
+                    <Input
+                      id="first_air"
+                      type="date"
+                      value={newRight.first_air}
+                      onChange={(e) => setNewRight({ ...newRight, first_air: e.target.value })}
+                    />
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="link_drive">Link do Drive (opcional)</Label>
+                    <Input
+                      id="link_drive"
+                      value={newRight.link_drive}
+                      onChange={(e) => setNewRight({ ...newRight, link_drive: e.target.value })}
+                      placeholder="https://drive.google.com/..."
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={addRight}>
+                    Adicionar
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Button onClick={exportToCSV} variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Exportar CSV
@@ -246,7 +373,7 @@ export default function Direitos() {
                   ) : rights.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                        Nenhum direito cadastrado
+                        Nenhum direito cadastrado. Clique em "Adicionar Direito" para começar.
                       </td>
                     </tr>
                   ) : (
@@ -254,7 +381,21 @@ export default function Direitos() {
                       <tr key={r.id} className="hover:bg-muted/50">
                         <td className="px-4 py-3 text-sm">{r.client}</td>
                         <td className="px-4 py-3 text-sm">{r.product}</td>
-                        <td className="px-4 py-3 text-sm">{r.title}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            {r.title}
+                            {r.link_drive && (
+                              <a
+                                href={r.link_drive}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           {r.expire_date ? new Date(r.expire_date).toLocaleDateString("pt-BR") : "—"}
                         </td>
