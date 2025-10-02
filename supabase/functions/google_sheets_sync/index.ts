@@ -1,0 +1,321 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Helper to create JWT for Google Service Account
+async function createGoogleJWT(clientEmail: string, privateKey: string, scopes: string[]) {
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT',
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+  const payload = {
+    iss: clientEmail,
+    scope: scopes.join(' '),
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  }
+
+  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+  const signatureInput = `${encodedHeader}.${encodedPayload}`
+  
+  // Import private key
+  const pemKey = privateKey.replace(/\\n/g, '\n')
+  const pemContents = pemKey
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '')
+  
+  const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0))
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    binaryKey,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    new TextEncoder().encode(signatureInput)
+  )
+
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+
+  return `${signatureInput}.${encodedSignature}`
+}
+
+async function getGoogleAccessToken(clientEmail: string, privateKey: string, scopes: string[]) {
+  const jwt = await createGoogleJWT(clientEmail, privateKey, scopes)
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  })
+
+  const data = await response.json()
+  return data.access_token
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+
+    const { spreadsheetId, monthSheets } = await req.json()
+    
+    if (!spreadsheetId) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Spreadsheet ID é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('Syncing from spreadsheet:', spreadsheetId)
+
+    // Create sync log
+    const { data: logData, error: logError } = await supabaseClient
+      .from('finance_sync_logs')
+      .insert({
+        sync_type: 'manual',
+        sheet_url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+        status: 'processing',
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (logError) {
+      console.error('Error creating sync log:', logError)
+      throw logError
+    }
+
+    // Authenticate with Google
+    const clientEmail = Deno.env.get('GOOGLE_SHEETS_CLIENT_EMAIL')
+    const privateKey = Deno.env.get('GOOGLE_SHEETS_PRIVATE_KEY')
+
+    if (!clientEmail || !privateKey) {
+      throw new Error('Google Sheets credentials not configured')
+    }
+
+    const token = await getGoogleAccessToken(
+      clientEmail,
+      privateKey,
+      ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    )
+
+    let totalSynced = 0
+    const sheetsSynced: string[] = []
+    const errors: string[] = []
+
+    // Sync monthly sheets
+    for (const sheetName of monthSheets || ['agosto_25', 'setembro_25']) {
+      try {
+        console.log(`Processing sheet: ${sheetName}`)
+        
+        // Get sheet data
+        const response = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${sheetName}!A:H`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            }
+          }
+        )
+
+        if (!response.ok) {
+          console.error(`Failed to fetch sheet ${sheetName}:`, await response.text())
+          errors.push(`Sheet ${sheetName}: Failed to fetch data`)
+          continue
+        }
+
+        const data = await response.json()
+        const rows = data.values || []
+
+        if (rows.length < 2) {
+          console.log(`Sheet ${sheetName} has no data rows`)
+          continue
+        }
+
+        // Parse month from sheet name (formato: mes_ano)
+        const [monthName, year] = sheetName.toLowerCase().split('_')
+        const monthMap: Record<string, string> = {
+          'janeiro': '01', 'fevereiro': '02', 'marco': '03', 'abril': '04',
+          'maio': '05', 'junho': '06', 'julho': '07', 'agosto': '08',
+          'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
+        }
+        const monthNum = monthMap[monthName]
+        const fullYear = year?.length === 2 ? `20${year}` : year
+        const refMonth = `${fullYear}-${monthNum}-01`
+
+        console.log(`Parsed date: ${refMonth} from ${sheetName}`)
+
+        let imported = 0
+        // Skip header row (row 0)
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i]
+          
+          try {
+            const cliente = String(row[0] || '').trim()
+            const ap = String(row[1] || '').trim()
+            const descricao = String(row[2] || '').trim()
+            const fornecedor = String(row[3] || '').trim()
+            
+            // Parse currency values
+            const parseValue = (val: string) => {
+              if (!val) return 0
+              const cleaned = String(val).replace(/[R$\s.]/g, '').replace(',', '.')
+              return Math.round(parseFloat(cleaned) * 100) || 0
+            }
+
+            const valorFornecedor = parseValue(row[4])
+            const honorarioPercent = parseFloat(String(row[5] || '0').replace(/[^0-9.-]/g, '')) || 0
+            const honorarioAgencia = parseValue(row[6])
+            const total = parseValue(row[7])
+
+            if (!cliente || total === 0) {
+              continue
+            }
+
+            const { error: insertError } = await supabaseClient
+              .from('finance_events')
+              .insert({
+                ref_month: refMonth,
+                cliente,
+                ap: ap || null,
+                descricao: descricao || null,
+                fornecedor: fornecedor || null,
+                valor_fornecedor_cents: valorFornecedor,
+                honorario_percent: honorarioPercent || null,
+                honorario_agencia_cents: honorarioAgencia,
+                total_cents: total,
+              })
+
+            if (insertError) {
+              // Skip duplicate entries silently
+              if (!insertError.message.includes('duplicate key')) {
+                console.error(`Error on row ${i + 1}:`, insertError)
+                errors.push(`${sheetName} linha ${i + 1}: ${insertError.message}`)
+              }
+            } else {
+              imported++
+            }
+          } catch (err: any) {
+            console.error(`Error processing row ${i + 1}:`, err)
+            errors.push(`${sheetName} linha ${i + 1}: ${err.message}`)
+          }
+        }
+
+        totalSynced += imported
+        sheetsSynced.push(sheetName)
+        console.log(`Imported ${imported} rows from ${sheetName}`)
+      } catch (err: any) {
+        console.error(`Error processing sheet ${sheetName}:`, err)
+        errors.push(`Sheet ${sheetName}: ${err.message}`)
+      }
+    }
+
+    // Sync balances sheet (Saldo)
+    try {
+      console.log('Processing balances sheet: saldo')
+      
+      const response = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/saldo!A:B`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        const rows = data.values || []
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i]
+          const fornecedor = String(row[0] || '').trim()
+          const saldoStr = String(row[1] || '0').replace(/[R$\s.]/g, '').replace(',', '.')
+          const saldoCents = Math.round(parseFloat(saldoStr) * 100) || 0
+
+          if (!fornecedor) continue
+
+          await supabaseClient
+            .from('finance_supplier_balances')
+            .upsert({
+              fornecedor,
+              saldo_cents: saldoCents,
+              last_updated: new Date().toISOString(),
+            }, {
+              onConflict: 'fornecedor'
+            })
+        }
+
+        sheetsSynced.push('saldo')
+      }
+    } catch (err: any) {
+      console.error('Error syncing balances:', err)
+      errors.push(`Saldo: ${err.message}`)
+    }
+
+    // Update log
+    await supabaseClient
+      .from('finance_sync_logs')
+      .update({
+        status: errors.length > 0 ? 'partial' : 'success',
+        completed_at: new Date().toISOString(),
+        rows_synced: totalSynced,
+        sheets_synced: sheetsSynced,
+        error_message: errors.length > 0 ? errors.join('\n') : null,
+      })
+      .eq('id', logData.id)
+
+    console.log(`Sync completed: ${totalSynced} rows synced from ${sheetsSynced.length} sheets`)
+
+    return new Response(
+      JSON.stringify({ 
+        ok: true, 
+        synced: totalSynced, 
+        sheets: sheetsSynced,
+        errors: errors.length > 0 ? errors : undefined
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error: any) {
+    console.error('Sync error:', error)
+    return new Response(
+      JSON.stringify({ ok: false, error: error.message || 'Erro ao sincronizar' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})

@@ -10,4 +10,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.finance_import]
+
+[functions.google_sheets_sync]
 verify_jwt = true

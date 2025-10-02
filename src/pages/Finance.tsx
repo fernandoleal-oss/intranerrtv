@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, DollarSign, Percent, Download } from "lucide-react";
 import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
+import { GoogleSheetsSync } from "@/components/finance/GoogleSheetsSync";
 import { TopClientsCard } from "@/components/finance/TopClientsCard";
 import { TopSuppliersCard } from "@/components/finance/TopSuppliersCard";
 import { MonthlyReportDialog } from "@/components/finance/MonthlyReportDialog";
@@ -103,7 +104,12 @@ export default function Finance() {
               <Download className="h-4 w-4" />
               Exportar CSV
             </Button>
-            {canEdit && <ExcelImportDialog onImportComplete={loadData} />}
+            {canEdit && (
+              <>
+                <GoogleSheetsSync onSyncComplete={loadData} />
+                <ExcelImportDialog onImportComplete={loadData} />
+              </>
+            )}
           </div>
         }
       />

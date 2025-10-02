@@ -452,6 +452,75 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_supplier_balances: {
+        Row: {
+          created_at: string | null
+          fornecedor: string
+          id: string
+          last_updated: string | null
+          notes: string | null
+          saldo_cents: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fornecedor: string
+          id?: string
+          last_updated?: string | null
+          notes?: string | null
+          saldo_cents?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fornecedor?: string
+          id?: string
+          last_updated?: string | null
+          notes?: string | null
+          saldo_cents?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      finance_sync_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          rows_synced: number | null
+          sheet_url: string | null
+          sheets_synced: Json | null
+          started_at: string | null
+          status: string
+          sync_type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          rows_synced?: number | null
+          sheet_url?: string | null
+          sheets_synced?: Json | null
+          started_at?: string | null
+          status: string
+          sync_type: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          rows_synced?: number | null
+          sheet_url?: string | null
+          sheets_synced?: Json | null
+          started_at?: string | null
+          status?: string
+          sync_type?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           client_id: string
