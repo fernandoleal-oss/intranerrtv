@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, CheckCircle, AlertCircle, Loader2, Sheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,12 +20,43 @@ export function GoogleSheetsSync({ onSyncComplete }: GoogleSheetsSyncProps) {
   const [spreadsheetId, setSpreadsheetId] = useState(
     "1b5isZF7EUyHaSgU3bRZzuFPrTQJ1DbklA0NWpGn0dPI"
   );
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([
+    "agosto_25",
+    "setembro_25"
+  ]);
+  const [selectedYear, setSelectedYear] = useState("25");
   const [isProcessing, setIsProcessing] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     synced: number;
     sheets: string[];
     errors?: string[];
   } | null>(null);
+
+  const months = [
+    { value: "janeiro", label: "Janeiro" },
+    { value: "fevereiro", label: "Fevereiro" },
+    { value: "marco", label: "Março" },
+    { value: "abril", label: "Abril" },
+    { value: "maio", label: "Maio" },
+    { value: "junho", label: "Junho" },
+    { value: "julho", label: "Julho" },
+    { value: "agosto", label: "Agosto" },
+    { value: "setembro", label: "Setembro" },
+    { value: "outubro", label: "Outubro" },
+    { value: "novembro", label: "Novembro" },
+    { value: "dezembro", label: "Dezembro" },
+  ];
+
+  const years = ["24", "25", "26"];
+
+  const toggleMonth = (month: string) => {
+    const sheetName = `${month}_${selectedYear}`;
+    setSelectedMonths((prev) =>
+      prev.includes(sheetName)
+        ? prev.filter((m) => m !== sheetName)
+        : [...prev, sheetName]
+    );
+  };
 
   const handleSync = async () => {
     if (!spreadsheetId) {
@@ -51,7 +84,7 @@ export function GoogleSheetsSync({ onSyncComplete }: GoogleSheetsSyncProps) {
           },
           body: JSON.stringify({
             spreadsheetId,
-            monthSheets: ["agosto_25", "setembro_25", "outubro_25", "novembro_25", "dezembro_25"],
+            monthSheets: selectedMonths,
           }),
         }
       );
@@ -131,18 +164,62 @@ export function GoogleSheetsSync({ onSyncComplete }: GoogleSheetsSyncProps) {
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-2">
-            <Label htmlFor="spreadsheet-id" className="text-base">ID da Planilha do Google</Label>
-            <Input
-              id="spreadsheet-id"
-              value={spreadsheetId}
-              onChange={(e) => setSpreadsheetId(e.target.value)}
-              placeholder="1b5isZF7EUyHaSgU3bRZzuFPrTQJ1DbklA0NWpGn0dPI"
-              className="h-11 font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              O ID está na URL: docs.google.com/spreadsheets/d/<strong>ID_AQUI</strong>/edit
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="spreadsheet-id" className="text-base">ID da Planilha do Google</Label>
+              <Input
+                id="spreadsheet-id"
+                value={spreadsheetId}
+                onChange={(e) => setSpreadsheetId(e.target.value)}
+                placeholder="1b5isZF7EUyHaSgU3bRZzuFPrTQJ1DbklA0NWpGn0dPI"
+                className="h-11 font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                O ID está na URL: docs.google.com/spreadsheets/d/<strong>ID_AQUI</strong>/edit
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Ano</Label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        20{year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Meses para Sincronizar</Label>
+                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                  {months.map((month) => {
+                    const sheetName = `${month.value}_${selectedYear}`;
+                    return (
+                      <div key={month.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={month.value}
+                          checked={selectedMonths.includes(sheetName)}
+                          onCheckedChange={() => toggleMonth(month.value)}
+                        />
+                        <label
+                          htmlFor={month.value}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {month.label}
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
 
           {syncResult && (

@@ -5,72 +5,54 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper to create JWT for Google Service Account
-async function createGoogleJWT(clientEmail: string, privateKey: string, scopes: string[]) {
-  const header = {
-    alg: 'RS256',
-    typ: 'JWT',
-  }
-
-  const now = Math.floor(Date.now() / 1000)
-  const payload = {
-    iss: clientEmail,
-    scope: scopes.join(' '),
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: now + 3600,
-    iat: now,
-  }
-
-  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-
-  const signatureInput = `${encodedHeader}.${encodedPayload}`
-  
-  // Import private key
-  const pemKey = privateKey.replace(/\\n/g, '\n')
-  const pemContents = pemKey
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s/g, '')
-  
-  const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0))
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    binaryKey,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    new TextEncoder().encode(signatureInput)
-  )
-
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-
-  return `${signatureInput}.${encodedSignature}`
-}
+// Helper to get Google access token using jose library
+import { SignJWT } from 'https://deno.land/x/jose@v5.2.0/index.ts'
+import { importPKCS8 } from 'https://deno.land/x/jose@v5.2.0/index.ts'
 
 async function getGoogleAccessToken(clientEmail: string, privateKey: string, scopes: string[]) {
-  const jwt = await createGoogleJWT(clientEmail, privateKey, scopes)
-  
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  })
+  try {
+    // Clean up the private key
+    const cleanKey = privateKey
+      .replace(/\\n/g, '\n')
+      .trim()
+    
+    // Import the private key
+    const key = await importPKCS8(cleanKey, 'RS256')
+    
+    const now = Math.floor(Date.now() / 1000)
+    
+    // Create JWT
+    const jwt = await new SignJWT({
+      scope: scopes.join(' '),
+    })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuedAt(now)
+      .setIssuer(clientEmail)
+      .setAudience('https://oauth2.googleapis.com/token')
+      .setExpirationTime(now + 3600)
+      .sign(key)
+    
+    // Exchange JWT for access token
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt,
+      }),
+    })
 
-  const data = await response.json()
-  return data.access_token
+    const data = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(`Google auth failed: ${JSON.stringify(data)}`)
+    }
+    
+    return data.access_token
+  } catch (error) {
+    console.error('Error getting Google access token:', error)
+    throw error
+  }
 }
 
 Deno.serve(async (req) => {

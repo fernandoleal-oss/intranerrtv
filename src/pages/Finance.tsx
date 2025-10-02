@@ -8,7 +8,7 @@ import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 import { GoogleSheetsSync } from "@/components/finance/GoogleSheetsSync";
 import { TopClientsCard } from "@/components/finance/TopClientsCard";
 import { TopSuppliersCard } from "@/components/finance/TopSuppliersCard";
-import { MonthlyReportDialog } from "@/components/finance/MonthlyReportDialog";
+import { FinancialReport } from "@/components/finance/FinancialReport";
 import { AnnualTotalsDialog } from "@/components/finance/AnnualTotalsDialog";
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
@@ -98,7 +98,7 @@ export default function Finance() {
         backTo="/"
         actions={
           <div className="flex gap-2 flex-wrap">
-            <MonthlyReportDialog />
+            <FinancialReport />
             <AnnualTotalsDialog />
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
