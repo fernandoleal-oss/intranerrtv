@@ -144,26 +144,9 @@ export default function PdfView() {
     }
   };
 
-  // limpa atributo de marca d'água após imprimir
-  useEffect(() => {
-    const after = () => document.body.removeAttribute("data-wm");
-    window.addEventListener("afterprint", after);
-    return () => window.removeEventListener("afterprint", after);
-  }, []);
-
   const handlePrint = async () => {
     if (!view) return;
     try {
-      // pergunta se usa marca d'água
-      const addWatermark = window.confirm(
-        "Deseja adicionar a marca d'água no PDF? (Cinza, 10% de opacidade, centralizada em todas as páginas)"
-      );
-      if (addWatermark) {
-        document.body.setAttribute("data-wm", "1");
-      } else {
-        document.body.removeAttribute("data-wm");
-      }
-
       // garante ORÇADO caso esteja rascunho
       let finalStatus = currentStatus;
       if (!finalStatus || finalStatus === "rascunho") {
@@ -184,11 +167,7 @@ export default function PdfView() {
 
       // imprime
       setTimeout(() => window.print(), 350);
-
-      // fallback de limpeza caso afterprint não dispare
-      setTimeout(() => document.body.removeAttribute("data-wm"), 4000);
     } catch (e: any) {
-      document.body.removeAttribute("data-wm");
       toast({ title: "Erro ao criar versão", description: e?.message, variant: "destructive" });
     }
   };
@@ -215,14 +194,17 @@ export default function PdfView() {
 
   const isAudio = (view?.type || "").toLowerCase() === "audio";
 
-  // texto da marca d'água conforme status
-  const watermarkText = useMemo(() => {
+  // Badge do status para exibir
+  const getStatusBadge = () => {
     const s = (currentStatus || "").toLowerCase();
-    if (s === "rascunho" || s === "orçado") return "PRÉVIA — NÃO DISTRIBUIR";
-    if (s === "enviado") return "EM APROVAÇÃO";
-    if (s === "reprovado") return "REPROVADO";
-    return ""; // aprovado/arquivado → sem marca d’água
-  }, [currentStatus]);
+    if (s === "enviado") return { text: "EM APROVAÇÃO", variant: "default" as const };
+    if (s === "aprovado") return { text: "APROVADO", variant: "default" as const };
+    if (s === "reprovado") return { text: "REPROVADO", variant: "destructive" as const };
+    if (s === "orçado") return { text: "ORÇADO", variant: "secondary" as const };
+    return null;
+  };
+
+  const statusBadge = getStatusBadge();
 
   // fit-to-page (A4)
   useEffect(() => {
@@ -327,22 +309,14 @@ export default function PdfView() {
         </Button>
       </div>
 
-      {/* Aviso sobre marca d’água — preview somente */}
-      {!!watermarkText && (
-        <Alert className="m-4 print:hidden">
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            Ao imprimir, será perguntado se deseja incluir a marca d’água <strong>{watermarkText}</strong>. Ela é aplicada
-            apenas no PDF, centralizada e com 10% de opacidade.
+      {/* Aviso sobre status — preview somente */}
+      {statusBadge && (
+        <Alert className="m-4 print:hidden border-amber-200 bg-amber-50">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-900">
+            Status atual: <strong>{statusBadge.text}</strong>
           </AlertDescription>
         </Alert>
-      )}
-
-      {/* MARCA D’ÁGUA: invisível na tela; só aparece no PDF se body[data-wm="1"] */}
-      {!!watermarkText && (
-        <div aria-hidden className="we-wm fixed inset-0 z-[5] pointer-events-none items-center justify-center">
-          <span className="we-wm-text select-none">{watermarkText}</span>
-        </div>
       )}
 
       <div className="px-6 py-6 print:px-0 print:py-0 flex justify-center relative z-10">
@@ -368,10 +342,20 @@ export default function PdfView() {
                     }}
                   />
                 </div>
-                <div className="text-right">
-                  <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
-                  <div className="text-[10px] opacity-80 mt-1 leading-none">
-                    {new Date(view.createdAt).toLocaleDateString("pt-BR")}
+                <div className="text-right flex items-center gap-3">
+                  {statusBadge && (
+                    <Badge 
+                      variant={statusBadge.variant} 
+                      className="px-3 py-1 text-xs font-semibold"
+                    >
+                      {statusBadge.text}
+                    </Badge>
+                  )}
+                  <div>
+                    <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
+                    <div className="text-[10px] opacity-80 mt-1 leading-none">
+                      {new Date(view.createdAt).toLocaleDateString("pt-BR")}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -620,41 +604,11 @@ export default function PdfView() {
         </div>
       </div>
 
-      {/* Estilos: marca d’água (somente impressão) + A4 fit */}
+      {/* Estilos: A4 fit */}
       <style>{`
-        /* Esconde a marca d'água no preview por padrão */
-        .we-wm { display: none; }
-        .we-wm-text {
-          font-size: min(12vw, 140px);
-          line-height: 1;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: .18em;
-          color: #111827;           /* cinza-escuro */
-          opacity: 0.10;            /* 10% */
-          transform: rotate(-16deg);
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-
         @media print {
           @page { size: A4; margin: 10mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-          /* Só mostra a marca d'água se o body tiver data-wm="1" */
-          body[data-wm="1"] .we-wm {
-            position: fixed !important;
-            inset: 0 !important;
-            display: flex !important;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            z-index: 9999;
-          }
-          body[data-wm="1"] .we-wm-text {
-            font-size: 120pt;
-            opacity: 0.10 !important; /* garante 10% no PDF */
-          }
 
           /* Fit-to-page */
           #print-root { transform: scale(var(--print-scale, 1)); }
