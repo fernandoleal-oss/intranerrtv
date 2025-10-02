@@ -23,6 +23,8 @@ interface AssetMetadata {
   recommendedLicense: string
   pageUrl: string
   chosenLicense?: string
+  price?: number
+  customDescription?: string
 }
 
 interface Producer {
@@ -60,6 +62,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
   const [assets, setAssets] = useState<AssetMetadata[]>(initialData?.assets || [])
   const [isProcessing, setIsProcessing] = useState(false)
   const [referenciaImageUrl, setReferenciaImageUrl] = useState(initialData?.referenciaImageUrl || '')
+  const [referenciaImageFile, setReferenciaImageFile] = useState<File | null>(null)
 
   /**
    * Processa múltiplas URLs (separadas por quebra de linha, vírgula, ponto-e-vírgula ou espaço)
@@ -145,6 +148,22 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     })
   }
 
+  const updateAssetPrice = (index: number, price: number) => {
+    setAssets(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], price }
+      return updated
+    })
+  }
+
+  const updateAssetDescription = (index: number, description: string) => {
+    setAssets(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], customDescription: description }
+      return updated
+    })
+  }
+
   const removeAsset = (index: number) => {
     setAssets(prev => prev.filter((_, i) => i !== index))
   }
@@ -158,6 +177,17 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     setMidias('Visualizar')
     setBanco('')
     setReferenciaImageUrl('')
+    setReferenciaImageFile(null)
+  }
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setReferenciaImageFile(file)
+      // Criar URL temporária para preview
+      const url = URL.createObjectURL(file)
+      setReferenciaImageUrl(url)
+    }
   }
 
   const handleSubmit = () => {
@@ -268,17 +298,26 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
               )}
             </div>
             <div>
-              <Label htmlFor="referencia-image">Imagem de Referência (URL)</Label>
+              <Label htmlFor="referencia-image">Imagem de Referência</Label>
               <Input
                 id="referencia-image"
-                type="url"
-                value={referenciaImageUrl}
-                onChange={(e) => setReferenciaImageUrl(e.target.value)}
-                placeholder="https://exemplo.com/imagem.jpg"
+                type="file"
+                accept="image/*"
+                onChange={handleImageFileChange}
+                className="cursor-pointer"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Opcional: URL de uma imagem de referência para o orçamento
+                Opcional: Faça upload de uma imagem de referência
               </p>
+              {referenciaImageUrl && (
+                <div className="mt-2">
+                  <img 
+                    src={referenciaImageUrl} 
+                    alt="Preview"
+                    className="max-h-32 rounded border"
+                  />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -413,6 +452,32 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    {/* Custo */}
+                    <div>
+                      <Label htmlFor={`price-${index}`}>Custo (R$)</Label>
+                      <Input
+                        id={`price-${index}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={asset.price || ''}
+                        onChange={(e) => updateAssetPrice(index, parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    {/* Descrição customizável */}
+                    <div>
+                      <Label htmlFor={`description-${index}`}>Descrição</Label>
+                      <Textarea
+                        id={`description-${index}`}
+                        rows={2}
+                        value={asset.customDescription || asset.title || ''}
+                        onChange={(e) => updateAssetDescription(index, e.target.value)}
+                        placeholder="Descrição do asset"
+                      />
                     </div>
 
                     {/* Link para abrir */}

@@ -61,6 +61,8 @@ type Payload = {
     licenseOptions: string[];
     recommendedLicense: string;
     chosenLicense: string;
+    price?: number;
+    customDescription?: string;
   }>;
   referenciaImageUrl?: string;
 };
@@ -548,19 +550,24 @@ export default function PdfView() {
                               </div>
 
                               {/* Detalhes */}
-                              <div className="flex-1 space-y-1.5">
-                                <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex justify-between items-start gap-2 mb-2">
                                   <div className="font-mono text-sm font-bold text-slate-800">
-                                    {asset.id || "—"}
+                                    ID: {asset.id || "—"}
                                   </div>
+                                  {asset.price !== undefined && (
+                                    <div className="text-sm font-bold text-green-700">
+                                      {BRL(asset.price)}
+                                    </div>
+                                  )}
                                 </div>
                                 
-                                <div className="text-[10px] text-blue-600 font-medium">
+                                <div className="text-[10px] text-blue-600 font-medium mb-1">
                                   {asset.chosenLicense || asset.recommendedLicense || 'Licença Padrão'}
                                 </div>
                                 
-                                <div className="text-[10px] text-slate-600 leading-relaxed line-clamp-2">
-                                  {cleanTitle}
+                                <div className="text-[10px] text-slate-700 leading-relaxed mb-2">
+                                  {asset.customDescription || cleanTitle}
                                 </div>
 
                                 <div className="flex gap-3 text-[9px] text-slate-500 pt-1 border-t border-slate-200">
@@ -591,6 +598,14 @@ export default function PdfView() {
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Total */}
+                    <div className="mt-4 pt-3 border-t-2 border-slate-300 flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-700">Total do orçamento:</span>
+                      <span className="text-lg font-bold text-green-700">
+                        {BRL(p.assets.reduce((sum, a) => sum + (a.price || 0), 0))}
+                      </span>
                     </div>
 
                     {/* Notas */}
