@@ -1,6 +1,6 @@
 // src/pages/new/Filme.tsx
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Save, Eye, Plus, Trash2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,11 +64,16 @@ const formatCurrency = (val: number): string => {
 
 export default function FilmeBudget() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  const [data, setData] = useState<BudgetData>({
+  // Carregar dados de edição se existir
+  const editData = location.state?.editData;
+  const budgetId = location.state?.budgetId;
+
+  const [data, setData] = useState<BudgetData>(editData || {
     type: "filme",
     quotes_film: [],
     quotes_audio: [],
@@ -136,30 +141,25 @@ export default function FilmeBudget() {
     updateData({ quotes_audio: (data.quotes_audio || []).filter((q) => q.id !== id) });
   };
 
-  const handleSave = async () => {
+  const handlePreview = () => {
     if (!data.cliente || !data.produto) {
       toast({ title: "Preencha cliente e produto", variant: "destructive" });
       return;
     }
 
-    setSaving(true);
-    try {
-      const { data: created, error: budgetError } = await supabase.rpc("create_budget_full_rpc", {
-        p_type_text: data.type,
-        p_payload: data as any,
-        p_total: data.total || 0
-      }) as { data: { id: string; display_id: string; version_id: string } | null; error: any };
-
-      if (budgetError || !created) throw budgetError || new Error("Falha ao criar orçamento");
-
-      toast({ title: "Orçamento salvo com sucesso!" });
-      navigate(`/budget/${created.id}/pdf`);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Erro ao salvar orçamento", variant: "destructive" });
-    } finally {
-      setSaving(false);
+    if ((data.quotes_film || []).length === 0) {
+      toast({ title: "Adicione pelo menos uma cotação", variant: "destructive" });
+      return;
     }
+
+    // Navegar para o preview com os dados
+    navigate(`/budget/preview${budgetId ? `/${budgetId}` : ''}`, {
+      state: { 
+        data, 
+        returnPath: '/orcamentos/novo/filme',
+        budgetId 
+      }
+    });
   };
 
   return (
@@ -180,15 +180,11 @@ export default function FilmeBudget() {
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setShowPreview(!showPreview)} className="gap-2">
               <Eye className="h-4 w-4" />
-              {showPreview ? "Ocultar" : "Visualizar"} Preview
+              {showPreview ? "Ocultar" : "Visualizar"} Resumo
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              {saving ? "Salvando..." : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Salvar e Gerar PDF
-                </>
-              )}
+            <Button onClick={handlePreview} className="gap-2">
+              <Eye className="h-4 w-4" />
+              Visualizar Preview
             </Button>
           </div>
         </div>
