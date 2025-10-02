@@ -29,6 +29,20 @@
     --chart-3: 38 92% 50%;
     --chart-4: 271 81% 56%;
     --chart-5: 0 84% 60%;
+    
+    /* Semantic gradient colors */
+    --gradient-blue: 217 91% 60%;
+    --gradient-blue-end: 230 89% 62%;
+    --gradient-purple: 271 81% 56%;
+    --gradient-purple-end: 282 84% 60%;
+    --gradient-green: 142 76% 36%;
+    --gradient-green-end: 150 78% 40%;
+    --gradient-yellow: 38 92% 50%;
+    --gradient-yellow-end: 45 93% 54%;
+    --gradient-orange: 25 95% 53%;
+    --gradient-orange-end: 15 90% 55%;
+    --gradient-cyan: 189 94% 43%;
+    --gradient-cyan-end: 180 95% 45%;
   }
   
   * {
@@ -92,6 +106,30 @@
 
 .pill {
   @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+/* Semantic gradient utilities */
+.gradient-blue {
+  background: linear-gradient(135deg, hsl(var(--gradient-blue)), hsl(var(--gradient-blue-end)));
+}
+.gradient-purple {
+  background: linear-gradient(135deg, hsl(var(--gradient-purple)), hsl(var(--gradient-purple-end)));
+}
+.gradient-green {
+  background: linear-gradient(135deg, hsl(var(--gradient-green)), hsl(var(--gradient-green-end)));
+}
+.gradient-yellow {
+  background: linear-gradient(135deg, hsl(var(--gradient-yellow)), hsl(var(--gradient-yellow-end)));
+}
+.gradient-orange {
+  background: linear-gradient(135deg, hsl(var(--gradient-orange)), hsl(var(--gradient-orange-end)));
+}
+.gradient-cyan {
+  background: linear-gradient(135deg, hsl(var(--gradient-cyan)), hsl(var(--gradient-cyan-end)));
+}
+
+.glass-effect {
+  @apply bg-background/80 backdrop-blur-md;
 }
 
 /* Marcas d'água para impressão */

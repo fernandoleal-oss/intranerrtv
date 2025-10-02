@@ -18,10 +18,12 @@ export default function Home() {
   useEffect(() => {
     const fetchClubeNews = async () => {
       try {
-        const { data } = await supabase.functions.invoke("clube_news");
+        const { data, error } = await supabase.functions.invoke("clube_news");
+        if (error) throw error;
         if (data?.items) setClubeNews(data.items);
       } catch (e) {
-        console.error("Erro ao carregar notícias do Clube:", e);
+        // Silently fail - news section is optional
+        console.log("Clube news not available");
       }
     };
     fetchClubeNews();
@@ -32,42 +34,42 @@ export default function Home() {
       title: "Orçamentos",
       description: "Criar e gerenciar orçamentos de produção",
       icon: FileText,
-      color: "from-blue-500 to-indigo-600",
+      gradient: "gradient-blue",
       path: "/orcamentos",
     },
     {
       title: "Direitos",
       description: "Gestão de direitos autorais e renovações",
       icon: Eye,
-      color: "from-purple-500 to-pink-600",
+      gradient: "gradient-purple",
       path: "/direitos",
     },
     {
       title: "Financeiro",
       description: "Controle financeiro e relatórios",
       icon: DollarSign,
-      color: "from-green-500 to-emerald-600",
+      gradient: "gradient-green",
       path: "/financeiro",
     },
     {
       title: "Consulta ANCINE",
       description: "Claquetes & registros oficiais",
       icon: Clapperboard,
-      color: "from-yellow-500 to-amber-600",
+      gradient: "gradient-yellow",
       path: "/ancine",
     },
     {
       title: "Comparador BYD",
       description: "Compare modelos de carros elétricos",
       icon: Car,
-      color: "from-orange-500 to-red-600",
+      gradient: "gradient-orange",
       path: "/comparador-byd",
     },
     {
       title: "Gerador de Claquete",
       description: "Crie claquetes profissionais para filmagem",
       icon: Clapperboard,
-      color: "from-cyan-500 to-teal-600",
+      gradient: "gradient-cyan",
       path: "/claquete",
     },
   ];
@@ -75,12 +77,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
+      <header className="border-b sticky top-0 z-10 glass-effect">
         <div className="container-page">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold">WE</span>
+              <div className="w-10 h-10 gradient-blue rounded-lg flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold">WE</span>
               </div>
               <div>
                 <h1 className="text-xl font-semibold">Sistema de Orçamentos</h1>
@@ -150,12 +152,12 @@ export default function Home() {
               transition={{ delay: index * 0.1 }}
             >
               <Card
-                className="cursor-pointer hover:shadow-lg transition-all group"
+                className="cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-border/50"
                 onClick={() => navigate(section.path)}
               >
                 <CardHeader className="text-center pb-4">
                   <div
-                    className={`w-16 h-16 mx-auto rounded-2xl bg-gradient-to-r ${section.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
+                    className={`w-16 h-16 mx-auto rounded-2xl ${section.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}
                   >
                     <section.icon className="w-8 h-8 text-white" />
                   </div>
@@ -164,8 +166,8 @@ export default function Home() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-center">
-                  <p className="text-sm text-muted-foreground mb-4">{section.description}</p>
-                  <Button variant="outline" className="w-full">
+                  <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{section.description}</p>
+                  <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                     Acessar
                   </Button>
                 </CardContent>
