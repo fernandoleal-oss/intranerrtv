@@ -7,7 +7,6 @@ import { TrendingUp, TrendingDown, DollarSign, Percent, Users, Download } from "
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
-import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 
 type ClientSummary = {
   client: string;
@@ -21,6 +20,103 @@ export default function Finance() {
   const canEdit = canEditFinance(user?.email);
   const [topClients, setTopClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
+function ImportDialogInline({
+  open,
+  onOpenChange,
+  onImported,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onImported?: () => Promise<void> | void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [refMonth, setRefMonth] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [imported, setImported] = useState<number | null>(null);
+  const [error, setError] = useState<string>("");
+
+  async function handleImport() {
+    setLoading(true);
+    setImported(null);
+    setError("");
+
+    try {
+      if (!file) throw new Error("Selecione um arquivo .xlsx, .xls ou .pdf");
+      if (!refMonth) throw new Error("Selecione o mês de referência");
+
+      const fd = new FormData();
+      fd.set("ref_month", refMonth);        // ex.: 2025-08
+      fd.set("file", file);
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finance_import`;
+      const res = await fetch(url, { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || `Falha ao importar (HTTP ${res.status})`);
+
+      setImported(j.imported ?? 0);
+      if (onImported) await onImported();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function close() {
+    setFile(null);
+    setRefMonth("");
+    setImported(null);
+    setError("");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(v) : close())}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Importar Dados Financeiros</DialogTitle>
+        </DialogHeader>
+
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Formatos aceitos: <Badge variant="outline">Excel (.xlsx, .xls)</Badge> ou <Badge variant="outline">PDF</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Mês de Referência</Label>
+              <Input type="month" value={refMonth} onChange={(e) => setRefMonth(e.target.value)} className="mt-1" />
+              <p className="text-xs text-muted-foreground mt-1">Ex.: 2025-08</p>
+            </div>
+
+            <div>
+              <Label>Arquivo</Label>
+              <Input type="file" accept=".xlsx,.xls,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="mt-1" />
+            </div>
+
+            {!!error && (
+              <div className="text-sm text-red-600 border border-red-200 bg-red-50 rounded-md p-2">{error}</div>
+            )}
+
+            {imported !== null && (
+              <div className="text-sm text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-md p-2">
+                Importados: <strong>{imported}</strong>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={close} disabled={loading} className="flex-1">Cancelar</Button>
+              <Button onClick={handleImport} disabled={loading || !file || !refMonth} className="flex-1">
+                {loading ? "Importando…" : "Importar Dados"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
   useEffect(() => {
     loadTopClients();
@@ -62,13 +158,10 @@ export default function Finance() {
         subtitle="Visão geral e análise financeira"
         backTo="/"
         actions={
-          <div className="flex gap-2">
-            {canEdit && <ExcelImportDialog onImportComplete={loadTopClients} />}
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar CSV
-            </Button>
-          </div>
+          <Button variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
         }
       />
 
@@ -142,7 +235,7 @@ export default function Finance() {
           <Card className="mb-6 border-amber-200 bg-amber-50">
             <CardContent className="pt-6">
               <p className="text-sm text-amber-800">
-                <strong>Visualização apenas.</strong> Apenas Fernando e Kelly podem editar dados financeiros.
+                <strong>Visualização apenas.</strong> Apenas fernando.leal@we.com.br pode editar dados financeiros.
               </p>
             </CardContent>
           </Card>
