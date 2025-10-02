@@ -12,4 +12,7 @@ verify_jwt = false
 [functions.finance_import]
 
 [functions.google_sheets_sync]
-verify_jwt = true
+verify_jwt = false
+
+[functions.rights_sync]
+verify_jwt = false
