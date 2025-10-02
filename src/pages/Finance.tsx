@@ -1,25 +1,179 @@
+// src/pages/Finance.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, DollarSign, Percent, Users, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Percent,
+  Users,
+  Download,
+  Upload,
+} from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
 
+/* --------------------------- Tipos --------------------------- */
 type ClientSummary = {
   client: string;
   total: number;
   count: number;
 };
 
+type Event = {
+  id: string;
+  cliente: string | null;
+  ref_month: string;
+  total_cents: number;
+};
+
+/* -------------------- Modal de Importação -------------------- */
+function ImportDialogInline({
+  open,
+  onOpenChange,
+  onImported,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onImported?: () => Promise<void> | void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [refMonth, setRefMonth] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [imported, setImported] = useState<number | null>(null);
+  const [error, setError] = useState<string>("");
+
+  async function handleImport() {
+    setLoading(true);
+    setImported(null);
+    setError("");
+
+    try {
+      if (!file) throw new Error("Selecione um arquivo .xlsx, .xls ou .pdf.");
+      if (!refMonth) throw new Error("Informe o mês de referência (ex.: 2025-08).");
+
+      const fd = new FormData();
+      fd.set("ref_month", refMonth); // formato YYYY-MM
+      fd.set("file", file);
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finance_import`;
+      const res = await fetch(url, { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) {
+        throw new Error(j?.error || `Falha ao importar (HTTP ${res.status})`);
+      }
+
+      setImported(j.imported ?? 0);
+      if (onImported) await onImported();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function close() {
+    setFile(null);
+    setRefMonth("");
+    setImported(null);
+    setError("");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(v) : close())}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Importar Dados Financeiros</DialogTitle>
+        </DialogHeader>
+
+        <Card className="border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Formatos aceitos:{" "}
+              <Badge variant="outline">Excel (.xlsx, .xls)</Badge> ou{" "}
+              <Badge variant="outline">PDF</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Mês de Referência</Label>
+              <Input
+                type="month"
+                value={refMonth}
+                onChange={(e) => setRefMonth(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ex.: 2025-08
+              </p>
+            </div>
+
+            <div>
+              <Label>Arquivo</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls,.pdf"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="mt-1"
+              />
+            </div>
+
+            {!!error && (
+              <div className="text-sm text-red-600 border border-red-200 bg-red-50 rounded-md p-2">
+                {error}
+              </div>
+            )}
+
+            {imported !== null && (
+              <div className="text-sm text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-md p-2">
+                Importados: <strong>{imported}</strong>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={close} disabled={loading} className="flex-1">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={loading || !file || !refMonth}
+                className="flex-1"
+              >
+                {loading ? "Importando…" : "Importar Dados"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ------------------------- Página ------------------------- */
 export default function Finance() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const canEdit = canEditFinance(user?.email);
+
   const [topClients, setTopClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 👇 ESTADO DO MODAL — FICA AQUI, FORA DO JSX
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     loadTopClients();
@@ -29,16 +183,14 @@ export default function Finance() {
     try {
       const { data } = await supabase
         .from("finance_events")
-        .select("cliente, total_cents")
+        .select("cliente, total_cents, ref_month")
         .order("ref_month", { ascending: false })
-        .limit(500);
+        .limit(1000);
 
       if (data) {
-        const grouped = data.reduce((acc, row) => {
+        const grouped = (data as Event[]).reduce((acc, row) => {
           const client = row.cliente || "Sem cliente";
-          if (!acc[client]) {
-            acc[client] = { client, total: 0, count: 0 };
-          }
+          if (!acc[client]) acc[client] = { client, total: 0, count: 0 };
           acc[client].total += row.total_cents / 100;
           acc[client].count += 1;
           return acc;
@@ -57,16 +209,32 @@ export default function Finance() {
   return (
     <div className="min-h-screen bg-white">
       <HeaderBar
-        const [importOpen, setImportOpen] = useState(false);
-
         title="Financeiro"
         subtitle="Visão geral e análise financeira"
         backTo="/"
         actions={
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </Button>
+
+            {/* Botão para abrir o modal de importação */}
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setImportOpen(true)}
+              disabled={!canEdit}
+              title={
+                canEdit
+                  ? "Importar Excel ou PDF"
+                  : "Somente fernando.leal@we.com.br pode importar"
+              }
+            >
+              <Upload className="h-4 w-4" />
+              Importar Excel ou PDF
+            </Button>
+          </div>
         }
       />
 
@@ -98,9 +266,7 @@ export default function Finance() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-700">R$ 0,00</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                vs mês anterior
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">vs mês anterior</p>
             </CardContent>
           </Card>
 
@@ -113,9 +279,7 @@ export default function Finance() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-700">R$ 0,00</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Receitas - Despesas
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Receitas - Despesas</p>
             </CardContent>
           </Card>
 
@@ -128,9 +292,7 @@ export default function Finance() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-700">0%</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                % de lucro
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">% de lucro</p>
             </CardContent>
           </Card>
         </div>
@@ -170,7 +332,11 @@ export default function Finance() {
                 {topClients.map((client, idx) => (
                   <button
                     key={idx}
-                    onClick={() => navigate(`/financeiro/cliente/${encodeURIComponent(client.client)}`)}
+                    onClick={() =>
+                      navigate(
+                        `/financeiro/cliente/${encodeURIComponent(client.client)}`
+                      )
+                    }
                     className="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
                   >
                     <div className="text-left">
@@ -194,6 +360,13 @@ export default function Finance() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de importação (fora do JSX principal, mas dentro do return) */}
+      <ImportDialogInline
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={loadTopClients}
+      />
     </div>
   );
 }
