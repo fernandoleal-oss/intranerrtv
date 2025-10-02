@@ -492,65 +492,53 @@ export default function PdfView() {
                     <div className="w-full border rounded-md overflow-hidden">
                       <div className="grid grid-cols-12 bg-neutral-100 text-[11px] font-medium px-3 py-2">
                         <div className="col-span-1">ID</div>
-                        <div className="col-span-4">Título</div>
+                        <div className="col-span-4">Nome</div>
                         <div className="col-span-1">Tipo</div>
                         <div className="col-span-2">Resolução</div>
                         <div className="col-span-3">Licença</div>
                         <div className="col-span-1 text-right">Link</div>
                       </div>
-                      {p.assets.map((asset, idx) => (
-                        <div key={idx} className="grid grid-cols-12 px-3 py-2 text-[11px] border-t leading-snug">
-                          <div className="col-span-1 break-words">{asset.id || "—"}</div>
-                          <div className="col-span-4 break-words">{asset.title || "—"}</div>
-                          <div className="col-span-1 capitalize">{asset.type}</div>
-                          <div className="col-span-2">
-                            {asset.resolution
-                              ? `${asset.resolution.width}×${asset.resolution.height}`
-                              : asset.durationSeconds
-                              ? `${Math.floor(asset.durationSeconds / 60)}:${String(
-                                  Math.floor(asset.durationSeconds % 60)
-                                ).padStart(2, "0")}`
-                              : "—"}
+                      {p.assets.map((asset, idx) => {
+                        // Extrair apenas o nome limpo do título, removendo URLs
+                        const cleanTitle = asset.title 
+                          ? asset.title.replace(/https?:\/\/[^\s]+/g, '').trim() || asset.title.split('/').pop()?.split('?')[0] || "—"
+                          : "—";
+                        
+                        return (
+                          <div key={idx} className="grid grid-cols-12 px-3 py-2 text-[11px] border-t leading-snug">
+                            <div className="col-span-1 break-words">{asset.id || "—"}</div>
+                            <div className="col-span-4 break-words">{cleanTitle}</div>
+                            <div className="col-span-1 capitalize">{asset.type}</div>
+                            <div className="col-span-2">
+                              {asset.resolution
+                                ? `${asset.resolution.width}×${asset.resolution.height}`
+                                : asset.durationSeconds
+                                ? `${Math.floor(asset.durationSeconds / 60)}:${String(
+                                    Math.floor(asset.durationSeconds % 60)
+                                  ).padStart(2, "0")}`
+                                : "—"}
+                            </div>
+                            <div className="col-span-3 break-words">{asset.chosenLicense}</div>
+                            <div className="col-span-1 text-right">
+                              <a
+                                href={asset.pageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline text-[10px]"
+                              >
+                                Ver
+                              </a>
+                            </div>
                           </div>
-                          <div className="col-span-3 break-words">{asset.chosenLicense}</div>
-                          <div className="col-span-1 text-right">
-                            <a
-                              href={asset.pageUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-[10px]"
-                            >
-                              Ver
-                            </a>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </section>
                 )}
               </div>
 
-              {/* DIREITA = 3/12 (resumo e observações) */}
+              {/* DIREITA = 3/12 (observações) */}
               <div className="col-span-12 md:col-span-3">
-                {/* Resumo Financeiro */}
-                <section className="rounded-lg border px-4 py-3">
-                  <h2 className="text-sm font-semibold mb-2">Resumo Financeiro</h2>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-neutral-600">Subtotal</span>
-                      <span>{BRL(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-neutral-600">Honorário ({p.honorario_perc || 0}%)</span>
-                      <span>{BRL(honorario)}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold text-base pt-2 border-t">
-                      <span>Total</span>
-                      <span className="text-black">{BRL(totalGeral)}</span>
-                    </div>
-                  </div>
-                </section>
-
                 {/* Observações */}
                 <section className="rounded-lg border px-4 py-3 mt-3">
                   <h2 className="text-sm font-semibold mb-2">Observações</h2>
