@@ -2,7 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { FileText, DollarSign, Eye, LogOut, Settings, Car, Clapperboard, Newspaper } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FileText, DollarSign, Eye, LogOut, Settings, Car, Clapperboard, Newspaper, ExternalLink } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +13,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const [clubeNews, setClubeNews] = useState<Array<{ title: string; url: string }>>([]);
+  const [selectedNews, setSelectedNews] = useState<{ title: string; url: string } | null>(null);
 
   useEffect(() => {
     const fetchClubeNews = async () => {
@@ -188,18 +190,17 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {clubeNews.map((news, idx) => (
                     <li key={idx}>
-                      <a
-                        href={news.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm hover:text-primary transition-colors flex items-center gap-2 group"
+                      <button
+                        onClick={() => setSelectedNews(news)}
+                        className="text-sm hover:text-primary transition-colors flex items-center gap-2 group w-full text-left"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary group-hover:scale-125 transition-transform" />
-                        {news.title}
-                      </a>
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary group-hover:scale-125 transition-transform flex-shrink-0" />
+                        <span className="flex-1">{news.title}</span>
+                        <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -207,6 +208,37 @@ export default function Home() {
             </Card>
           </motion.div>
         )}
+
+        {/* Modal de Notícia */}
+        <Dialog open={!!selectedNews} onOpenChange={() => setSelectedNews(null)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="pr-8">{selectedNews?.title}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto">
+              {selectedNews && (
+                <iframe
+                  src={selectedNews.url}
+                  className="w-full h-full min-h-[600px] border-0"
+                  title={selectedNews.title}
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                />
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => selectedNews && window.open(selectedNews.url, "_blank")}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Abrir no site
+              </Button>
+              <Button onClick={() => setSelectedNews(null)}>
+                Fechar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
