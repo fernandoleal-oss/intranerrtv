@@ -108,21 +108,13 @@ export default function FilmeBudget() {
 
     setSaving(true);
     try {
-      const { data: created, error: budgetError } = await supabase.rpc("create_simple_budget", {
-        p_type: data.type,
+      const { data: created, error: budgetError } = await supabase.rpc("create_budget_full_rpc", {
+        p_type_text: data.type,
+        p_payload: data as any,
+        p_total: data.total || 0
       }) as { data: { id: string; display_id: string; version_id: string } | null; error: any };
 
       if (budgetError || !created) throw budgetError || new Error("Falha ao criar orçamento");
-
-      const { error: versionError } = await supabase
-        .from("versions")
-        .update({
-          payload: data as any,
-          total_geral: data.total,
-        })
-        .eq("id", created.version_id);
-
-      if (versionError) throw versionError;
 
       toast({ title: "Orçamento salvo com sucesso!" });
       navigate(`/budget/${created.id}/pdf`);

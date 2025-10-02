@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/hooks/use-toast'
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
 import * as XLSX from 'xlsx'
 
@@ -204,94 +204,144 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="default" className="gap-2">
+        <Button variant="default" className="gap-2 shadow-sm">
           <Upload className="h-4 w-4" />
-          Importar Excel
+          Importar Excel ou PDF
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Importar Planilha Financeira</DialogTitle>
+          <DialogTitle className="text-2xl">Importar Dados Financeiros</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          <Alert>
-            <FileSpreadsheet className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              <strong>Formato esperado:</strong> Cliente, AP, Descrição, Fornecedor, Valor Fornecedor, Honorário %, Honorário Agência, Total<br/>
-              <strong>Formatos aceitos:</strong> Excel (.xlsx, .xls) ou PDF
+          <Alert className="border-blue-500/50 bg-blue-500/10">
+            <FileSpreadsheet className="h-5 w-5 text-blue-500" />
+            <AlertDescription className="text-sm space-y-2">
+              <div>
+                <strong className="text-foreground">Formato esperado:</strong>
+                <p className="text-muted-foreground mt-1">Cliente, AP, Descrição, Fornecedor, Valor Fornecedor, Honorário %, Honorário Agência, Total</p>
+              </div>
+              <div>
+                <strong className="text-foreground">Formatos aceitos:</strong>
+                <p className="text-muted-foreground mt-1">Excel (.xlsx, .xls) ou PDF</p>
+              </div>
             </AlertDescription>
           </Alert>
 
-          <div>
-            <Label htmlFor="ref-month">Mês de Referência *</Label>
-            <Input
-              id="ref-month"
-              type="month"
-              value={refMonth}
-              onChange={(e) => setRefMonth(e.target.value)}
-              placeholder="2025-01"
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="ref-month" className="text-base">Mês de Referência *</Label>
+              <Input
+                id="ref-month"
+                type="month"
+                value={refMonth}
+                onChange={(e) => setRefMonth(e.target.value)}
+                placeholder="2025-01"
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">Selecione o mês dos dados financeiros</p>
+            </div>
 
-          <div>
-            <Label htmlFor="excel-file">Arquivo (Excel ou PDF) *</Label>
-            <Input
-              id="excel-file"
-              type="file"
-              accept=".xlsx,.xls,.pdf"
-              onChange={handleFileChange}
-              disabled={isProcessing}
-            />
-            {file && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Arquivo selecionado: {file.name}
-              </p>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="excel-file" className="text-base">Arquivo *</Label>
+              <div className="relative">
+                <Input
+                  id="excel-file"
+                  type="file"
+                  accept=".xlsx,.xls,.pdf"
+                  onChange={handleFileChange}
+                  disabled={isProcessing}
+                  className="h-11 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                />
+              </div>
+              {file && (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mt-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span className="font-medium">{file.name}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {importResult && (
-            <Alert variant={importResult.errors.length > 0 ? 'destructive' : 'default'}>
-              {importResult.errors.length > 0 ? (
-                <AlertCircle className="h-4 w-4" />
-              ) : (
-                <CheckCircle className="h-4 w-4" />
-              )}
-              <AlertDescription>
-                <div className="space-y-2">
-                  <p>
-                    <strong>Importados:</strong> {importResult.imported} registros
-                  </p>
-                  {importResult.skipped > 0 && (
-                    <p>
-                      <strong>Ignorados:</strong> {importResult.skipped} registros
-                    </p>
-                  )}
-                  {importResult.errors.length > 0 && (
-                    <div className="mt-2">
-                      <p className="font-semibold">Erros:</p>
-                      <ul className="list-disc pl-5 text-xs mt-1 max-h-32 overflow-y-auto">
-                        {importResult.errors.slice(0, 10).map((err, idx) => (
-                          <li key={idx}>{err}</li>
-                        ))}
-                        {importResult.errors.length > 10 && (
-                          <li>... e mais {importResult.errors.length - 10} erros</li>
-                        )}
-                      </ul>
+            <Alert 
+              variant={importResult.errors.length > 0 ? 'destructive' : 'default'} 
+              className={importResult.errors.length === 0 ? 'border-green-500/50 bg-green-500/10' : ''}
+            >
+              <div className="flex items-start gap-3">
+                {importResult.errors.length > 0 ? (
+                  <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <CheckCircle className="h-5 w-5 mt-0.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                )}
+                <AlertDescription className="flex-1">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-muted-foreground">Importados</p>
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {importResult.imported}
+                        </p>
+                      </div>
+                      {importResult.skipped > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-muted-foreground">Ignorados</p>
+                          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                            {importResult.skipped}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </AlertDescription>
+                    
+                    {importResult.errors.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-sm">Erros encontrados:</p>
+                        <div className="bg-background/50 rounded-md p-3 max-h-40 overflow-y-auto">
+                          <ul className="space-y-1 text-xs">
+                            {importResult.errors.slice(0, 10).map((err, idx) => (
+                              <li key={idx} className="flex items-start gap-2">
+                                <span className="text-destructive font-medium">•</span>
+                                <span className="flex-1">{err}</span>
+                              </li>
+                            ))}
+                            {importResult.errors.length > 10 && (
+                              <li className="text-muted-foreground italic mt-2">
+                                ... e mais {importResult.errors.length - 10} erro(s)
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
+              </div>
             </Alert>
           )}
 
-          <div className="flex justify-end gap-2">
-            <Button onClick={handleClose} variant="outline">
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button onClick={handleClose} variant="outline" size="lg">
               {importResult ? 'Fechar' : 'Cancelar'}
             </Button>
             {!importResult && (
-              <Button onClick={processExcelFile} disabled={isProcessing || !file || !refMonth}>
-                {isProcessing ? 'Processando...' : 'Importar'}
+              <Button 
+                onClick={processExcelFile} 
+                disabled={isProcessing || !file || !refMonth}
+                size="lg"
+                className="min-w-32"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importar Dados
+                  </>
+                )}
               </Button>
             )}
           </div>
