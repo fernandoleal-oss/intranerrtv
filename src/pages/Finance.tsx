@@ -111,10 +111,10 @@ export default function OrcamentoNovo() {
     try {
       const payload = { ...data } // inclui pendente_faturamento no payload
 
-      const { data: created, error } = (await supabase.rpc("create_budget_full_rpc" as any, {
-        p_type_text: data.type,
-        p_payload: payload,
-        p_total: data.total ?? 0,
+      const { data: created, error } = (await supabase.rpc("create_budget_full_rpc", {
+        p_type_text: data.type,      // 'filme' | 'audio' | 'imagem' | 'cc'
+        p_payload: payload,          // jsonb
+        p_total: data.total ?? 0,    // numeric
       })) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
 
       if (error || !created) {

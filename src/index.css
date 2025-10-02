@@ -58,20 +58,18 @@
 .animate-shimmer { animation: shimmer 2s infinite linear }
 
 /* Componentes modernos */
-/* Botões utilitários (compatível sem tokens custom do Tailwind) */
-.btn{
-  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition;
+.btn {
+  @apply inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
 }
-
-/* foco acessível sem depender de ring-ring */
-.btn:focus-visible{
-  @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+.btn-primary { 
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30;
 }
-
-.btn-primary{ @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg; }
-.btn-secondary{ @apply bg-secondary text-secondary-foreground hover:bg-secondary/80; }
-.btn-outline{ @apply border bg-transparent hover:bg-accent hover:text-accent-foreground; }
-
+.btn-secondary { 
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border;
+}
+.btn-ghost { 
+  @apply bg-transparent border border-border text-foreground hover:bg-secondary/50;
+}
 
 .card {
   @apply rounded-3xl border border-border bg-card shadow-xl backdrop-blur-sm;

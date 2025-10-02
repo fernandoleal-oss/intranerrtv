@@ -12,11 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import React from "react";
-if (import.meta.env.DEV) {
-  console.log("[React version]", React.version);
-}
-
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -139,38 +134,32 @@ export default function OrcamentoNovo() {
         pendente_pagamento: !!data.pendente_pagamento,
       };
 
-      // Cria orçamento usando RPC
+      // 1) Cria orçamento
       const { data: createdRes, error: budgetError } = await supabase.rpc(
-        "create_simple_budget" as any,
-        { p_type: normalized.type }
-      ) as { data: any; error: any };
+  "create_simple_budget_rpc",
+  { p_type: normalized.type }
+);
 
       if (budgetError) throw budgetError;
       const created = Array.isArray(createdRes) ? createdRes[0] : createdRes;
-      if (!created?.id) {
-        throw new Error("Falha ao criar orçamento");
+      if (!created?.version_id || !created?.id) {
+        throw new Error("create_simple_budget não retornou { id, version_id }");
       }
 
-      // Atualiza a versão com o payload
-      const { data: versions, error: versionError } = await supabase
-        .from("versions")
-        .select("id")
-        .eq("budget_id", created.id)
-        .order("versao", { ascending: false })
-        .limit(1);
-
-      if (versionError) throw versionError;
-      if (!versions || versions.length === 0) throw new Error("Versão não encontrada");
-
-      const { error: updateError } = await supabase
+      // 2) Atualiza a versão com o payload
+      const { data: upd, error: versionError } = await supabase
         .from("versions")
         .update({
           payload: normalized as any,
+          // ajuste o nome da coluna se necessário: total_geral vs total
           total_geral: normalized.total,
         })
-        .eq("id", versions[0].id);
+        .eq("id", created.version_id)
+        .select("id")
+        .single();
 
-      if (updateError) throw updateError;
+      if (versionError) throw versionError;
+      if (!upd?.id) throw new Error("Falha ao atualizar a versão");
 
       toast({ title: "Orçamento salvo com sucesso!" });
       navigate(`/budget/${created.id}/pdf`);
