@@ -721,6 +721,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_finance_editor: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       budget_status: "rascunho" | "enviado_atendimento" | "aprovado"
