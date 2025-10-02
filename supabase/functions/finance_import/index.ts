@@ -48,15 +48,52 @@ Deno.serve(async (req) => {
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
       rows = jsonData.slice(1).filter(row => row.length > 0 && row.some(cell => cell))
     } else if (file.name.match(/\.pdf$/)) {
-      // For PDF, try basic text extraction
-      const text = await file.text()
+      // For PDF, extract text and parse table structure
+      const arrayBuffer = await file.arrayBuffer()
+      const text = new TextDecoder().decode(arrayBuffer)
+      
+      // Split into lines and look for data rows
       const lines = text.split('\n').filter(line => line.trim())
       
-      for (const line of lines) {
-        if (line.includes('R$') || /\d+%/.test(line)) {
-          const cells = line.split(/\s{2,}|\t/).filter(c => c.trim())
-          if (cells.length >= 6) {
-            rows.push(cells)
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim()
+        
+        // Skip header rows and empty lines
+        if (!line || line.includes('CLIENTE') || line.includes('DESCRIÇÃO') || line.includes('FORNECEDOR')) {
+          continue
+        }
+        
+        // Look for lines with currency values (R$)
+        if (line.includes('R$')) {
+          // Try to extract structured data using regex patterns
+          const currencyPattern = /R\$\s*([\d.,]+)/g
+          const matches = [...line.matchAll(currencyPattern)]
+          
+          if (matches.length >= 1) {
+            // Extract values in order: VALOR_FORNECEDOR, HONORARIO_AGENCIA, TOTAL
+            const values = matches.map(m => m[1].replace(/\./g, '').replace(',', '.'))
+            
+            // Try to extract other fields
+            const parts = line.split(/\s{2,}|\t|R\$/).filter(p => p.trim())
+            
+            if (parts.length >= 2) {
+              const cliente = parts[0]?.trim() || ''
+              const ap = parts[1]?.match(/\d{2}\.\d{3}/) ? parts[1].trim() : ''
+              const descricao = parts[2]?.trim() || ''
+              const fornecedor = parts[3]?.trim() || ''
+              
+              // Build row array
+              rows.push([
+                cliente,
+                ap,
+                descricao,
+                fornecedor,
+                values[0] || '0',
+                '0', // honorario percent
+                values[1] || values[0] || '0',
+                values[2] || values[1] || values[0] || '0'
+              ])
+            }
           }
         }
       }

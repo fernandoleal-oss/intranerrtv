@@ -1,25 +1,26 @@
 // src/pages/Finance.tsx
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Percent,
-  Users,
-  Download,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, Download } from "lucide-react";
 import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
+import { TopClientsCard } from "@/components/finance/TopClientsCard";
+import { TopSuppliersCard } from "@/components/finance/TopSuppliersCard";
+import { MonthlyReportDialog } from "@/components/finance/MonthlyReportDialog";
+import { AnnualTotalsDialog } from "@/components/finance/AnnualTotalsDialog";
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
 
-/* --------------------------- Tipos --------------------------- */
 type ClientSummary = {
   client: string;
+  total: number;
+  count: number;
+};
+
+type SupplierSummary = {
+  supplier: string;
   total: number;
   count: number;
 };
@@ -27,34 +28,37 @@ type ClientSummary = {
 type Event = {
   id: string;
   cliente: string | null;
+  fornecedor: string | null;
   ref_month: string;
   total_cents: number;
+  valor_fornecedor_cents: number;
 };
 
 
 /* ------------------------- Página ------------------------- */
 export default function Finance() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const canEdit = canEditFinance(user?.email);
 
   const [topClients, setTopClients] = useState<ClientSummary[]>([]);
+  const [topSuppliers, setTopSuppliers] = useState<SupplierSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadTopClients();
+    loadData();
   }, []);
 
-  async function loadTopClients() {
+  async function loadData() {
+    setLoading(true);
     try {
       const { data } = await supabase
         .from("finance_events")
-        .select("cliente, total_cents, ref_month")
-        .order("ref_month", { ascending: false })
-        .limit(1000);
+        .select("cliente, fornecedor, total_cents, valor_fornecedor_cents")
+        .order("ref_month", { ascending: false });
 
       if (data) {
-        const grouped = (data as Event[]).reduce((acc, row) => {
+        // Group by clients
+        const clientsGrouped = (data as Event[]).reduce((acc, row) => {
           const client = row.cliente || "Sem cliente";
           if (!acc[client]) acc[client] = { client, total: 0, count: 0 };
           acc[client].total += row.total_cents / 100;
@@ -62,11 +66,24 @@ export default function Finance() {
           return acc;
         }, {} as Record<string, ClientSummary>);
 
-        const sorted = Object.values(grouped).sort((a, b) => b.total - a.total);
-        setTopClients(sorted.slice(0, 10));
+        const clientsSorted = Object.values(clientsGrouped).sort((a, b) => b.total - a.total);
+        setTopClients(clientsSorted);
+
+        // Group by suppliers
+        const suppliersGrouped = (data as Event[]).reduce((acc, row) => {
+          const supplier = row.fornecedor || "Sem fornecedor";
+          if (supplier === "Sem fornecedor") return acc;
+          if (!acc[supplier]) acc[supplier] = { supplier, total: 0, count: 0 };
+          acc[supplier].total += row.valor_fornecedor_cents / 100;
+          acc[supplier].count += 1;
+          return acc;
+        }, {} as Record<string, SupplierSummary>);
+
+        const suppliersSorted = Object.values(suppliersGrouped).sort((a, b) => b.total - a.total);
+        setTopSuppliers(suppliersSorted);
       }
     } catch (e) {
-      console.error("Erro ao carregar clientes:", e);
+      console.error("Erro ao carregar dados:", e);
     } finally {
       setLoading(false);
     }
@@ -79,12 +96,14 @@ export default function Finance() {
         subtitle="Visão geral e análise financeira"
         backTo="/"
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <MonthlyReportDialog />
+            <AnnualTotalsDialog />
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Exportar CSV
             </Button>
-            {canEdit && <ExcelImportDialog onImportComplete={loadTopClients} />}
+            {canEdit && <ExcelImportDialog onImportComplete={loadData} />}
           </div>
         }
       />
@@ -159,57 +178,11 @@ export default function Finance() {
           </Card>
         )}
 
-        {/* Top Clientes */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <CardTitle>Top 10 Clientes</CardTitle>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center text-sm text-muted-foreground py-8">
-                Carregando...
-              </div>
-            ) : topClients.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-8">
-                Nenhum dado financeiro encontrado
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {topClients.map((client, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() =>
-                      navigate(
-                        `/financeiro/cliente/${encodeURIComponent(client.client)}`
-                      )
-                    }
-                    className="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-colors"
-                  >
-                    <div className="text-left">
-                      <div className="font-medium text-sm">{client.client}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {client.count} lançamento{client.count > 1 ? "s" : ""}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-sm">
-                        {new Intl.NumberFormat("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        }).format(client.total)}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Top Cards Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TopClientsCard clients={topClients} loading={loading} />
+          <TopSuppliersCard suppliers={topSuppliers} loading={loading} />
+        </div>
       </div>
     </div>
   );
