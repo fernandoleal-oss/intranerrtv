@@ -37,6 +37,7 @@ interface FormData {
   midias: string
   banco: 'shutterstock' | 'getty' | 'personalizado' | ''
   assets: AssetMetadata[]
+  referenciaImageUrl?: string
 }
 
 interface ImageQuickFormProps {
@@ -58,6 +59,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
   const [linksInput, setLinksInput] = useState('')
   const [assets, setAssets] = useState<AssetMetadata[]>(initialData?.assets || [])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [referenciaImageUrl, setReferenciaImageUrl] = useState(initialData?.referenciaImageUrl || '')
 
   /**
    * Processa múltiplas URLs (separadas por quebra de linha, vírgula, ponto-e-vírgula ou espaço)
@@ -155,6 +157,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     setProduto('')
     setMidias('Visualizar')
     setBanco('')
+    setReferenciaImageUrl('')
   }
 
   const handleSubmit = () => {
@@ -176,7 +179,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     // Se o banco não foi definido, usa 'personalizado' como padrão
     const finalBanco = banco || 'personalizado'
 
-    onSave({ producer, cliente, produto, midias, banco: finalBanco, assets })
+    onSave({ producer, cliente, produto, midias, banco: finalBanco, assets, referenciaImageUrl })
     toast({ title: 'Salvo!', description: `${assets.length} asset(s) adicionado(s) ao orçamento` })
   }
 
@@ -263,6 +266,19 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                   Banco: {banco === 'shutterstock' ? 'Shutterstock' : banco === 'getty' ? 'Getty Images' : 'Personalizado'}
                 </p>
               )}
+            </div>
+            <div>
+              <Label htmlFor="referencia-image">Imagem de Referência (URL)</Label>
+              <Input
+                id="referencia-image"
+                type="url"
+                value={referenciaImageUrl}
+                onChange={(e) => setReferenciaImageUrl(e.target.value)}
+                placeholder="https://exemplo.com/imagem.jpg"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Opcional: URL de uma imagem de referência para o orçamento
+              </p>
             </div>
           </CardContent>
         </Card>

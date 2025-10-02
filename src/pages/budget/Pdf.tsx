@@ -62,6 +62,7 @@ type Payload = {
     recommendedLicense: string;
     chosenLicense: string;
   }>;
+  referenciaImageUrl?: string;
 };
 
 type View = {
@@ -499,6 +500,20 @@ export default function PdfView() {
                   )}
                 </section>
 
+                {/* Imagem de Referência */}
+                {p.referenciaImageUrl && (
+                  <section className="rounded-lg border px-4 py-3 mt-3">
+                    <h2 className="text-sm font-semibold mb-2">Imagem de Referência</h2>
+                    <div className="flex justify-center">
+                      <img 
+                        src={p.referenciaImageUrl} 
+                        alt="Imagem de referência"
+                        className="max-w-full max-h-64 object-contain rounded border"
+                      />
+                    </div>
+                  </section>
+                )}
+
                 {/* Assets (Imagens/Vídeos) - Estilo Shutterstock */}
                 {p.assets && p.assets.length > 0 && (
                   <section className="rounded-lg border px-4 py-3 mt-3">
@@ -579,11 +594,10 @@ export default function PdfView() {
                     </div>
 
                     {/* Notas */}
-                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-[9px] text-slate-600 space-y-0.5">
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-[9px] text-slate-600 space-y-1">
                       <p><strong>Notas:</strong></p>
-                      <p>1. Este orçamento será válido por 30 dias a partir da data de criação.</p>
-                      <p>2. Os preços apresentados estão sujeitos a alterações sem aviso prévio.</p>
-                      <p>3. As licenças são concedidas de acordo com os termos especificados pelo fornecedor.</p>
+                      <p>1. Este orçamento será válido por trinta (30) dias a partir da data de criação. A Shutterstock não pode garantir os termos do orçamento após o fim da validade. Observe que o orçamento não é uma garantia de que o conteúdo continuará disponível para compra.</p>
+                      <p>2. Este orçamento não inclui impostos. Observe que as faturas finais estão sujeitas a IVA e outros impostos.</p>
                     </div>
                   </section>
                 )}
