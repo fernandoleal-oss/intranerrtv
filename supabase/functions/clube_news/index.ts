@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
     return json({ items: items.slice(0, 5) });
   } catch (e) {
     console.error("Clube News Error:", e);
-    return json({ items: [], error: String(e?.message || e) }, 500);
+    const error = e instanceof Error ? e.message : String(e);
+    return json({ items: [], error }, 500);
   }
 });

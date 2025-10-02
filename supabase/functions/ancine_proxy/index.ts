@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
     return json({ error: "Not found" }, 404);
   } catch (e) {
     console.error("ANCINE Proxy Error:", e);
-    return json({ error: String(e?.message || e) }, 500);
+    const error = e instanceof Error ? e.message : String(e);
+    return json({ error }, 500);
   }
 });
