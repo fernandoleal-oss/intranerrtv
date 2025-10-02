@@ -27,10 +27,10 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
-      if (!selectedFile.name.match(/\.(xlsx|xls|pdf)$/)) {
+      if (!selectedFile.name.match(/\.(xlsx|xls)$/)) {
         toast({
           title: 'Arquivo inválido',
-          description: 'Por favor, selecione um arquivo Excel (.xlsx, .xls) ou PDF',
+          description: 'Por favor, selecione apenas arquivos Excel (.xlsx ou .xls). PDFs não são suportados.',
           variant: 'destructive',
         })
         return
@@ -115,7 +115,7 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
       <DialogTrigger asChild>
         <Button variant="default" className="gap-2 shadow-sm">
           <Upload className="h-4 w-4" />
-          Importar Excel ou PDF
+          Importar Excel
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -124,16 +124,18 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
         </DialogHeader>
 
         <div className="space-y-6">
-          <Alert className="border-blue-500/50 bg-blue-500/10">
+            <Alert className="border-blue-500/50 bg-blue-500/10">
             <FileSpreadsheet className="h-5 w-5 text-blue-500" />
             <AlertDescription className="text-sm space-y-2">
               <div>
-                <strong className="text-foreground">Formato esperado:</strong>
-                <p className="text-muted-foreground mt-1">Cliente, AP, Descrição, Fornecedor, Valor Fornecedor, Honorário %, Honorário Agência, Total</p>
+                <strong className="text-foreground">⚠️ Importante: Apenas arquivos Excel são suportados</strong>
+                <p className="text-muted-foreground mt-1">
+                  PDFs não podem ser importados diretamente. Por favor, converta seu PDF para Excel (.xlsx) antes de fazer o upload.
+                </p>
               </div>
               <div>
-                <strong className="text-foreground">Formatos aceitos:</strong>
-                <p className="text-muted-foreground mt-1">Excel (.xlsx, .xls) ou PDF</p>
+                <strong className="text-foreground">Formato esperado (colunas do Excel):</strong>
+                <p className="text-muted-foreground mt-1">Cliente | AP | Descrição | Fornecedor | Valor Fornecedor | Honorário % | Honorário Agência | Total</p>
               </div>
             </AlertDescription>
           </Alert>
@@ -158,7 +160,7 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
                 <Input
                   id="excel-file"
                   type="file"
-                  accept=".xlsx,.xls,.pdf"
+                  accept=".xlsx,.xls"
                   onChange={handleFileChange}
                   disabled={isProcessing}
                   className="h-11 cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
