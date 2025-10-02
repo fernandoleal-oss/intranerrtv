@@ -25,6 +25,7 @@ interface AssetMetadata {
   chosenLicense?: string
   price?: number
   customDescription?: string
+  isManual?: boolean
 }
 
 interface Producer {
@@ -63,6 +64,16 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [referenciaImageUrl, setReferenciaImageUrl] = useState(initialData?.referenciaImageUrl || '')
   const [referenciaImageFile, setReferenciaImageFile] = useState<File | null>(null)
+  const [showManualForm, setShowManualForm] = useState(false)
+  const [manualAsset, setManualAsset] = useState({
+    type: 'image' as 'video' | 'image',
+    id: '',
+    title: '',
+    pageUrl: '',
+    license: 'Licença Padrão',
+    price: 0,
+    description: ''
+  })
 
   /**
    * Processa múltiplas URLs (separadas por quebra de linha, vírgula, ponto-e-vírgula ou espaço)
@@ -188,6 +199,45 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
       const url = URL.createObjectURL(file)
       setReferenciaImageUrl(url)
     }
+  }
+
+  const addManualAsset = () => {
+    if (!manualAsset.title || !manualAsset.pageUrl) {
+      toast({ title: 'Dados incompletos', description: 'Preencha título e URL do asset', variant: 'destructive' })
+      return
+    }
+
+    const licenseOptions = manualAsset.type === 'video' 
+      ? ['Licença de vídeo HD', 'Licença Premier de vídeo em 4K']
+      : ['Licença Padrão', 'Licença Ampliada (recomendada)']
+
+    const newAsset: AssetMetadata = {
+      provider: banco || 'personalizado',
+      type: manualAsset.type,
+      id: manualAsset.id || null,
+      title: manualAsset.title,
+      pageUrl: manualAsset.pageUrl,
+      thumbnail: null,
+      licenseOptions,
+      recommendedLicense: manualAsset.license,
+      chosenLicense: manualAsset.license,
+      price: manualAsset.price,
+      customDescription: manualAsset.description,
+      isManual: true
+    }
+
+    setAssets(prev => [...prev, newAsset])
+    setShowManualForm(false)
+    setManualAsset({
+      type: 'image',
+      id: '',
+      title: '',
+      pageUrl: '',
+      license: 'Licença Padrão',
+      price: 0,
+      description: ''
+    })
+    toast({ title: 'Asset adicionado', description: 'Asset adicionado manualmente com sucesso' })
   }
 
   const handleSubmit = () => {
@@ -368,6 +418,101 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                 Limpar
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Adicionar Asset Manualmente</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!showManualForm ? (
+              <Button onClick={() => setShowManualForm(true)} variant="outline" className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar asset sem link
+              </Button>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label>Tipo</Label>
+                  <Select value={manualAsset.type} onValueChange={(value: 'video' | 'image') => setManualAsset(prev => ({ ...prev, type: value }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="image">Imagem</SelectItem>
+                      <SelectItem value="video">Vídeo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="manual-id">ID do Asset (opcional)</Label>
+                  <Input
+                    id="manual-id"
+                    value={manualAsset.id}
+                    onChange={(e) => setManualAsset(prev => ({ ...prev, id: e.target.value }))}
+                    placeholder="Ex: 1234567"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manual-title">Título *</Label>
+                  <Input
+                    id="manual-title"
+                    value={manualAsset.title}
+                    onChange={(e) => setManualAsset(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Nome ou descrição do asset"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manual-url">URL *</Label>
+                  <Input
+                    id="manual-url"
+                    value={manualAsset.pageUrl}
+                    onChange={(e) => setManualAsset(prev => ({ ...prev, pageUrl: e.target.value }))}
+                    placeholder="https://..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manual-license">Licença</Label>
+                  <Input
+                    id="manual-license"
+                    value={manualAsset.license}
+                    onChange={(e) => setManualAsset(prev => ({ ...prev, license: e.target.value }))}
+                    placeholder="Ex: Licença Padrão"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manual-price">Custo (R$)</Label>
+                  <Input
+                    id="manual-price"
+                    type="number"
+                    step="0.01"
+                    value={manualAsset.price}
+                    onChange={(e) => setManualAsset(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manual-description">Descrição</Label>
+                  <Textarea
+                    id="manual-description"
+                    rows={3}
+                    value={manualAsset.description}
+                    onChange={(e) => setManualAsset(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Descrição detalhada do asset"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={addManualAsset} className="flex-1">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar
+                  </Button>
+                  <Button onClick={() => setShowManualForm(false)} variant="outline">
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
