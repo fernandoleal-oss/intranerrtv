@@ -1,283 +1,189 @@
-import { useState, useEffect } from "react";
-import { HeaderBar } from "@/components/HeaderBar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RefreshCw, Search, ExternalLink, Info } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { fnGet, fnPost } from "../lib/functions";
+import { ArrowLeft, RefreshCw, Search, Loader2, ExternalLink } from "lucide-react";
 
-interface AncineItem {
-  titulo: string;
-  url?: string;
-  numero?: string;
-  status?: string;
-}
+type CaptchaResp = { cookie: string; viewState: string; captchaBase64: string | null };
+type Item = { titulo: string; url?: string };
 
 export default function Ancine() {
-  const { toast } = useToast();
-  const [crt, setCrt] = useState("");
-  const [captchaText, setCaptchaText] = useState("");
-  const [captchaImg, setCaptchaImg] = useState("");
+  const nav = useNavigate();
+  const [crt, setCrt] = useState(localStorage.getItem("ancine_crt_v1") || "");
   const [cookie, setCookie] = useState("");
   const [viewState, setViewState] = useState("");
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaText, setCaptchaText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<AncineItem[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Carregar CRT do localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("ancine_crt_v1");
-    if (saved) setCrt(saved);
-    loadCaptcha();
-  }, []);
-
-  // Salvar CRT no localStorage
-  useEffect(() => {
-    if (crt) localStorage.setItem("ancine_crt_v1", crt);
-  }, [crt]);
-
-  const loadCaptcha = async () => {
+  async function loadCaptcha() {
+    setError(null);
+    setLoading(true);
     try {
-      setLoading(true);
-      const { data, error } = await supabase.functions.invoke("ancine_proxy/captcha", {
-        method: "GET"
-      });
-
-      if (error) throw error;
-
+      const data: CaptchaResp = await fnGet("/ancine_proxy/captcha");
       setCookie(data.cookie || "");
       setViewState(data.viewState || "");
-      setCaptchaImg(data.captchaBase64 || "");
+      setCaptcha(data.captchaBase64 || null);
       setCaptchaText("");
-    } catch (e) {
-      toast({
-        title: "Erro ao carregar captcha",
-        description: String(e?.message || e),
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      setError("Erro ao carregar captcha — verifique se a Edge Function está publicada e a URL/.env estão corretas.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleConsultar = async () => {
-    if (!crt.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Informe o número CRT",
-        variant: "destructive",
-      });
-      return;
-    }
+  async function onSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!crt.trim()) return setError("Informe o CRT.");
+    if (!captchaText.trim()) return setError("Resolva o captcha.");
+    if (!cookie || !viewState) return setError("Sessão inválida. Atualize o captcha e tente novamente.");
 
-    if (!captchaText.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Informe o texto do captcha",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    setLoading(true);
     try {
-      setLoading(true);
-      setItems([]);
-
-      const { data, error } = await supabase.functions.invoke("ancine_proxy/search", {
-        body: {
-          cookie,
-          viewState,
-          crt: crt.trim(),
-          captcha: captchaText.trim(),
-        },
+      const data = await fnPost("/ancine_proxy/search", {
+        cookie, viewState, crt: crt.trim(), captcha: captchaText.trim(),
       });
-
-      if (error) throw error;
-
-      if (data.items && data.items.length > 0) {
-        setItems(data.items);
-        toast({
-          title: "Consulta realizada",
-          description: `${data.items.length} resultado(s) encontrado(s)`,
-        });
-      } else {
-        toast({
-          title: "Nenhum resultado",
-          description: "Não foram encontrados registros para o CRT informado",
-        });
-        await loadCaptcha();
-      }
-    } catch (e) {
-      toast({
-        title: "Erro na consulta",
-        description: String(e?.message || e),
-        variant: "destructive",
-      });
-      await loadCaptcha();
+      const arr: Item[] = data?.items || [];
+      setItems(arr);
+      localStorage.setItem("ancine_crt_v1", crt.trim());
+      if (!arr.length) setError("Nenhum resultado. Tente novamente (o captcha pode estar incorreto).");
+    } catch (e: any) {
+      setError("Falha ao consultar. Tente outro captcha ou recarregue.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleLimpar = () => {
-    setCrt("");
-    setCaptchaText("");
-    setItems([]);
-    loadCaptcha();
-  };
+  useEffect(() => { loadCaptcha(); }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      <HeaderBar title="Consulta ANCINE" subtitle="Obras Publicitárias — Claquetes & Registros" />
+    <main className="min-h-screen bg-white">
+      {/* HeaderBar */}
+      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+          <button onClick={() => nav(-1)} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-neutral-50">
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </button>
+          <h1 className="text-lg font-semibold">Consulta ANCINE — Obras Publicitárias</h1>
+        </div>
+      </div>
 
-      <main className="container-page py-8">
-        <Alert className="mb-6">
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            Consulta oficial via portal da ANCINE. Nenhuma credencial é armazenada. A sessão expira automaticamente.
-            Evite automatizar consultas em volume.
-          </AlertDescription>
-        </Alert>
+      <div className="max-w-7xl mx-auto px-4 py-6 grid lg:grid-cols-2 gap-6">
+        {/* Form */}
+        <div className="rounded-3xl border p-5 shadow-sm">
+          <div className="mb-4">
+            <div className="text-sm text-neutral-600">
+              Os dados são consultados no portal da ANCINE. A sessão é temporária e nenhuma credencial é armazenada.
+            </div>
+          </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Formulário */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Formulário de Consulta</CardTitle>
-              <CardDescription>
-                Informe o número CRT e resolva o captcha para consultar
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="crt">Número CRT</Label>
-                <Input
-                  id="crt"
-                  value={crt}
-                  onChange={(e) => setCrt(e.target.value)}
-                  placeholder="Ex: BR001234567890"
-                  disabled={loading}
-                />
+          {error && (
+            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 px-3 py-2">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={onSearch} className="space-y-4">
+            <div>
+              <label className="text-sm text-neutral-600">CRT</label>
+              <input
+                className="w-full mt-1 rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-neutral-900"
+                placeholder="Informe o CRT"
+                value={crt}
+                onChange={(e) => setCrt(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 items-end">
+              <div>
+                <div className="text-sm text-neutral-600">Captcha</div>
+                <div className="mt-1 h-[84px] rounded-xl border flex items-center justify-center overflow-hidden bg-neutral-50">
+                  {captcha ? (
+                    <img src={captcha} alt="captcha" className="object-contain max-h-full" />
+                  ) : (
+                    <div className="text-sm text-neutral-500">Sem imagem</div>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Captcha</Label>
-                {captchaImg ? (
-                  <div className="flex flex-col gap-2">
-                    <img
-                      src={captchaImg}
-                      alt="Captcha ANCINE"
-                      className="border rounded-lg max-w-xs"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadCaptcha}
-                      disabled={loading}
-                      className="gap-2 w-fit"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                      Atualizar captcha
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Carregando captcha...</div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="captcha-text">Texto do Captcha</Label>
-                <Input
-                  id="captcha-text"
+              <div>
+                <label className="text-sm text-neutral-600">Digite o captcha</label>
+                <input
+                  className="w-full mt-1 rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-neutral-900"
                   value={captchaText}
                   onChange={(e) => setCaptchaText(e.target.value)}
-                  placeholder="Digite o código da imagem"
-                  disabled={loading}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !loading) handleConsultar();
-                  }}
                 />
               </div>
+            </div>
 
-              <div className="flex gap-2 pt-4">
-                <Button
-                  onClick={handleConsultar}
-                  disabled={loading}
-                  className="gap-2 flex-1"
-                >
-                  <Search className="w-4 h-4" />
-                  Consultar
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleLimpar}
-                  disabled={loading}
-                >
-                  Limpar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={loadCaptcha}
+                className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-neutral-50"
+                disabled={loading}
+                aria-label="Atualizar captcha"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Atualizar captcha
+              </button>
 
-          {/* Resultados */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Resultados</CardTitle>
-              <CardDescription>
-                {items.length > 0
-                  ? `${items.length} registro(s) encontrado(s)`
-                  : "Nenhuma consulta realizada"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {items.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p className="mb-4">Preencha o formulário e clique em Consultar</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open("https://sad2.ancine.gov.br/obraspublicitarias/consultaGeralViaPortal/consultaGeralViaPortal.seam", "_blank")}
-                    className="gap-2"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Abrir portal da ANCINE
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {items.map((item, idx) => (
-                    <Card key={idx} className="border-l-4 border-l-primary">
-                      <CardContent className="pt-4 space-y-2">
-                        <p className="font-medium">{item.titulo}</p>
-                        {item.numero && (
-                          <p className="text-sm text-muted-foreground">CRT: {item.numero}</p>
-                        )}
-                        {item.status && (
-                          <span className="inline-block text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
-                            {item.status}
-                          </span>
-                        )}
-                        {item.url && (
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="gap-2 p-0 h-auto"
-                            onClick={() => window.open(item.url, "_blank")}
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            Abrir no site
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-800 disabled:opacity-60"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Consultar
+              </button>
+
+              <a
+                href="https://sad2.ancine.gov.br/obraspublicitarias/consultaGeralViaPortal/consultaGeralViaPortal.seam"
+                target="_blank"
+                className="ml-auto inline-flex items-center gap-2 rounded-xl border px-3 py-2 hover:bg-neutral-50"
+                rel="noreferrer"
+              >
+                Abrir portal <ExternalLink className="h-4 w-4" />
+              </a>
+            </div>
+          </form>
         </div>
-      </main>
-    </div>
+
+        {/* Resultados */}
+        <div className="rounded-3xl border p-5 shadow-sm">
+          <div className="mb-3 font-medium">Resultados</div>
+          {items.length === 0 ? (
+            <div className="text-sm text-neutral-500">
+              Sem resultados no momento. Preencha o CRT, resolva o captcha e clique em Consultar.
+            </div>
+          ) : (
+            <div className="max-h-[520px] overflow-auto border rounded-xl">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="[&>th]:text-left [&>th]:py-2 [&>th]:px-3 text-neutral-500">
+                    <th>Título</th>
+                    <th className="w-28">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it, idx) => (
+                    <tr key={idx} className="border-t hover:bg-neutral-50">
+                      <td className="py-2 px-3">{it.titulo}</td>
+                      <td className="py-2 px-3">
+                        {it.url ? (
+                          <a className="inline-flex items-center gap-1 text-neutral-800 hover:underline" href={it.url} target="_blank" rel="noreferrer">
+                            Abrir <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : <span className="text-neutral-400">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
