@@ -291,9 +291,7 @@ export default function BudgetEdit() {
               budgetId={data.id}
               versionId={data.version_id}
               budgetType={data.type as any}
-              // Dica: no BudgetForm, use essas infos para hidratar o formulário e não perder foco.
-              // initialPayload={data.payload}
-              // onSaved={() => fetchBudget(true)}
+              initialPayload={data.payload}
             />
           </motion.div>
         </div>

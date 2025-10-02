@@ -16,6 +16,7 @@ interface BudgetFormProps {
   budgetId?: string
   versionId?: string
   budgetType: 'filme' | 'audio' | 'imagem' | 'cc'
+  initialPayload?: Record<string, any>
 }
 
 const midiaOptions = [
@@ -61,11 +62,20 @@ const adaptacoesOptions = [
 export const BudgetForm = memo(function BudgetForm({ 
   budgetId, 
   versionId, 
-  budgetType 
+  budgetType,
+  initialPayload
 }: BudgetFormProps) {
   const { state, dispatch, setFormField, calculateTotals } = useBudget()
   const { form } = state
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (initialPayload && Object.keys(initialPayload).length > 0) {
+      Object.entries(initialPayload).forEach(([key, value]) => {
+        setFormField(key, value)
+      })
+    }
+  }, [initialPayload, setFormField])
 
   // Função de salvamento manual
   const handleManualSave = useCallback(async () => {

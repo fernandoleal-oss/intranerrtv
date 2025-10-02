@@ -3,7 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, ArrowLeft, Home, Printer } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { AlertTriangle, ArrowLeft, Home, Printer, Info } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 type Quote = {
   id: string
@@ -59,12 +63,14 @@ const BRL = (n: number | undefined) =>
 export default function PdfView() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [view, setView] = useState<View | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [logoOk, setLogoOk] = useState<boolean | null>(null)
+  const [currentStatus, setCurrentStatus] = useState<string>('rascunho')
+  const [versions, setVersions] = useState<Array<{ id: string; versao: number; created_at: string }>>([])
 
-  // ref do conteúdo que será impresso (para caber em 1 página)
   const printRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,29 +78,29 @@ export default function PdfView() {
       setLoading(true)
       setError(null)
       try {
-        // pega a última versão desse orçamento
         const { data, error } = await supabase
           .from('versions')
           .select(`
-            id, payload, created_at, budget_id,
+            id, payload, created_at, versao, budget_id,
             budgets!inner(id, display_id, type, status, created_at)
           `)
           .eq('budget_id', id)
           .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
 
-        if (error || !data) throw error || new Error('Orçamento não encontrado')
+        if (error || !data || data.length === 0) throw error || new Error('Orçamento não encontrado')
 
-        const payload: Payload = (data.payload as Payload) || {}
+        const latest = data[0]
+        const payload: Payload = (latest.payload as Payload) || {}
         setView({
-          budgetId: data.budgets.id,
-          displayId: data.budgets.display_id,
-          type: data.budgets.type,
-          status: data.budgets.status,
-          createdAt: data.budgets.created_at,
+          budgetId: latest.budgets.id,
+          displayId: latest.budgets.display_id,
+          type: latest.budgets.type,
+          status: latest.budgets.status,
+          createdAt: latest.budgets.created_at,
           payload,
         })
+        setCurrentStatus(latest.budgets.status || 'rascunho')
+        setVersions(data.map(v => ({ id: v.id, versao: v.versao, created_at: v.created_at })))
       } catch (e: any) {
         console.error(e)
         setError(e?.message || 'Erro ao carregar orçamento.')
@@ -104,6 +110,49 @@ export default function PdfView() {
     }
     run()
   }, [id])
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!view) return
+    try {
+      const { error } = await supabase
+        .from('budgets')
+        .update({ status: newStatus })
+        .eq('id', view.budgetId)
+      
+      if (error) throw error
+      setCurrentStatus(newStatus)
+      toast({ title: 'Status atualizado', description: `Status alterado para ${newStatus.toUpperCase()}` })
+    } catch (e: any) {
+      toast({ title: 'Erro ao atualizar', description: e?.message, variant: 'destructive' })
+    }
+  }
+
+  const handlePrint = async () => {
+    if (!view) return
+    try {
+      let finalStatus = currentStatus
+      if (!finalStatus || finalStatus === 'rascunho') {
+        finalStatus = 'orçado'
+        await handleStatusChange(finalStatus)
+      }
+
+      const nextVersion = versions.length > 0 ? Math.max(...versions.map(v => v.versao)) + 1 : 1
+      const { error } = await supabase
+        .from('versions')
+        .insert({
+          budget_id: view.budgetId,
+          versao: nextVersion,
+          payload: view.payload,
+        })
+
+      if (error) throw error
+      
+      toast({ title: 'Versão criada', description: `Versão ${nextVersion} salva antes da impressão` })
+      setTimeout(() => window.print(), 500)
+    } catch (e: any) {
+      toast({ title: 'Erro ao criar versão', description: e?.message, variant: 'destructive' })
+    }
+  }
 
   // ----- cálculos -----
   const p = view?.payload || {}
@@ -130,6 +179,16 @@ export default function PdfView() {
   )
 
   const isAudio = (view?.type || '').toLowerCase() === 'audio'
+
+  const getWatermarkText = () => {
+    const s = currentStatus.toLowerCase()
+    if (s === 'rascunho' || s === 'orçado') return 'PRÉVIA — NÃO DISTRIBUIR'
+    if (s === 'enviado') return 'EM APROVAÇÃO'
+    if (s === 'reprovado') return 'REPROVADO'
+    return null
+  }
+
+  const watermarkText = getWatermarkText()
 
   // ----- fit-to-one-page (ajusta escala antes/depois da impressão) -----
   useEffect(() => {
@@ -197,7 +256,6 @@ export default function PdfView() {
 
   return (
     <div className="min-h-screen bg-white print:bg-white">
-      {/* Barra de ações (não imprime) */}
       <div className="sticky top-0 z-10 bg-white border-b p-3 flex items-center gap-2 print:hidden">
         <Button variant="ghost" onClick={() => navigate(-1)}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
@@ -205,24 +263,61 @@ export default function PdfView() {
         <Button variant="outline" onClick={() => navigate('/')}>
           <Home className="w-4 h-4 mr-2" /> Início
         </Button>
+        
+        <div className="ml-4 flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Status:</span>
+          <Select value={currentStatus} onValueChange={handleStatusChange}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="rascunho">RASCUNHO</SelectItem>
+              <SelectItem value="orçado">ORÇADO</SelectItem>
+              <SelectItem value="enviado">ENVIADO</SelectItem>
+              <SelectItem value="aprovado">APROVADO</SelectItem>
+              <SelectItem value="reprovado">REPROVADO</SelectItem>
+              <SelectItem value="pendente_faturamento">PENDENTE FATURAMENTO</SelectItem>
+              <SelectItem value="arquivado">ARQUIVADO</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="ml-auto text-sm text-muted-foreground">
-          {view.displayId} • {String(view.type).toUpperCase()} • {view.status}
+          {view.displayId} • {String(view.type).toUpperCase()}
         </div>
         {logoOk === false && <span className="ml-3 text-xs text-amber-600">Logo não encontrado</span>}
         {logoOk === true && <span className="ml-3 text-xs text-emerald-600">Logo ok</span>}
-        <Button className="ml-3" onClick={() => window.print()}>
+        <Button className="ml-3" onClick={handlePrint}>
           <Printer className="w-4 h-4 mr-2" /> Imprimir / PDF
         </Button>
       </div>
 
-      {/* CONTEÚDO IMPRESSO */}
+      {watermarkText && (
+        <Alert className="m-4 print:hidden">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Este orçamento será impresso com a marca d'água: <strong>{watermarkText}</strong>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="px-6 py-6 print:px-0 print:py-0 flex justify-center">
         <div
           ref={printRef}
           id="print-root"
-          className="w-full max-w-5xl print:w-[190mm]"
+          className="w-full max-w-5xl print:w-[190mm] relative"
           style={{ transformOrigin: 'top left' }}
         >
+          {watermarkText && (
+            <div className="hidden print:block fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+              <div 
+                className="text-8xl font-black opacity-10 transform -rotate-45 select-none"
+                style={{ color: currentStatus === 'reprovado' ? '#ef4444' : '#f59e0b' }}
+              >
+                {watermarkText}
+              </div>
+            </div>
+          )}
           <div id="page-body" className="flex flex-col">
             {/* Cabeçalho preto + dados da WE */}
             <div className="rounded-xl overflow-hidden border print:rounded-none print:border-0">
@@ -408,17 +503,39 @@ export default function PdfView() {
               </div>
             </div>
 
-            {/* RODAPÉ (fixo na base da página) */}
-            <footer className="mt-4 border-t pt-2 text-[10px] text-neutral-600 flex flex-wrap items-center justify-between">
-              <div className="font-medium">
-                WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
+            <footer className="mt-4 border-t pt-2 text-[10px] text-neutral-600">
+              <div className="flex flex-wrap items-center justify-between mb-2">
+                <div className="font-medium">
+                  WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
+                </div>
+                <div className="opacity-90">
+                  Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
+                </div>
+                <div className="opacity-90">
+                  Orçamento #{view.displayId} • {new Date(view.createdAt).toLocaleDateString('pt-BR')} • Validade 7 dias • Confidencial
+                </div>
               </div>
-              <div className="opacity-90">
-                Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030
-              </div>
-              <div className="opacity-90">
-                Orçamento #{view.displayId} • {new Date(view.createdAt).toLocaleDateString('pt-BR')} • Validade 7 dias • Confidencial
-              </div>
+              
+              {versions.length > 1 && (
+                <div className="mt-2 pt-2 border-t">
+                  <div className="text-[9px] text-neutral-500 mb-1">Histórico de Versões</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {versions.slice(0, 5).map((v, idx) => (
+                      <div key={v.id} className="flex items-center gap-1">
+                        <Badge variant={idx === 0 ? "default" : "outline"} className="text-[8px] px-1.5 py-0.5">
+                          v{v.versao}
+                        </Badge>
+                        {idx < Math.min(versions.length - 1, 4) && (
+                          <span className="text-neutral-400">→</span>
+                        )}
+                      </div>
+                    ))}
+                    {versions.length > 5 && (
+                      <span className="text-[8px] text-neutral-400">+{versions.length - 5} mais</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </footer>
           </div>
         </div>
