@@ -517,6 +517,113 @@ export type Database = {
         }
         Relationships: []
       }
+      rights: {
+        Row: {
+          client: string
+          contract_signed_cast: string | null
+          contract_signed_production: string | null
+          created_at: string
+          expire_date: string | null
+          first_air: string | null
+          id: string
+          link_drive: string | null
+          link_film: string | null
+          notified_15d: boolean
+          notified_30d: boolean
+          notified_expired: boolean
+          product: string
+          renewal_contract_url: string | null
+          renewal_signed_at: string | null
+          renewal_validity_months: number | null
+          renewed: boolean
+          status_label: string | null
+          title: string
+          updated_at: string
+          validity_months: number | null
+        }
+        Insert: {
+          client: string
+          contract_signed_cast?: string | null
+          contract_signed_production?: string | null
+          created_at?: string
+          expire_date?: string | null
+          first_air?: string | null
+          id?: string
+          link_drive?: string | null
+          link_film?: string | null
+          notified_15d?: boolean
+          notified_30d?: boolean
+          notified_expired?: boolean
+          product: string
+          renewal_contract_url?: string | null
+          renewal_signed_at?: string | null
+          renewal_validity_months?: number | null
+          renewed?: boolean
+          status_label?: string | null
+          title: string
+          updated_at?: string
+          validity_months?: number | null
+        }
+        Update: {
+          client?: string
+          contract_signed_cast?: string | null
+          contract_signed_production?: string | null
+          created_at?: string
+          expire_date?: string | null
+          first_air?: string | null
+          id?: string
+          link_drive?: string | null
+          link_film?: string | null
+          notified_15d?: boolean
+          notified_30d?: boolean
+          notified_expired?: boolean
+          product?: string
+          renewal_contract_url?: string | null
+          renewal_signed_at?: string | null
+          renewal_validity_months?: number | null
+          renewed?: boolean
+          status_label?: string | null
+          title?: string
+          updated_at?: string
+          validity_months?: number | null
+        }
+        Relationships: []
+      }
+      rights_history: {
+        Row: {
+          action: string
+          changed_by: string | null
+          created_at: string
+          id: number
+          right_id: string
+          snapshot: Json
+        }
+        Insert: {
+          action: string
+          changed_by?: string | null
+          created_at?: string
+          id?: number
+          right_id: string
+          snapshot: Json
+        }
+        Update: {
+          action?: string
+          changed_by?: string | null
+          created_at?: string
+          id?: number
+          right_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rights_history_right_id_fkey"
+            columns: ["right_id"]
+            isOneToOne: false
+            referencedRelation: "rights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       versions: {
         Row: {
           budget_id: string | null
@@ -576,6 +683,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_budget_full_rpc: {
+        Args: { p_payload: Json; p_total: number; p_type_text: string }
+        Returns: {
+          display_id: string
+          id: string
+          version_id: string
+        }[]
+      }
       create_budget_with_version: {
         Args:
           | {
@@ -585,9 +700,19 @@ export type Database = {
           | { p_tipo: string }
         Returns: Json
       }
-      create_simple_budget: {
-        Args: { p_type: Database["public"]["Enums"]["budget_type"] }
-        Returns: Json
+      get_budget_view_rpc: {
+        Args: { p_budget_id: string }
+        Returns: {
+          budget_id: string
+          created_at: string
+          display_id: string
+          payload: Json
+          status: string
+          total_geral: number
+          type: string
+          versao: number
+          version_id: string
+        }[]
       }
       has_role: {
         Args: {
