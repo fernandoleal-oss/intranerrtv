@@ -23,6 +23,14 @@ type Quote = {
   qtd?: number;
 };
 
+type QuoteAudio = {
+  id: string;
+  produtora: string;
+  descricao: string;
+  valor: number;
+  desconto?: number;
+};
+
 type Payload = {
   // identificação
   cliente?: string;
@@ -33,14 +41,14 @@ type Payload = {
   periodo?: string;
 
   // complementares
-  entregaveis?: string[] | string;
-  formatos?: string[] | string;
-  data_orcamento?: string;
+  entregaveis?: string;
+  adaptacoes?: string;
   exclusividade_elenco?: string;
-  audio_descr?: string;
+  inclui_audio?: boolean;
 
   // financeiro
   quotes_film?: Quote[];
+  quotes_audio?: QuoteAudio[];
   honorario_perc?: number;
   total?: number;
 
@@ -178,16 +186,25 @@ export default function PdfView() {
   // ----- cálculos -----
   const p = view?.payload || {};
   const linhas: Quote[] = useMemo(() => p.quotes_film ?? [], [p.quotes_film]);
+  const linhasAudio: QuoteAudio[] = useMemo(() => p.quotes_audio ?? [], [p.quotes_audio]);
 
-  const subtotal = useMemo(() => {
+  const subtotalFilm = useMemo(() => {
     return linhas.reduce((s, q) => {
-      const qty = Number(q.quantidade ?? q.qtd ?? 1);
       const unit = Number(q.valor || 0);
       const desc = Number(q.desconto || 0);
-      return s + (unit * qty - desc);
+      return s + (unit - desc);
     }, 0);
   }, [linhas]);
 
+  const subtotalAudio = useMemo(() => {
+    return linhasAudio.reduce((s, q) => {
+      const unit = Number(q.valor || 0);
+      const desc = Number(q.desconto || 0);
+      return s + (unit - desc);
+    }, 0);
+  }, [linhasAudio]);
+
+  const subtotal = subtotalFilm + subtotalAudio;
   const honorario = useMemo(() => subtotal * ((p.honorario_perc || 0) / 100), [subtotal, p.honorario_perc]);
 
   const totalGeral = useMemo(
@@ -196,6 +213,26 @@ export default function PdfView() {
   );
 
   const isAudio = (view?.type || "").toLowerCase() === "audio";
+  const isFilme = (view?.type || "").toLowerCase() === "filme";
+
+  // Encontrar as mais baratas
+  const cheapestFilm = useMemo(() => {
+    if (linhas.length === 0) return null;
+    return linhas.reduce((prev, curr) => {
+      const prevVal = prev.valor - (prev.desconto || 0);
+      const currVal = curr.valor - (curr.desconto || 0);
+      return currVal < prevVal ? curr : prev;
+    });
+  }, [linhas]);
+
+  const cheapestAudio = useMemo(() => {
+    if (linhasAudio.length === 0) return null;
+    return linhasAudio.reduce((prev, curr) => {
+      const prevVal = prev.valor - (prev.desconto || 0);
+      const currVal = curr.valor - (curr.desconto || 0);
+      return currVal < prevVal ? curr : prev;
+    });
+  }, [linhasAudio]);
 
   // Badge do status para exibir
   const getStatusBadge = () => {
@@ -423,14 +460,177 @@ export default function PdfView() {
                   )}
                 </section>
 
-                {/* Cotações */}
-                <section className="rounded-lg border px-4 py-3 mt-3">
-                  <h2 className="text-sm font-semibold mb-2">Cotações</h2>
+                {/* Entregáveis/Adaptações/Exclusividade - Filme */}
+                {isFilme && (
+                  <section className="rounded-lg border px-4 py-3 mt-3">
+                    <h2 className="text-sm font-semibold mb-2">Detalhes do Projeto</h2>
+                    <div className="grid grid-cols-3 gap-3 text-[11px]">
+                      {p.entregaveis && (
+                        <div className="border rounded-md p-2 bg-slate-50">
+                          <div className="text-neutral-500 font-medium mb-1">Entregáveis</div>
+                          <div>{p.entregaveis}</div>
+                        </div>
+                      )}
+                      {p.adaptacoes && (
+                        <div className="border rounded-md p-2 bg-slate-50">
+                          <div className="text-neutral-500 font-medium mb-1">Adaptações</div>
+                          <div>{p.adaptacoes}</div>
+                        </div>
+                      )}
+                      {p.exclusividade_elenco && (
+                        <div className="border rounded-md p-2 bg-slate-50">
+                          <div className="text-neutral-500 font-medium mb-1">Exclusividade de Elenco</div>
+                          <div className="capitalize">
+                            {p.exclusividade_elenco === "orcado" ? "Orçado" : 
+                             p.exclusividade_elenco === "nao_orcado" ? "Não Orçado" : "Não se Aplica"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
 
-                  {linhas.length === 0 ? (
-                    <div className="text-xs text-neutral-600">Nenhuma cotação informada.</div>
-                  ) : isAudio ? (
-                    // ÁUDIO
+                {/* Cotações de FILME - Comparativo lado a lado */}
+                {isFilme && linhas.length > 0 && (
+                  <section className="rounded-lg border px-4 py-3 mt-3">
+                    <h2 className="text-sm font-semibold mb-3">Comparativo de Produtoras - Filme</h2>
+                    
+                    <div className="space-y-2">
+                      {linhas.map((q) => {
+                        const valorLiquido = q.valor - (q.desconto || 0);
+                        const isCheapest = cheapestFilm?.id === q.id && linhas.length > 1;
+                        
+                        return (
+                          <div 
+                            key={q.id} 
+                            className={`border rounded-lg p-3 ${isCheapest ? 'bg-green-50 border-green-400 border-2' : 'bg-white'}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-bold text-sm">{q.produtora}</span>
+                                  {isCheapest && (
+                                    <Badge className="bg-green-600 text-white text-[10px] px-2 py-0">
+                                      MAIS ECONÔMICA
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-neutral-600 space-y-0.5">
+                                  <div><span className="font-medium">Escopo:</span> {q.escopo}</div>
+                                  {q.diretor && <div><span className="font-medium">Diretor:</span> {q.diretor}</div>}
+                                  {q.tratamento && <div><span className="font-medium">Tratamento:</span> {q.tratamento}</div>}
+                                </div>
+                              </div>
+                              <div className="text-right ml-4">
+                                <div className="text-xl font-bold text-green-700">{BRL(valorLiquido)}</div>
+                                {q.desconto > 0 && (
+                                  <div className="text-[10px] text-neutral-500">
+                                    <span className="line-through">{BRL(q.valor)}</span> (-{BRL(q.desconto)})
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {cheapestFilm && linhas.length > 1 && (
+                      <div className="mt-3 p-3 bg-green-100 border border-green-400 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-green-800">Melhor Opção - Filme:</span>
+                          <span className="text-lg font-bold text-green-700">
+                            {BRL(cheapestFilm.valor - (cheapestFilm.desconto || 0))}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Cotações de ÁUDIO - Comparativo lado a lado */}
+                {isFilme && p.inclui_audio && linhasAudio.length > 0 && (
+                  <section className="rounded-lg border border-blue-300 px-4 py-3 mt-3 bg-blue-50/30">
+                    <h2 className="text-sm font-semibold mb-3 text-blue-800">Comparativo de Produtoras - Áudio</h2>
+                    
+                    <div className="space-y-2">
+                      {linhasAudio.map((q) => {
+                        const valorLiquido = q.valor - (q.desconto || 0);
+                        const isCheapest = cheapestAudio?.id === q.id && linhasAudio.length > 1;
+                        
+                        return (
+                          <div 
+                            key={q.id} 
+                            className={`border rounded-lg p-3 ${isCheapest ? 'bg-blue-100 border-blue-500 border-2' : 'bg-white'}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-bold text-sm">{q.produtora}</span>
+                                  {isCheapest && (
+                                    <Badge className="bg-blue-600 text-white text-[10px] px-2 py-0">
+                                      MAIS ECONÔMICA
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-neutral-600">
+                                  <span className="font-medium">Descrição:</span> {q.descricao}
+                                </div>
+                              </div>
+                              <div className="text-right ml-4">
+                                <div className="text-xl font-bold text-blue-700">{BRL(valorLiquido)}</div>
+                                {q.desconto > 0 && (
+                                  <div className="text-[10px] text-neutral-500">
+                                    <span className="line-through">{BRL(q.valor)}</span> (-{BRL(q.desconto)})
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {cheapestAudio && linhasAudio.length > 1 && (
+                      <div className="mt-3 p-3 bg-blue-100 border border-blue-400 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-blue-800">Melhor Opção - Áudio:</span>
+                          <span className="text-lg font-bold text-blue-700">
+                            {BRL(cheapestAudio.valor - (cheapestAudio.desconto || 0))}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Total Combinado - Filme + Áudio */}
+                {isFilme && p.inclui_audio && cheapestFilm && cheapestAudio && (
+                  <section className="rounded-lg border-2 border-amber-400 px-4 py-3 mt-3 bg-amber-50">
+                    <h2 className="text-sm font-semibold mb-2 text-amber-900">Melhor Combinação Total</h2>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Filme ({cheapestFilm.produtora}):</span>
+                        <span className="font-medium">{BRL(cheapestFilm.valor - (cheapestFilm.desconto || 0))}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Áudio ({cheapestAudio.produtora}):</span>
+                        <span className="font-medium">{BRL(cheapestAudio.valor - (cheapestAudio.desconto || 0))}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t-2 border-amber-300 font-bold text-base">
+                        <span className="text-amber-900">TOTAL PRODUÇÃO:</span>
+                        <span className="text-amber-700">
+                          {BRL((cheapestFilm.valor - (cheapestFilm.desconto || 0)) + (cheapestAudio.valor - (cheapestAudio.desconto || 0)))}
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Cotações Áudio - quando tipo é áudio */}
+                {isAudio && linhas.length > 0 && (
+                  <section className="rounded-lg border px-4 py-3 mt-3">
+                    <h2 className="text-sm font-semibold mb-2">Cotações de Áudio</h2>
                     <div className="w-full border rounded-md overflow-hidden">
                       <div className="grid grid-cols-12 bg-neutral-100 text-[12px] font-medium px-3 py-2">
                         <div className="col-span-2">Produtora</div>
@@ -457,50 +657,32 @@ export default function PdfView() {
                         );
                       })}
                     </div>
-                  ) : (
-                    // OUTROS TIPOS
+                  </section>
+                )}
+
+                {/* Cotações Outros tipos */}
+                {!isFilme && !isAudio && linhas.length > 0 && (
+                  <section className="rounded-lg border px-4 py-3 mt-3">
+                    <h2 className="text-sm font-semibold mb-2">Cotações</h2>
                     <div className="w-full border rounded-md overflow-hidden">
                       <div className="grid grid-cols-12 bg-neutral-100 text-[12px] font-medium px-3 py-2">
-                        <div className="col-span-2">Produtora</div>
+                        <div className="col-span-3">Produtora</div>
                         <div className="col-span-6">Escopo</div>
-                        <div className="col-span-2">Diretor</div>
-                        <div className="col-span-1">Trat.</div>
-                        <div className="col-span-1 text-right">Valor</div>
+                        <div className="col-span-3 text-right">Valor</div>
                       </div>
-                      {linhas.map((q) => (
-                        <div key={q.id} className="grid grid-cols-12 px-3 py-2 text-[12px] border-t leading-snug">
-                          <div className="col-span-2 break-words">{fmt(q.produtora)}</div>
-                          <div className="col-span-6 whitespace-pre-wrap break-words">{fmt(q.escopo)}</div>
-                          <div className="col-span-2 break-words">{fmt(q.diretor)}</div>
-                          <div className="col-span-1 break-words">{fmt(q.tratamento)}</div>
-                          <div className="col-span-1 text-right">{BRL(Number(q.valor) || 0)}</div>
-                        </div>
-                      ))}
+                      {linhas.map((q) => {
+                        const valorFinal = q.valor - (q.desconto || 0);
+                        return (
+                          <div key={q.id} className="grid grid-cols-12 px-3 py-2 text-[12px] border-t leading-snug">
+                            <div className="col-span-3 break-words">{fmt(q.produtora)}</div>
+                            <div className="col-span-6 whitespace-pre-wrap break-words">{fmt(q.escopo)}</div>
+                            <div className="col-span-3 text-right font-medium">{BRL(valorFinal)}</div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-
-                  {/* Complementares – ocultos em ÁUDIO e IMAGEM para não poluir */}
-                  {!['audio', 'imagem'].includes(String(view.type).toLowerCase()) && (
-                    <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
-                      <div className="border rounded-md p-2">
-                        <div className="text-neutral-500">Entregáveis</div>
-                        <div className="font-medium">
-                          {Array.isArray(p.entregaveis) ? p.entregaveis.join(", ") : fmt(p.entregaveis)}
-                        </div>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <div className="text-neutral-500">Adaptações</div>
-                        <div className="font-medium">
-                          {Array.isArray(p.formatos) ? p.formatos.join(", ") : fmt(p.formatos)}
-                        </div>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <div className="text-neutral-500">Exclusividade</div>
-                        <div className="font-medium">{fmt(p.exclusividade_elenco)}</div>
-                      </div>
-                    </div>
-                  )}
-                </section>
+                  </section>
+                )}
 
                 {/* Imagem de Referência */}
                 {p.referenciaImageUrl && (

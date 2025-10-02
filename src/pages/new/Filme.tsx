@@ -9,14 +9,25 @@ import { useToast } from "@/hooks/use-toast";
 import { FormInput } from "@/components/FormInput";
 import { FormTextarea } from "@/components/FormTextarea";
 import { motion, AnimatePresence } from "framer-motion";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface QuoteFilm {
   id: string;
   produtora: string;
   escopo: string;
   valor: number;
-  diretor: string;
-  tratamento: string;
+  diretor?: string;
+  tratamento?: string;
+  desconto: number;
+}
+
+interface QuoteAudio {
+  id: string;
+  produtora: string;
+  descricao: string;
+  valor: number;
   desconto: number;
 }
 
@@ -30,12 +41,12 @@ interface BudgetData {
   midias?: string;
   territorio?: string;
   periodo?: string;
-  entregaveis?: string[];
-  formatos?: string[];
-  data_orcamento?: string;
-  exclusividade_elenco?: string;
-  audio_descr?: string;
+  entregaveis?: string;
+  adaptacoes?: string;
+  exclusividade_elenco?: "orcado" | "nao_orcado" | "nao_aplica";
+  inclui_audio?: boolean;
   quotes_film?: QuoteFilm[];
+  quotes_audio?: QuoteAudio[];
   honorario_perc?: number;
   observacoes?: string;
   total: number;
@@ -60,10 +71,11 @@ export default function FilmeBudget() {
   const [data, setData] = useState<BudgetData>({
     type: "filme",
     quotes_film: [],
+    quotes_audio: [],
     honorario_perc: 0,
     total: 0,
-    entregaveis: [],
-    formatos: [],
+    inclui_audio: false,
+    exclusividade_elenco: "nao_aplica",
   });
 
   const updateData = useCallback((updates: Partial<BudgetData>) => {
@@ -73,10 +85,14 @@ export default function FilmeBudget() {
   // Recalcular totais
   useEffect(() => {
     const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
-    const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100);
-    const total = filmSubtotal + honorario;
+    const audioSubtotal = data.inclui_audio 
+      ? (data.quotes_audio || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0)
+      : 0;
+    const subtotalGeral = filmSubtotal + audioSubtotal;
+    const honorario = subtotalGeral * ((data.honorario_perc || 0) / 100);
+    const total = subtotalGeral + honorario;
     setData((prev) => ({ ...prev, total }));
-  }, [data.quotes_film, data.honorario_perc]);
+  }, [data.quotes_film, data.quotes_audio, data.honorario_perc, data.inclui_audio]);
 
   const addQuote = () => {
     const newQuote: QuoteFilm = {
@@ -98,6 +114,26 @@ export default function FilmeBudget() {
 
   const removeQuote = (id: string) => {
     updateData({ quotes_film: (data.quotes_film || []).filter((q) => q.id !== id) });
+  };
+
+  const addAudioQuote = () => {
+    const newQuote: QuoteAudio = {
+      id: crypto.randomUUID(),
+      produtora: "",
+      descricao: "",
+      valor: 0,
+      desconto: 0,
+    };
+    updateData({ quotes_audio: [...(data.quotes_audio || []), newQuote] });
+  };
+
+  const updateAudioQuote = (id: string, updates: Partial<QuoteAudio>) => {
+    const updated = (data.quotes_audio || []).map((q) => (q.id === id ? { ...q, ...updates } : q));
+    updateData({ quotes_audio: updated });
+  };
+
+  const removeAudioQuote = (id: string) => {
+    updateData({ quotes_audio: (data.quotes_audio || []).filter((q) => q.id !== id) });
   };
 
   const handleSave = async () => {
@@ -252,12 +288,45 @@ export default function FilmeBudget() {
                     placeholder="12 meses, 24 meses..."
                   />
                 </div>
+
+                <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
+                  <FormInput
+                    id="entregaveis"
+                    label="Entregáveis"
+                    value={data.entregaveis || ""}
+                    onChange={(v) => updateData({ entregaveis: v })}
+                    placeholder="Ex: 1 filme 30s, 1 filme 15s..."
+                  />
+                  <FormInput
+                    id="adaptacoes"
+                    label="Adaptações"
+                    value={data.adaptacoes || ""}
+                    onChange={(v) => updateData({ adaptacoes: v })}
+                    placeholder="Ex: 2 adaptações..."
+                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="exclusividade">Exclusividade de Elenco</Label>
+                    <Select
+                      value={data.exclusividade_elenco || "nao_aplica"}
+                      onValueChange={(v: any) => updateData({ exclusividade_elenco: v })}
+                    >
+                      <SelectTrigger id="exclusividade">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="orcado">Orçado</SelectItem>
+                        <SelectItem value="nao_orcado">Não Orçado</SelectItem>
+                        <SelectItem value="nao_aplica">Não se Aplica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Cotações de Produtoras</CardTitle>
+                <CardTitle>Cotações de Produtoras - Filme</CardTitle>
                 <Button size="sm" variant="secondary" onClick={addQuote} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Adicionar Cotação
@@ -297,15 +366,15 @@ export default function FilmeBudget() {
                         />
                         <FormInput
                           id={`diretor-${q.id}`}
-                          label="Diretor"
-                          value={q.diretor}
+                          label="Diretor (opcional)"
+                          value={q.diretor || ""}
                           onChange={(v) => updateQuote(q.id, { diretor: v })}
                           placeholder="Nome do diretor"
                         />
                         <FormInput
                           id={`tratamento-${q.id}`}
-                          label="Tratamento"
-                          value={q.tratamento}
+                          label="Tratamento (opcional)"
+                          value={q.tratamento || ""}
                           onChange={(v) => updateQuote(q.id, { tratamento: v })}
                           placeholder="Descrição"
                         />
@@ -332,6 +401,85 @@ export default function FilmeBudget() {
                   ))}
                 </AnimatePresence>
               </CardContent>
+            </Card>
+
+            {/* Seção de Áudio Opcional */}
+            <Card className="border-2">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Incluir Produtora de Áudio?</CardTitle>
+                  <Switch
+                    checked={data.inclui_audio || false}
+                    onCheckedChange={(v) => updateData({ inclui_audio: v })}
+                  />
+                </div>
+              </CardHeader>
+              {data.inclui_audio && (
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Adicione cotações de produtoras de áudio
+                    </p>
+                    <Button size="sm" variant="secondary" onClick={addAudioQuote} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Adicionar Áudio
+                    </Button>
+                  </div>
+                  <AnimatePresence>
+                    {(data.quotes_audio || []).map((q) => (
+                      <motion.div
+                        key={q.id}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="border border-border rounded-2xl p-4 space-y-3 bg-blue-50/50"
+                      >
+                        <div className="grid md:grid-cols-4 gap-3">
+                          <FormInput
+                            id={`audio-prod-${q.id}`}
+                            label="Produtora"
+                            value={q.produtora}
+                            onChange={(v) => updateAudioQuote(q.id, { produtora: v })}
+                            placeholder="Nome"
+                          />
+                          <FormInput
+                            id={`audio-desc-${q.id}`}
+                            label="Descrição"
+                            value={q.descricao}
+                            onChange={(v) => updateAudioQuote(q.id, { descricao: v })}
+                            placeholder="Descrição"
+                          />
+                          <FormInput
+                            id={`audio-valor-${q.id}`}
+                            label="Valor (R$)"
+                            value={String(q.valor || "")}
+                            onChange={(v) => updateAudioQuote(q.id, { valor: parseCurrency(v) })}
+                            placeholder="0,00"
+                          />
+                          <FormInput
+                            id={`audio-desconto-${q.id}`}
+                            label="Desconto (R$)"
+                            value={String(q.desconto || "")}
+                            onChange={(v) => updateAudioQuote(q.id, { desconto: parseCurrency(v) })}
+                            placeholder="0,00"
+                          />
+                        </div>
+                        <div className="flex justify-end">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => removeAudioQuote(q.id)} 
+                            className="text-destructive hover:text-destructive gap-1"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Remover
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </CardContent>
+              )}
             </Card>
 
             <Card>
@@ -380,25 +528,40 @@ export default function FilmeBudget() {
                       <div className="font-medium">{data.produto || "—"}</div>
                     </div>
                     <div className="p-3 rounded-xl bg-secondary/30">
-                      <div className="text-muted-foreground text-xs mb-1">Cotações</div>
+                      <div className="text-muted-foreground text-xs mb-1">Cotações Filme</div>
                       <div className="font-medium">{data.quotes_film?.length || 0}</div>
                     </div>
+                    {data.inclui_audio && (
+                      <div className="p-3 rounded-xl bg-blue-50">
+                        <div className="text-muted-foreground text-xs mb-1">Cotações Áudio</div>
+                        <div className="font-medium">{data.quotes_audio?.length || 0}</div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t border-border pt-4">
                     <div className="text-sm font-semibold mb-3">Resumo Financeiro</div>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between p-2 rounded-lg bg-secondary/20">
-                        <span className="text-muted-foreground">Subtotal Cotações:</span>
+                        <span className="text-muted-foreground">Filme:</span>
                         <span className="font-medium">
                           {formatCurrency((data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0))}
                         </span>
                       </div>
+                      {data.inclui_audio && (
+                        <div className="flex justify-between p-2 rounded-lg bg-blue-50">
+                          <span className="text-muted-foreground">Áudio:</span>
+                          <span className="font-medium">
+                            {formatCurrency((data.quotes_audio || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0))}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between p-2 rounded-lg bg-secondary/20">
                         <span className="text-muted-foreground">Honorário ({data.honorario_perc || 0}%):</span>
                         <span className="font-medium">
                           {formatCurrency(
-                            ((data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0) *
+                            (((data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0) +
+                              (data.inclui_audio ? (data.quotes_audio || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0) : 0)) *
                               (data.honorario_perc || 0)) / 100
                           )}
                         </span>
