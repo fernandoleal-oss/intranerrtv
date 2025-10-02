@@ -208,12 +208,16 @@ export default function NovaImagem() {
                     updateData({
                       produtor: formData.producer.name,
                       email: formData.producer.email,
+                      bank: formData.banco,
                       assets: formData.assets,
                     })
                     setStep(4)
                   }}
                   initialData={{
                     producer: { name: data.produtor || '', email: data.email || '' },
+                    cliente: '',
+                    produto: '',
+                    banco: data.bank || '',
                     assets: data.assets || [],
                   }}
                 />

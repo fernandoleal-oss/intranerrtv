@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Loader2, ExternalLink, Trash2, Plus, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { fnGet } from '@/lib/functions'
+import { ClientProductAutocomplete } from '@/components/ClientProductAutocomplete'
 
 interface AssetMetadata {
   provider: string
@@ -29,15 +30,28 @@ interface Producer {
   email: string
 }
 
+interface FormData {
+  producer: Producer
+  cliente: string
+  produto: string
+  banco: 'shutterstock' | 'getty' | 'personalizado' | ''
+  assets: AssetMetadata[]
+}
+
 interface ImageQuickFormProps {
-  onSave: (data: { producer: Producer; assets: AssetMetadata[] }) => void
-  initialData?: { producer?: Producer; assets?: AssetMetadata[] }
+  onSave: (data: FormData) => void
+  initialData?: Partial<FormData>
 }
 
 export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
   const { toast } = useToast()
   const [producer, setProducer] = useState<Producer>(
     initialData?.producer || { name: '', email: '' }
+  )
+  const [cliente, setCliente] = useState(initialData?.cliente || '')
+  const [produto, setProduto] = useState(initialData?.produto || '')
+  const [banco, setBanco] = useState<'shutterstock' | 'getty' | 'personalizado' | ''>(
+    initialData?.banco || ''
   )
   const [linksInput, setLinksInput] = useState('')
   const [assets, setAssets] = useState<AssetMetadata[]>(initialData?.assets || [])
@@ -110,6 +124,9 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     setLinksInput('')
     setAssets([])
     setProducer({ name: '', email: '' })
+    setCliente('')
+    setProduto('')
+    setBanco('')
   }
 
   const handleSubmit = () => {
@@ -118,12 +135,22 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
       return
     }
 
+    if (!cliente || !produto) {
+      toast({ title: 'Dados incompletos', description: 'Selecione cliente e produto', variant: 'destructive' })
+      return
+    }
+
+    if (!banco) {
+      toast({ title: 'Dados incompletos', description: 'Selecione o banco de imagens', variant: 'destructive' })
+      return
+    }
+
     if (assets.length === 0) {
       toast({ title: 'Sem assets', description: 'Adicione pelo menos um asset', variant: 'destructive' })
       return
     }
 
-    onSave({ producer, assets })
+    onSave({ producer, cliente, produto, banco, assets })
     toast({ title: 'Salvo!', description: `${assets.length} asset(s) adicionado(s) ao orçamento` })
   }
 
@@ -140,11 +167,11 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Dados do Produtor</CardTitle>
+            <CardTitle>Dados do Orçamento</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="producer-name">Nome do Produtor</Label>
+              <Label htmlFor="producer-name">Nome do Produtor *</Label>
               <Input
                 id="producer-name"
                 value={producer.name}
@@ -153,7 +180,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
               />
             </div>
             <div>
-              <Label htmlFor="producer-email">E-mail</Label>
+              <Label htmlFor="producer-email">E-mail *</Label>
               <Input
                 id="producer-email"
                 type="email"
@@ -161,6 +188,38 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                 onChange={(e) => setProducer(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="email@exemplo.com"
               />
+            </div>
+            <div>
+              <ClientProductAutocomplete
+                type="client"
+                value={cliente}
+                onChange={setCliente}
+                label="Cliente *"
+                required
+              />
+            </div>
+            <div>
+              <ClientProductAutocomplete
+                type="product"
+                value={produto}
+                onChange={setProduto}
+                label="Produto *"
+                required
+                clientId={cliente}
+              />
+            </div>
+            <div>
+              <Label htmlFor="banco">Banco de Imagens *</Label>
+              <Select value={banco} onValueChange={(value: any) => setBanco(value)}>
+                <SelectTrigger id="banco">
+                  <SelectValue placeholder="Selecione o banco" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="shutterstock">Shutterstock</SelectItem>
+                  <SelectItem value="getty">Getty Images</SelectItem>
+                  <SelectItem value="personalizado">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
