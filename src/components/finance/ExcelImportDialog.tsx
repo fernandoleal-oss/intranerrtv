@@ -7,31 +7,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/hooks/use-toast'
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
-import * as XLSX from 'xlsx'
 
 interface ExcelImportDialogProps {
   onImportComplete?: () => void
-}
-
-// Função para extrair texto de PDF (básico)
-async function extractTextFromPDF(file: File): Promise<string[][]> {
-  // Para PDFs, vamos tentar ler como texto simples
-  const text = await file.text()
-  const lines = text.split('\n').filter(line => line.trim())
-  
-  // Tentar identificar linhas com dados tabulares
-  const dataRows: string[][] = []
-  for (const line of lines) {
-    // Procurar por padrões de dados financeiros (números com R$, percentuais, etc)
-    if (line.includes('R$') || /\d+%/.test(line)) {
-      // Dividir por espaços múltiplos ou tabs
-      const cells = line.split(/\s{2,}|\t/).filter(c => c.trim())
-      if (cells.length >= 6) {
-        dataRows.push(cells)
-      }
-    }
-  }
-  return dataRows
 }
 
 export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) {
@@ -76,109 +54,39 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
     setImportResult(null)
 
     try {
-      let rows: any[][] = []
-      let sheetName = 'imported'
+      const formData = new FormData()
+      formData.append('ref_month', refMonth)
+      formData.append('file', file)
 
-      // Ler arquivo Excel ou PDF
-      if (file.name.match(/\.(xlsx|xls)$/)) {
-        const data = await file.arrayBuffer()
-        const workbook = XLSX.read(data)
-        sheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
-        rows = jsonData.slice(1).filter(row => row.length > 0 && row.some(cell => cell))
-      } else if (file.name.match(/\.pdf$/)) {
-        const pdfRows = await extractTextFromPDF(file)
-        rows = pdfRows
-        sheetName = 'PDF Import'
-      }
-
-      let imported = 0
-      let skipped = 0
-      const errors: string[] = []
-
-      // Converter ref_month (YYYY-MM) para formato de data (YYYY-MM-DD)
-      const refMonthDate = `${refMonth}-01`
-
-      // Criar log de importação
-      const { data: logData, error: logError } = await supabase
-        .from('finance_import_logs')
-        .insert({
-          ref_month: refMonthDate,
-          sheet_name: sheetName,
-          status: 'processing',
-          started_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
-
-      if (logError) throw logError
-
-      // Processar cada linha
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i]
-        
-        try {
-          // Espera colunas: Cliente, AP, Descrição, Fornecedor, Valor Fornecedor, Honorário %, Honorário Agência, Total
-          const cliente = String(row[0] || '').trim()
-          const ap = String(row[1] || '').trim()
-          const descricao = String(row[2] || '').trim()
-          const fornecedor = String(row[3] || '').trim()
-          const valorFornecedor = parseFloat(String(row[4] || '0').replace(/[^0-9.-]/g, ''))
-          const honorarioPercent = parseFloat(String(row[5] || '0').replace(/[^0-9.-]/g, ''))
-          const honorarioAgencia = parseFloat(String(row[6] || '0').replace(/[^0-9.-]/g, ''))
-          const total = parseFloat(String(row[7] || '0').replace(/[^0-9.-]/g, ''))
-
-          if (!cliente) {
-            skipped++
-            continue
-          }
-
-          // Inserir no banco
-          const { error: insertError } = await supabase
-            .from('finance_events')
-            .insert({
-              ref_month: refMonthDate,
-              cliente,
-              ap: ap || null,
-              descricao: descricao || null,
-              fornecedor: fornecedor || null,
-              valor_fornecedor_cents: Math.round(valorFornecedor * 100),
-              honorario_percent: honorarioPercent || null,
-              honorario_agencia_cents: Math.round(honorarioAgencia * 100),
-              total_cents: Math.round(total * 100),
-            })
-
-          if (insertError) {
-            errors.push(`Linha ${i + 2}: ${insertError.message}`)
-            skipped++
-          } else {
-            imported++
-          }
-        } catch (err: any) {
-          errors.push(`Linha ${i + 2}: ${err.message}`)
-          skipped++
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      const response = await fetch(
+        'https://wturfdjywbpzassyuwun.supabase.co/functions/v1/finance_import',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: formData,
         }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error || 'Erro ao processar importação')
       }
 
-      // Atualizar log
-      await supabase
-        .from('finance_import_logs')
-        .update({
-          status: errors.length > 0 ? 'completed_with_errors' : 'completed',
-          completed_at: new Date().toISOString(),
-          rows_imported: imported,
-          rows_skipped: skipped,
-          error_message: errors.length > 0 ? errors.join('\n') : null,
-        })
-        .eq('id', logData.id)
+      setImportResult({ 
+        imported: data.imported || 0, 
+        skipped: data.skipped || 0, 
+        errors: data.errors || [] 
+      })
 
-      setImportResult({ imported, skipped, errors })
-
-      if (imported > 0) {
+      if (data.imported > 0) {
         toast({
           title: 'Importação concluída',
-          description: `${imported} registros importados com sucesso`,
+          description: `${data.imported} registros importados com sucesso`,
         })
         onImportComplete?.()
       }
@@ -189,6 +97,7 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
         description: error.message || 'Erro desconhecido',
         variant: 'destructive',
       })
+      setImportResult({ imported: 0, skipped: 0, errors: [error.message] })
     } finally {
       setIsProcessing(false)
     }

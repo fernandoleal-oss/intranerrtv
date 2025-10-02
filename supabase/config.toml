@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.clube_news]
 verify_jwt = false
+
+[functions.finance_import]
+verify_jwt = true
