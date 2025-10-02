@@ -20,6 +20,7 @@ const PdfView       = lazy(() => import('@/pages/budget/Pdf'))
 const BudgetList    = lazy(() => import('@/pages/BudgetList'))
 const BudgetEdit    = lazy(() => import('@/pages/budget/Edit'))
 const Finance       = lazy(() => import('@/pages/Finance'))
+const FinanceClient = lazy(() => import('@/pages/FinanceClient'))
 const Direitos      = lazy(() => import('@/pages/Direitos'))
 const Orcamentos    = lazy(() => import('@/pages/Orcamentos'))
 const OrcamentoNovo = lazy(() => import('@/pages/OrcamentoNovo'))
@@ -183,6 +184,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Finance />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/financeiro/cliente/:clientId"
+                element={
+                  <ProtectedRoute>
+                    <FinanceClient />
                   </ProtectedRoute>
                 }
               />

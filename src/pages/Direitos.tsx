@@ -852,7 +852,13 @@ export default function Direitos() {
     setRows((prev) => [...prev, row]);
   }
   function deleteRow(id: string) {
-    if (!confirm("Tem certeza que deseja excluir este registro?")) return;
+    const row = rows.find(r => r.id === id);
+    if (!row) return;
+    
+    if (!confirm(`Tem certeza que deseja excluir o registro "${row.title}" do cliente ${row.client}?\n\nEsta ação não pode ser desfeita.`)) {
+      return;
+    }
+    
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
@@ -1171,7 +1177,11 @@ export default function Direitos() {
                         </button>
                         <button
                           className="px-2 py-1 rounded-lg border inline-flex items-center gap-1"
-                          onClick={() => updateRow(r.id, { archived: !r.archived })}
+                          onClick={() => {
+                            if (confirm(`Deseja ${r.archived ? "desarquivar" : "arquivar"} o registro "${r.title}"?`)) {
+                              updateRow(r.id, { archived: !r.archived });
+                            }
+                          }}
                           title={r.archived ? "Desarquivar" : "Arquivar"}
                         >
                           <Archive className="h-4 w-4" />{" "}

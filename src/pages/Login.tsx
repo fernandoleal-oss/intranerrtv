@@ -40,6 +40,13 @@ export default function Login() {
     e.preventDefault()
     if (isSubmitting) return
 
+    // Validar domínio
+    const domain = formData.email.split('@')[1]?.toLowerCase()
+    if (domain !== 'we.com.br' && domain !== 'grupowe.com.br') {
+      alert('Acesso negado. Apenas e-mails @we.com.br e @grupowe.com.br são permitidos.')
+      return
+    }
+
     setIsSubmitting(true)
     const { error } = await signInWithEmail(formData.email, formData.password)
     
@@ -54,6 +61,14 @@ export default function Login() {
     if (isSubmitting) return
 
     if (formData.password !== formData.confirmPassword) {
+      alert('As senhas não coincidem.')
+      return
+    }
+
+    // Validar domínio
+    const domain = formData.email.split('@')[1]?.toLowerCase()
+    if (domain !== 'we.com.br' && domain !== 'grupowe.com.br') {
+      alert('Acesso negado. Apenas e-mails @we.com.br e @grupowe.com.br são permitidos.')
       return
     }
 
