@@ -10,54 +10,55 @@ import { useToast } from "@/hooks/use-toast";
 
 type SlateData = {
   tituloOriginal: string;
-  duracao: string;            // ex: 30"
   produto: string;
+  duracao: string;            // ex: 30"
+  agencia: string;            // fixo (somente leitura na UI)
+  anunciante: string;         // fixo (somente leitura na UI)
   direcao: string;
-  tipo: string;               // COMUM | ESPECIAL | PROMOCIONAL
-  segmento: string;           // Segmentação de mercado
+  tipo: string;               // Comum / Especial / Promocional
+  segmento: string;           // Segmentação
   crt: string;
+  dataRegistro: string;
+  anoProducao: string;
   produtora: string;
   cnpj: string;
-  anoProducao: string;
-  dataRegistro: string;
-  teclaSap: string;           // SIM | NÃO
-  closedCaption: string;      // SIM | NÃO | SIM, SE DISPONÍVEL
-  audio: string;              // produtora de áudio
-  logoUrl: string;            // opcional (url)
+  produtoraAudio: string;
+  closedCaption: string;      // SIM / NÃO / SIM, SE DISPONÍVEL
+  audiodescricao: string;     // SIM / NÃO
+  teclaSap: string;           // SIM / NÃO
+  logoUrl: string;
 };
 
-const FIXO_ANUNCIANTE = "IGC ASSOCIADOS - CONSULTORIA EM FINANÇAS LTDA";
 const FIXO_AGENCIA    = "WF/MOTTA COMUNICAÇÃO MARKETING E PUBLICIDADE LTDA.";
 
 export default function Claquete() {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const [showSmpte, setShowSmpte]     = useState(true);
-  const [showTopTicks, setShowTicks]  = useState(true);
-
   const [slate, setSlate] = useState<SlateData>({
     tituloOriginal: "",
-    duracao: "",
     produto: "",
-    direcao: "",
-    tipo: "COMUM",
-    segmento: "TODOS OS SEGMENTOS DE MERCADO",
+    duracao: "",
+    agencia: FIXO_AGENCIA,
+    anunciante: ""
+    direcao:"" ,
+    tipo: ""
+    segmento:""
     crt: "",
-    produtora: "CINE CINEMATOGRÁFICA LTDA",
-    cnpj: "00.445.787/0001-03",
-    anoProducao: String(new Date().getFullYear()),
     dataRegistro: new Date().toLocaleDateString("pt-BR"),
+    anoProducao: String(new Date().getFullYear()),
+    produtora: "",
+    cnpj: "",
+    produtoraAudio: "",
+    closedCaption: "SIM",
+    audiodescricao: "SIM",
     teclaSap: "NÃO",
-    closedCaption: "SIM, SE DISPONÍVEL",
-    audio: "",
     logoUrl: "",
   });
 
   useEffect(() => {
     drawSlate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slate, showSmpte, showTopTicks]);
+  }, [slate]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -70,195 +71,185 @@ export default function Claquete() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function updateField<K extends keyof SlateData>(key: K, value: SlateData[K]) {
+  function update<K extends keyof SlateData>(key: K, value: SlateData[K]) {
     setSlate((s) => ({ ...s, [key]: value }));
   }
 
-  /** DRAW */
+  /** --------- DRAW ---------- */
   function drawSlate() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // 1080p Landscape (16:9)
+    // base 1920x1080 (16:9)
     const W = 1920;
     const H = 1080;
     canvas.width = W;
     canvas.height = H;
 
-    // Fundo preto
-    ctx.fillStyle = "#000000";
+    // fundo preto
+    ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, W, H);
 
-    // Colorbars (SMPTE) – faixa de 80px
-    let y = 0;
-    if (showSmpte) {
-      drawSmpteBars(ctx, 0, 60, W, 80);
-      y = 80;
-    }
+    // faixa superior com linhas finas brancas e miolo verde (como na sua referência)
+    drawTopGuides(ctx, W);
 
-    // Ticks superiores branco/verde como no exemplo
-    if (showTopTicks) {
-      drawTopTicks(ctx, y + 22, W);
-      y += 42;
-    }
+    // margens e colunas
+    const leftColX = 120;
+    const rightColX = 520;       // início do bloco tipográfico
+    let textY = 200;             // início da tipografia
+    const lineH = 28;            // altura entre linhas
 
-    // Área de conteúdo
-    const marginX = 110;
-    let cursorY = Math.max(160, y + 60);
-    const lh = 38;
+    // coluna esquerda – logo (se houver) e selo FILM
+    drawLeftColumn(ctx, leftColX, 170, slate.logoUrl, W, H);
 
-    ctx.fillStyle = "#FFFFFF";
+    // bloco tipográfico (direita)
     ctx.textAlign = "left";
+    ctx.fillStyle = "#fff";
 
-    // Título (maior)
+    // título do comercial (logo acima, maior)
     if (slate.tituloOriginal) {
-      ctx.font = "700 56px Arial, Helvetica, sans-serif";
-      ctx.fillText(slate.tituloOriginal.toUpperCase(), marginX, cursorY);
-      cursorY += 48;
+      ctx.font = "700 28px Arial, Helvetica, sans-serif";
+      ctx.fillText(`Título: ${slate.tituloOriginal.toUpperCase()}`, rightColX, textY);
+      textY += lineH;
     }
 
-    // Subtítulo com produto (maior espaçamento)
     if (slate.produto) {
-      ctx.font = "600 34px Arial, Helvetica, sans-serif";
-      ctx.fillText(`Produto: ${slate.produto.toUpperCase()}`, marginX, cursorY);
-      cursorY += 44;
+      ctx.font = "700 24px Arial, Helvetica, sans-serif";
+      ctx.fillText(`Produto: ${slate.produto.toUpperCase()}`, rightColX, textY);
+      textY += lineH;
     }
 
-    // Bloco de metadados
-    ctx.font = "400 30px Arial, Helvetica, sans-serif";
-    const block: Array<[string, string]> = [
-      ["Anunciante", FIXO_ANUNCIANTE],
-      ["Agência de publicidade", FIXO_AGENCIA],
-      ["Direção", slate.direcao],
-      ["Tipo", slate.tipo],
-      ["Duração", slate.duracao],
-      ["Segmentação de Mercado", slate.segmento],
-      ["CRT", slate.crt],
-      ["Data de registro", slate.dataRegistro],
-      ["Ano de produção", slate.anoProducao],
-      ["Produtora de imagens", slate.produtora],
-      ["CNPJ", slate.cnpj],
-      ["Produtora de áudio", slate.audio || "—"],
-      ["Closed Caption", slate.closedCaption],
-      ["Tecla SAP", slate.teclaSap],
-    ];
+    // linhas na ordem da referência
+    const lines: string[] = [
+      `Anunciante: ${slate.anunciante}`,
+      `Agência de publicidade: ${slate.agencia}`,
+      slate.direcao ? `Direção: ${slate.direcao}` : "",
+      `Tipo: ${slate.tipo}`,
+      slate.duracao ? `Duração: ${slate.duracao}` : "",
+      `Segmentação de Mercado: ${slate.segmento}`,
+      slate.crt ? `CRT: ${slate.crt}` : "",
+      slate.dataRegistro ? `Data de registro: ${slate.dataRegistro}` : "",
+      // “Quantidade de versões” não consta no form; omitido.
+      `Ano de produção: ${slate.anoProducao}`,
+      slate.produtora ? `Produtora de imagens: ${slate.produtora}` : "",
+      slate.cnpj ? `CNPJ: ${slate.cnpj}` : "",
+      slate.produtoraAudio ? `Produtora de áudio: ${slate.produtoraAudio}` : "",
+      `Closed Caption: ${slate.closedCaption}`,
+      `Audiodescrição: ${slate.audiodescricao}`,
+      `Tecla SAP: ${slate.teclaSap}`,
+    ].filter(Boolean);
 
-    const labelW = 440;
-    const maxW = W - marginX * 2 - labelW - 16;
-
-    for (const [label, value] of block) {
-      if (!value) continue;
-      line(ctx, `${label}:`, value, marginX, cursorY, labelW, maxW);
-      cursorY += lh;
+    ctx.font = "400 22px Arial, Helvetica, sans-serif";
+    const maxW = 1920 - rightColX - 140;
+    for (const ln of lines) {
+      textY = writeWrap(ctx, ln, rightColX, textY, maxW, 24);
     }
+  }
 
-    // Logo (opcional) no canto inferior direito
-    if (slate.logoUrl && /^https?:\/\//i.test(slate.logoUrl)) {
+  function drawTopGuides(ctx: CanvasRenderingContext2D, W: number) {
+    // 4 segmentos, linha branca fina com miolo verde
+    const groups = 4;
+    const segW = 320;
+    const segH = 8;
+    const y = 64; // altura aproximada como na referência
+    const gap = (W - groups * segW) / (groups + 1);
+
+    for (let i = 0; i < groups; i++) {
+      const x = Math.round(gap + i * (segW + gap));
+      // linha branca
+      ctx.fillStyle = "#E6E6E6";
+      ctx.fillRect(x, y, segW, segH);
+      // miolo verde central
+      const greenW = Math.round(segW * 0.18);
+      const gx = Math.round(x + (segW - greenW) / 2);
+      ctx.fillStyle = "#3DDC84";
+      ctx.fillRect(gx, y, greenW, segH);
+    }
+  }
+
+  function drawLeftColumn(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    topY: number,
+    logoUrl: string,
+    W: number,
+    H: number
+  ) {
+    // logo “do filme” no topo esquerdo
+    const logoMaxW = 300;
+    const logoMaxH = 110;
+
+    if (logoUrl && /^https?:\/\//i.test(logoUrl)) {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.src = slate.logoUrl;
+      img.src = logoUrl;
       img.onload = () => {
-        const size = 140;
-        ctx.drawImage(img, W - size - 80, H - size - 60, size, size);
+        const ratio = Math.min(logoMaxW / img.width, logoMaxH / img.height);
+        const w = img.width * ratio;
+        const h = img.height * ratio;
+        ctx.drawImage(img, x, topY, w, h);
+        // selo FILM abaixo
+        drawFilmBadge(ctx, x, topY + h + 80);
       };
+    } else {
+      // se não houver logo, escreve um placeholder estilizado
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "left";
+      ctx.font = "700 56px Arial Black, Arial, Helvetica, sans-serif";
+      ctx.fillText("LOGO", x, topY + 60);
+      drawFilmBadge(ctx, x, topY + 120);
     }
   }
 
-  function line(
+  function drawFilmBadge(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    // ícone simples + texto FILM, como referência
+    // desenha um “cartucho” com câmera bem simples
+    const iconW = 68;
+    const iconH = 48;
+
+    // corpo do ícone
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x, y - iconH + 8, iconW, iconH);
+
+    // lente da câmera
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x + 12, y - iconH + 20, 20, 16);
+    // viewfinder
+    ctx.fillRect(x + 40, y - iconH + 20, 16, 12);
+
+    // texto FILM
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 64px Arial, Helvetica, sans-serif";
+    ctx.fillText("FILM", x + iconW + 18, y + 2);
+  }
+
+  function writeWrap(
     ctx: CanvasRenderingContext2D,
-    label: string,
-    value: string,
+    text: string,
     x: number,
     y: number,
-    labelWidth: number,
-    maxValueWidth: number
+    maxWidth: number,
+    lh: number
   ) {
-    ctx.font = "700 30px Arial, Helvetica, sans-serif";
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(label.toUpperCase(), x, y);
-
-    ctx.font = "400 30px Arial, Helvetica, sans-serif";
-    const lx = x + labelWidth;
-    if (ctx.measureText(value).width <= maxValueWidth) {
-      ctx.fillText(value, lx, y);
-      return;
-    }
-    // wrap
-    const words = value.split(" ");
+    const words = text.split(" ");
     let line = "";
-    let yy = y;
-    for (const w of words) {
-      const test = line ? `${line} ${w}` : w;
-      if (ctx.measureText(test).width > maxValueWidth) {
-        ctx.fillText(line, lx, yy);
-        line = w;
-        yy += 34;
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line ? line + " " + words[i] : words[i];
+      if (ctx.measureText(testLine).width > maxWidth) {
+        ctx.fillText(line, x, y);
+        line = words[i];
+        y += lh;
       } else {
-        line = test;
+        line = testLine;
       }
     }
-    if (line) ctx.fillText(line, lx, yy);
+    if (line) ctx.fillText(line, x, y);
+    return y + lh;
   }
 
-  function drawSmpteBars(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number
-  ) {
-    const colors = ["#FFFFFF", "#FFFF00", "#00FFFF", "#00FF00", "#FF00FF", "#FF0000", "#0000FF"];
-    const seg = w / colors.length;
-    for (let i = 0; i < colors.length; i++) {
-      ctx.fillStyle = colors[i];
-      ctx.fillRect(x + i * seg, y, seg, h);
-    }
-  }
-
-  // Faixa fina com blocos brancos e miolo verde (visual semelhante ao anexo)
-  function drawTopTicks(ctx: CanvasRenderingContext2D, y: number, w: number) {
-    const groups = 4;
-    const width = 320;
-    const height = 16;
-    const gap = (w - groups * width) / (groups + 1);
-    let x = gap;
-    for (let i = 0; i < groups; i++) {
-      // base branca
-      ctx.fillStyle = "#EDEDED";
-      roundRect(ctx, x, y, width, height, 3);
-      ctx.fill();
-
-      // miolo verde
-      const gW = Math.round(width * 0.22);
-      const gx = x + (width - gW) / 2;
-      ctx.fillStyle = "#3DDC84";
-      roundRect(ctx, gx, y, gW, height, 3);
-      ctx.fill();
-
-      x += width + gap;
-    }
-  }
-
-  function roundRect(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    r: number
-  ) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  /** EXPORTS */
+  /** --------- EXPORT ---------- */
   function downloadPNG() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -275,7 +266,6 @@ export default function Claquete() {
   }
 
   function downloadPDF() {
-    // Sem lib extra: baixa imagem com extensão .pdf (o usuário pode imprimir em PDF também pelo ⌘/Ctrl+P)
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dataUrl = canvas.toDataURL("image/png");
@@ -283,10 +273,10 @@ export default function Claquete() {
     a.href = dataUrl;
     a.download = `claquete-${(slate.tituloOriginal || "slate").replace(/\s+/g, "_")}.pdf`;
     a.click();
-    toast({ title: "PDF gerado (como imagem)!" });
+    toast({ title: "PDF gerado (imagem)!" });
   }
 
-  /** PRESETS */
+  /** --------- PRESETS ---------- */
   function savePreset() {
     const list = JSON.parse(localStorage.getItem("slate_presets_v1") || "[]");
     const name = prompt("Nome do preset:");
@@ -315,10 +305,10 @@ export default function Claquete() {
 
   return (
     <div className="min-h-screen bg-white">
-      <HeaderBar title="Gerador de Claquete" subtitle="1920×1080 — Fundo preto, texto branco" backTo="/" />
+      <HeaderBar title="Gerador de Claquete" subtitle="Layout 16:9 — estilo referência" backTo="/" />
 
       <div className="container-page py-6">
-        <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-6">
+        <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-6">
           {/* Formulário */}
           <Card>
             <CardHeader>
@@ -329,94 +319,74 @@ export default function Claquete() {
             </CardHeader>
             <CardContent className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
               <div>
-                <Label>Título Original</Label>
-                <Input value={slate.tituloOriginal} onChange={(e) => updateField("tituloOriginal", e.target.value)} />
+                <Label>Título</Label>
+                <Input value={slate.tituloOriginal} onChange={(e) => update("tituloOriginal", e.target.value)} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Duração</Label>
-                  <Input value={slate.duracao} onChange={(e) => updateField("duracao", e.target.value)} placeholder={`Ex: 30"`} />
-                </div>
                 <div>
                   <Label>Produto</Label>
-                  <Input value={slate.produto} onChange={(e) => updateField("produto", e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Tipo</Label>
-                  <Select value={slate.tipo} onValueChange={(v) => updateField("tipo", v as SlateData["tipo"])}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="COMUM">COMUM</SelectItem>
-                      <SelectItem value="ESPECIAL">ESPECIAL</SelectItem>
-                      <SelectItem value="PROMOCIONAL">PROMOCIONAL</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input value={slate.produto} onChange={(e) => update("produto", e.target.value)} />
                 </div>
                 <div>
-                  <Label>Segmentação de Mercado</Label>
-                  <Input value={slate.segmento} onChange={(e) => updateField("segmento", e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>CRT</Label>
-                  <Input value={slate.crt} onChange={(e) => updateField("crt", e.target.value)} placeholder="Ex: 20250276240009" />
-                </div>
-                <div>
-                  <Label>Data de Registro</Label>
-                  <Input value={slate.dataRegistro} onChange={(e) => updateField("dataRegistro", e.target.value)} />
+                  <Label>Duração</Label>
+                  <Input value={slate.duracao} onChange={(e) => update("duracao", e.target.value)} placeholder={`Ex: 30"`} />
                 </div>
               </div>
 
               <div>
                 <Label>Direção</Label>
-                <Input value={slate.direcao} onChange={(e) => updateField("direcao", e.target.value)} />
+                <Input value={slate.direcao} onChange={(e) => update("direcao", e.target.value)} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Produtora de Imagens</Label>
-                  <Input value={slate.produtora} onChange={(e) => updateField("produtora", e.target.value)} />
-                </div>
-                <div>
-                  <Label>CNPJ</Label>
-                  <Input value={slate.cnpj} onChange={(e) => updateField("cnpj", e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Ano de Produção</Label>
-                  <Input value={slate.anoProducao} onChange={(e) => updateField("anoProducao", e.target.value)} />
-                </div>
-                <div>
-                  <Label>Produtora de Áudio</Label>
-                  <Input value={slate.audio} onChange={(e) => updateField("audio", e.target.value)} placeholder="Ex: ANTFOOD" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Tecla SAP</Label>
-                  <Select value={slate.teclaSap} onValueChange={(v) => updateField("teclaSap", v as SlateData["teclaSap"])}>
+                  <Label>Tipo</Label>
+                  <Select value={slate.tipo} onValueChange={(v) => update("tipo", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SIM">SIM</SelectItem>
-                      <SelectItem value="NÃO">NÃO</SelectItem>
+                      <SelectItem value="Comum">Comum</SelectItem>
+                      <SelectItem value="Especial">Especial</SelectItem>
+                      <SelectItem value="Promocional">Promocional</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
+                  <Label>Segmentação de Mercado</Label>
+                  <Input value={slate.segmento} onChange={(e) => update("segmento", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>CRT</Label>
+                  <Input value={slate.crt} onChange={(e) => update("crt", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Data de registro</Label>
+                  <Input value={slate.dataRegistro} onChange={(e) => update("dataRegistro", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Ano de produção</Label>
+                  <Input value={slate.anoProducao} onChange={(e) => update("anoProducao", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Produtora de imagens</Label>
+                  <Input value={slate.produtora} onChange={(e) => update("produtora", e.target.value)} />
+                </div>
+                <div>
+                  <Label>CNPJ</Label>
+                  <Input value={slate.cnpj} onChange={(e) => update("cnpj", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
                   <Label>Closed Caption</Label>
-                  <Select
-                    value={slate.closedCaption}
-                    onValueChange={(v) => updateField("closedCaption", v as SlateData["closedCaption"])}
-                  >
+                  <Select value={slate.closedCaption} onValueChange={(v) => update("closedCaption", v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="SIM">SIM</SelectItem>
@@ -425,14 +395,40 @@ export default function Claquete() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <Label>Audiodescrição</Label>
+                  <Select value={slate.audiodescricao} onValueChange={(v) => update("audiodescricao", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SIM">SIM</SelectItem>
+                      <SelectItem value="NÃO">NÃO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Tecla SAP</Label>
+                  <Select value={slate.teclaSap} onValueChange={(v) => update("teclaSap", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SIM">SIM</SelectItem>
+                      <SelectItem value="NÃO">NÃO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div>
-                <Label>Logo URL (opcional)</Label>
-                <Input value={slate.logoUrl} onChange={(e) => updateField("logoUrl", e.target.value)} placeholder="https://..." />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Produtora de áudio</Label>
+                  <Input value={slate.produtoraAudio} onChange={(e) => update("produtoraAudio", e.target.value)} />
+                </div>
+                <div>
+                  <Label>Logo URL (opcional)</Label>
+                  <Input value={slate.logoUrl} onChange={(e) => update("logoUrl", e.target.value)} placeholder="https://..." />
+                </div>
               </div>
 
-              {/* Campos fixos */}
+              {/* fixos (somente leitura) */}
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div>
                   <Label>Anunciante (fixo)</Label>
@@ -452,24 +448,13 @@ export default function Claquete() {
                   <Upload className="h-4 w-4" /> Carregar preset
                 </Button>
               </div>
-
-              <div className="flex items-center gap-3 text-sm text-muted-foreground pt-2">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={showSmpte} onChange={(e) => setShowSmpte(e.target.checked)} />
-                  Colorbar SMPTE
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={showTopTicks} onChange={(e) => setShowTicks(e.target.checked)} />
-                  Faixa superior (branco/verde)
-                </label>
-              </div>
             </CardContent>
           </Card>
 
           {/* Preview */}
           <Card>
             <CardHeader>
-              <CardTitle>Preview 1920×1080</CardTitle>
+              <CardTitle>Preview 1920×1080 (estilo referência)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="border rounded-xl overflow-hidden bg-black shadow-sm">
@@ -486,7 +471,7 @@ export default function Claquete() {
               </div>
 
               <p className="text-xs text-center text-muted-foreground">
-                Dica: use <strong>⌘/Ctrl + P</strong> para imprimir em PDF com controle total.
+                Atalho: <strong>⌘/Ctrl + P</strong> para imprimir em PDF.
               </p>
             </CardContent>
           </Card>
