@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ArrowLeft, Home, Printer, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import logoWeWhite from "@/assets/LOGO-WE.png";
+import logoWeColor from "@/assets/Logo_WE-2.png";
 
 type Quote = {
   id: string;
@@ -45,6 +47,21 @@ type Payload = {
   // faturamento
   pendente_pagamento?: boolean;
   observacoes_faturamento?: string;
+
+  // assets (imagem/vídeo)
+  assets?: Array<{
+    provider: string;
+    type: "video" | "image" | "unknown";
+    id: string | null;
+    title: string | null;
+    durationSeconds?: number;
+    resolution?: { width: number; height: number } | null;
+    thumbnail?: string | null;
+    pageUrl: string;
+    licenseOptions: string[];
+    recommendedLicense: string;
+    chosenLicense: string;
+  }>;
 };
 
 type View = {
@@ -341,8 +358,8 @@ export default function PdfView() {
               <div className="bg-black text-white px-5 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <img
-                    src="/brand/we-white.png"
-                    alt="WE"
+                    src={logoWeWhite}
+                    alt="WE Logo"
                     className="h-8 w-auto"
                     onLoad={() => setLogoOk(true)}
                     onError={(e) => {
@@ -350,7 +367,6 @@ export default function PdfView() {
                       (e.currentTarget.style.display = "none");
                     }}
                   />
-                  <span className="text-lg font-bold leading-none">WE</span>
                 </div>
                 <div className="text-right">
                   <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
@@ -484,6 +500,50 @@ export default function PdfView() {
                     </div>
                   )}
                 </section>
+
+                {/* Assets (Imagens/Vídeos) */}
+                {p.assets && p.assets.length > 0 && (
+                  <section className="rounded-lg border px-4 py-3 mt-3">
+                    <h2 className="text-sm font-semibold mb-2">Assets (Imagens/Vídeos)</h2>
+                    <div className="w-full border rounded-md overflow-hidden">
+                      <div className="grid grid-cols-12 bg-neutral-100 text-[11px] font-medium px-3 py-2">
+                        <div className="col-span-1">ID</div>
+                        <div className="col-span-4">Título</div>
+                        <div className="col-span-1">Tipo</div>
+                        <div className="col-span-2">Resolução</div>
+                        <div className="col-span-3">Licença</div>
+                        <div className="col-span-1 text-right">Link</div>
+                      </div>
+                      {p.assets.map((asset, idx) => (
+                        <div key={idx} className="grid grid-cols-12 px-3 py-2 text-[11px] border-t leading-snug">
+                          <div className="col-span-1 break-words">{asset.id || "—"}</div>
+                          <div className="col-span-4 break-words">{asset.title || "—"}</div>
+                          <div className="col-span-1 capitalize">{asset.type}</div>
+                          <div className="col-span-2">
+                            {asset.resolution
+                              ? `${asset.resolution.width}×${asset.resolution.height}`
+                              : asset.durationSeconds
+                              ? `${Math.floor(asset.durationSeconds / 60)}:${String(
+                                  Math.floor(asset.durationSeconds % 60)
+                                ).padStart(2, "0")}`
+                              : "—"}
+                          </div>
+                          <div className="col-span-3 break-words">{asset.chosenLicense}</div>
+                          <div className="col-span-1 text-right">
+                            <a
+                              href={asset.pageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline text-[10px]"
+                            >
+                              Ver
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </div>
 
               {/* DIREITA = 3/12 (resumo e observações) */}
