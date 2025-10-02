@@ -97,11 +97,14 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
       let skipped = 0
       const errors: string[] = []
 
+      // Converter ref_month (YYYY-MM) para formato de data (YYYY-MM-DD)
+      const refMonthDate = `${refMonth}-01`
+
       // Criar log de importação
       const { data: logData, error: logError } = await supabase
         .from('finance_import_logs')
         .insert({
-          ref_month: refMonth,
+          ref_month: refMonthDate,
           sheet_name: sheetName,
           status: 'processing',
           started_at: new Date().toISOString(),
@@ -135,7 +138,7 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
           const { error: insertError } = await supabase
             .from('finance_events')
             .insert({
-              ref_month: refMonth,
+              ref_month: refMonthDate,
               cliente,
               ap: ap || null,
               descricao: descricao || null,
