@@ -61,6 +61,13 @@ export default function Home() {
       color: "from-orange-500 to-red-600",
       path: "/comparador-byd",
     },
+    {
+      title: "Gerador de Claquete",
+      description: "Crie claquetes profissionais para filmagem",
+      icon: Clapperboard,
+      color: "from-cyan-500 to-teal-600",
+      path: "/claquete",
+    },
   ];
 
   return (
@@ -132,7 +139,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {sections.map((section, index) => (
             <motion.div
               key={section.path}
