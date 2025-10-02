@@ -13,6 +13,27 @@ interface ExcelImportDialogProps {
   onImportComplete?: () => void
 }
 
+// Função para extrair texto de PDF (básico)
+async function extractTextFromPDF(file: File): Promise<string[][]> {
+  // Para PDFs, vamos tentar ler como texto simples
+  const text = await file.text()
+  const lines = text.split('\n').filter(line => line.trim())
+  
+  // Tentar identificar linhas com dados tabulares
+  const dataRows: string[][] = []
+  for (const line of lines) {
+    // Procurar por padrões de dados financeiros (números com R$, percentuais, etc)
+    if (line.includes('R$') || /\d+%/.test(line)) {
+      // Dividir por espaços múltiplos ou tabs
+      const cells = line.split(/\s{2,}|\t/).filter(c => c.trim())
+      if (cells.length >= 6) {
+        dataRows.push(cells)
+      }
+    }
+  }
+  return dataRows
+}
+
 export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
@@ -28,10 +49,10 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
-      if (!selectedFile.name.match(/\.(xlsx|xls)$/)) {
+      if (!selectedFile.name.match(/\.(xlsx|xls|pdf)$/)) {
         toast({
           title: 'Arquivo inválido',
-          description: 'Por favor, selecione um arquivo Excel (.xlsx ou .xls)',
+          description: 'Por favor, selecione um arquivo Excel (.xlsx, .xls) ou PDF',
           variant: 'destructive',
         })
         return
@@ -55,15 +76,22 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
     setImportResult(null)
 
     try {
-      // Ler arquivo Excel
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data)
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+      let rows: any[][] = []
+      let sheetName = 'imported'
 
-      // Pular a primeira linha (cabeçalho)
-      const rows = jsonData.slice(1).filter(row => row.length > 0 && row.some(cell => cell))
+      // Ler arquivo Excel ou PDF
+      if (file.name.match(/\.(xlsx|xls)$/)) {
+        const data = await file.arrayBuffer()
+        const workbook = XLSX.read(data)
+        sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+        rows = jsonData.slice(1).filter(row => row.length > 0 && row.some(cell => cell))
+      } else if (file.name.match(/\.pdf$/)) {
+        const pdfRows = await extractTextFromPDF(file)
+        rows = pdfRows
+        sheetName = 'PDF Import'
+      }
 
       let imported = 0
       let skipped = 0
@@ -187,7 +215,8 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
           <Alert>
             <FileSpreadsheet className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              <strong>Formato esperado:</strong> Cliente, AP, Descrição, Fornecedor, Valor Fornecedor, Honorário %, Honorário Agência, Total
+              <strong>Formato esperado:</strong> Cliente, AP, Descrição, Fornecedor, Valor Fornecedor, Honorário %, Honorário Agência, Total<br/>
+              <strong>Formatos aceitos:</strong> Excel (.xlsx, .xls) ou PDF
             </AlertDescription>
           </Alert>
 
@@ -203,11 +232,11 @@ export function ExcelImportDialog({ onImportComplete }: ExcelImportDialogProps) 
           </div>
 
           <div>
-            <Label htmlFor="excel-file">Arquivo Excel *</Label>
+            <Label htmlFor="excel-file">Arquivo (Excel ou PDF) *</Label>
             <Input
               id="excel-file"
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.pdf"
               onChange={handleFileChange}
               disabled={isProcessing}
             />

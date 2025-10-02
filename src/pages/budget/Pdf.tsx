@@ -499,53 +499,91 @@ export default function PdfView() {
                   )}
                 </section>
 
-                {/* Assets (Imagens/Vídeos) */}
+                {/* Assets (Imagens/Vídeos) - Estilo Shutterstock */}
                 {p.assets && p.assets.length > 0 && (
                   <section className="rounded-lg border px-4 py-3 mt-3">
-                    <h2 className="text-sm font-semibold mb-2">Assets (Imagens/Vídeos)</h2>
-                    <div className="w-full border rounded-md overflow-hidden">
-                      <div className="grid grid-cols-12 bg-neutral-100 text-[11px] font-medium px-3 py-2">
-                        <div className="col-span-1">ID</div>
-                        <div className="col-span-4">Nome</div>
-                        <div className="col-span-1">Tipo</div>
-                        <div className="col-span-2">Resolução</div>
-                        <div className="col-span-3">Licença</div>
-                        <div className="col-span-1 text-right">Link</div>
-                      </div>
+                    <h2 className="text-sm font-semibold mb-3 border-b pb-2">
+                      Detalhes dos Itens ({p.assets.length})
+                    </h2>
+                    <div className="space-y-3">
                       {p.assets.map((asset, idx) => {
-                        // Extrair apenas o nome limpo do título, removendo URLs
                         const cleanTitle = asset.title 
-                          ? asset.title.replace(/https?:\/\/[^\s]+/g, '').trim() || asset.title.split('/').pop()?.split('?')[0] || "—"
-                          : "—";
+                          ? asset.title.replace(/https?:\/\/[^\s]+/g, '').trim() || "Sem descrição"
+                          : "Sem descrição";
                         
                         return (
-                          <div key={idx} className="grid grid-cols-12 px-3 py-2 text-[11px] border-t leading-snug">
-                            <div className="col-span-1 break-words">{asset.id || "—"}</div>
-                            <div className="col-span-4 break-words">{cleanTitle}</div>
-                            <div className="col-span-1 capitalize">{asset.type}</div>
-                            <div className="col-span-2">
-                              {asset.resolution
-                                ? `${asset.resolution.width}×${asset.resolution.height}`
-                                : asset.durationSeconds
-                                ? `${Math.floor(asset.durationSeconds / 60)}:${String(
-                                    Math.floor(asset.durationSeconds % 60)
-                                  ).padStart(2, "0")}`
-                                : "—"}
-                            </div>
-                            <div className="col-span-3 break-words">{asset.chosenLicense}</div>
-                            <div className="col-span-1 text-right">
-                              <a
-                                href={asset.pageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline text-[10px]"
-                              >
-                                Ver
-                              </a>
+                          <div 
+                            key={idx} 
+                            className="border-2 rounded-lg p-3 bg-slate-50/50"
+                          >
+                            <div className="flex gap-3">
+                              {/* Preview da imagem/vídeo */}
+                              <div className="flex-shrink-0 w-20 h-20 bg-slate-200 rounded overflow-hidden flex items-center justify-center">
+                                {asset.thumbnail ? (
+                                  <img 
+                                    src={asset.thumbnail} 
+                                    alt={cleanTitle}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="text-slate-400 text-[10px] text-center px-1">
+                                    Sem preview
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Detalhes */}
+                              <div className="flex-1 space-y-1.5">
+                                <div className="flex justify-between items-start">
+                                  <div className="font-mono text-sm font-bold text-slate-800">
+                                    {asset.id || "—"}
+                                  </div>
+                                </div>
+                                
+                                <div className="text-[10px] text-blue-600 font-medium">
+                                  {asset.chosenLicense || asset.recommendedLicense || 'Licença Padrão'}
+                                </div>
+                                
+                                <div className="text-[10px] text-slate-600 leading-relaxed line-clamp-2">
+                                  {cleanTitle}
+                                </div>
+
+                                <div className="flex gap-3 text-[9px] text-slate-500 pt-1 border-t border-slate-200">
+                                  <div>
+                                    <span className="font-semibold">Tipo:</span> {asset.type}
+                                  </div>
+                                  {asset.resolution && (
+                                    <div>
+                                      <span className="font-semibold">Res:</span> {asset.resolution.width}×{asset.resolution.height}
+                                    </div>
+                                  )}
+                                  {asset.durationSeconds && (
+                                    <div>
+                                      <span className="font-semibold">Duração:</span> {Math.floor(asset.durationSeconds / 60)}:{String(Math.floor(asset.durationSeconds % 60)).padStart(2, "0")}
+                                    </div>
+                                  )}
+                                  <a 
+                                    href={asset.pageUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline font-medium print:hidden"
+                                  >
+                                    🔗 Ver original
+                                  </a>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         );
                       })}
+                    </div>
+
+                    {/* Notas */}
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-[9px] text-slate-600 space-y-0.5">
+                      <p><strong>Notas:</strong></p>
+                      <p>1. Este orçamento será válido por 30 dias a partir da data de criação.</p>
+                      <p>2. Os preços apresentados estão sujeitos a alterações sem aviso prévio.</p>
+                      <p>3. As licenças são concedidas de acordo com os termos especificados pelo fornecedor.</p>
                     </div>
                   </section>
                 )}
