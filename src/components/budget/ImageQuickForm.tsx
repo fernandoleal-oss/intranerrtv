@@ -79,6 +79,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
 
     setIsProcessing(true)
     const newAssets: AssetMetadata[] = []
+    let detectedBanco: 'shutterstock' | 'getty' | 'personalizado' | '' = banco
 
     for (const url of urls) {
       try {
@@ -88,6 +89,17 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
         // Define a licença escolhida como a recomendada por padrão
         metadata.chosenLicense = metadata.recommendedLicense
         newAssets.push(metadata)
+        
+        // Detecta automaticamente o banco baseado no provider
+        if (!banco) {
+          if (metadata.provider.toLowerCase().includes('shutterstock')) {
+            detectedBanco = 'shutterstock'
+          } else if (metadata.provider.toLowerCase().includes('getty')) {
+            detectedBanco = 'getty'
+          } else {
+            detectedBanco = 'personalizado'
+          }
+        }
         
         toast({ 
           title: 'Asset adicionado', 
@@ -103,10 +115,23 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
       }
     }
 
+    // Atualiza o banco se foi detectado automaticamente
+    if (detectedBanco && !banco) {
+      setBanco(detectedBanco)
+      toast({ 
+        title: 'Banco detectado', 
+        description: `Banco de imagens detectado automaticamente: ${
+          detectedBanco === 'shutterstock' ? 'Shutterstock' : 
+          detectedBanco === 'getty' ? 'Getty Images' : 
+          'Personalizado'
+        }` 
+      })
+    }
+
     setAssets(prev => [...prev, ...newAssets])
     setLinksInput('')
     setIsProcessing(false)
-  }, [linksInput, toast])
+  }, [linksInput, toast, banco])
 
   const updateAssetLicense = (index: number, license: string) => {
     setAssets(prev => {
@@ -140,17 +165,15 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
       return
     }
 
-    if (!banco) {
-      toast({ title: 'Dados incompletos', description: 'Selecione o banco de imagens', variant: 'destructive' })
-      return
-    }
-
     if (assets.length === 0) {
       toast({ title: 'Sem assets', description: 'Adicione pelo menos um asset', variant: 'destructive' })
       return
     }
 
-    onSave({ producer, cliente, produto, banco, assets })
+    // Se o banco não foi definido, usa 'personalizado' como padrão
+    const finalBanco = banco || 'personalizado'
+
+    onSave({ producer, cliente, produto, banco: finalBanco, assets })
     toast({ title: 'Salvo!', description: `${assets.length} asset(s) adicionado(s) ao orçamento` })
   }
 
@@ -209,10 +232,10 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
               />
             </div>
             <div>
-              <Label htmlFor="banco">Banco de Imagens *</Label>
+              <Label htmlFor="banco">Banco de Imagens</Label>
               <Select value={banco} onValueChange={(value: any) => setBanco(value)}>
                 <SelectTrigger id="banco">
-                  <SelectValue placeholder="Selecione o banco" />
+                  <SelectValue placeholder="Detectado automaticamente ao adicionar links" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="shutterstock">Shutterstock</SelectItem>
@@ -220,6 +243,11 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                   <SelectItem value="personalizado">Personalizado</SelectItem>
                 </SelectContent>
               </Select>
+              {banco && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Banco: {banco === 'shutterstock' ? 'Shutterstock' : banco === 'getty' ? 'Getty Images' : 'Personalizado'}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -244,7 +272,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
             <Alert className="border-blue-500/20 bg-blue-500/10">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                <strong>Dica:</strong> Cole múltiplas URLs separadas por quebra de linha, vírgula ou ponto-e-vírgula.
+                <strong>Dica:</strong> Cole múltiplas URLs separadas por quebra de linha, vírgula ou ponto-e-vírgula. O banco de imagens será detectado automaticamente.
               </AlertDescription>
             </Alert>
 
