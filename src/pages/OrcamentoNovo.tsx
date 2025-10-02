@@ -63,6 +63,13 @@ export default function OrcamentoNovo() {
     pendente_faturamento: false,
   });
 
+  // Redirecionar para página específica quando tipo for imagem
+  useEffect(() => {
+    if (data.type === "imagem") {
+      navigate("/new/imagem");
+    }
+  }, [data.type, navigate]);
+
   const updateData = useCallback((updates: Partial<BudgetData>) => {
     setData((prev) => ({ ...prev, ...updates }));
   }, []);
