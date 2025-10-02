@@ -23,6 +23,7 @@ export default function NovaImagem() {
         email: formData.producer.email,
         cliente: formData.cliente,
         produto: formData.produto,
+        midias: formData.midias,
         banco: formData.banco,
         assets: formData.assets
       }

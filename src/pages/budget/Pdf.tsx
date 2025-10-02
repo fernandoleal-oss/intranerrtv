@@ -384,26 +384,40 @@ export default function PdfView() {
                 {/* Identificação */}
                 <section className="rounded-lg border px-4 py-3">
                   <h2 className="text-sm font-semibold mb-2">Identificação</h2>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <div>
-                      <span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}
+                  {view.type === 'imagem' ? (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <div>
+                        <span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Produto:</span> {fmt(p.produto)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Mídias:</span> {fmt(p.midias)}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-neutral-500">Produto:</span> {fmt(p.produto)}
+                  ) : (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <div>
+                        <span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Produto:</span> {fmt(p.produto)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Job:</span> {fmt(p.job)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Mídias:</span> {fmt(p.midias)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Território:</span> {fmt(p.territorio)}
+                      </div>
+                      <div>
+                        <span className="text-neutral-500">Período:</span> {fmt(p.periodo)}
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-neutral-500">Job:</span> {fmt(p.job)}
-                    </div>
-                    <div>
-                      <span className="text-neutral-500">Mídias:</span> {fmt(p.midias)}
-                    </div>
-                    <div>
-                      <span className="text-neutral-500">Território:</span> {fmt(p.territorio)}
-                    </div>
-                    <div>
-                      <span className="text-neutral-500">Período:</span> {fmt(p.periodo)}
-                    </div>
-                  </div>
+                  )}
                 </section>
 
                 {/* Cotações */}
@@ -462,8 +476,8 @@ export default function PdfView() {
                     </div>
                   )}
 
-                  {/* Complementares – ocultos em ÁUDIO para não poluir */}
-                  {String(view.type).toLowerCase() !== "audio" && (
+                  {/* Complementares – ocultos em ÁUDIO e IMAGEM para não poluir */}
+                  {!['audio', 'imagem'].includes(String(view.type).toLowerCase()) && (
                     <div className="grid grid-cols-3 gap-2 mt-3 text-[11px]">
                       <div className="border rounded-md p-2">
                         <div className="text-neutral-500">Entregáveis</div>

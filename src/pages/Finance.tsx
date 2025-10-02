@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, DollarSign, Percent, Users, Download } from "
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
+import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 
 type ClientSummary = {
   client: string;
@@ -61,10 +62,13 @@ export default function Finance() {
         subtitle="Visão geral e análise financeira"
         backTo="/"
         actions={
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            {canEdit && <ExcelImportDialog onImportComplete={loadTopClients} />}
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar CSV
+            </Button>
+          </div>
         }
       />
 
@@ -138,7 +142,7 @@ export default function Finance() {
           <Card className="mb-6 border-amber-200 bg-amber-50">
             <CardContent className="pt-6">
               <p className="text-sm text-amber-800">
-                <strong>Visualização apenas.</strong> Apenas fernando.leal@we.com.br pode editar dados financeiros.
+                <strong>Visualização apenas.</strong> Apenas Fernando e Kelly podem editar dados financeiros.
               </p>
             </CardContent>
           </Card>

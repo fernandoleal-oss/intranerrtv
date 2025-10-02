@@ -34,6 +34,7 @@ interface FormData {
   producer: Producer
   cliente: string
   produto: string
+  midias: string
   banco: 'shutterstock' | 'getty' | 'personalizado' | ''
   assets: AssetMetadata[]
 }
@@ -50,6 +51,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
   )
   const [cliente, setCliente] = useState(initialData?.cliente || '')
   const [produto, setProduto] = useState(initialData?.produto || '')
+  const [midias, setMidias] = useState(initialData?.midias || 'Visualizar')
   const [banco, setBanco] = useState<'shutterstock' | 'getty' | 'personalizado' | ''>(
     initialData?.banco || ''
   )
@@ -151,6 +153,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     setProducer({ name: '', email: '' })
     setCliente('')
     setProduto('')
+    setMidias('Visualizar')
     setBanco('')
   }
 
@@ -173,7 +176,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
     // Se o banco não foi definido, usa 'personalizado' como padrão
     const finalBanco = banco || 'personalizado'
 
-    onSave({ producer, cliente, produto, banco: finalBanco, assets })
+    onSave({ producer, cliente, produto, midias, banco: finalBanco, assets })
     toast({ title: 'Salvo!', description: `${assets.length} asset(s) adicionado(s) ao orçamento` })
   }
 
@@ -230,6 +233,18 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                 required
                 clientId={cliente}
               />
+            </div>
+            <div>
+              <Label htmlFor="midias">Mídias *</Label>
+              <Select value={midias} onValueChange={setMidias}>
+                <SelectTrigger id="midias">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Visualizar">Visualizar</SelectItem>
+                  <SelectItem value="Não">Não</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="banco">Banco de Imagens</Label>
