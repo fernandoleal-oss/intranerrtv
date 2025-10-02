@@ -693,6 +693,90 @@ export type Database = {
           },
         ]
       }
+      supplier_jobs: {
+        Row: {
+          budget_id: string | null
+          created_at: string | null
+          id: string
+          job_type: string | null
+          supplier_id: string | null
+          value_cents: number | null
+        }
+        Insert: {
+          budget_id?: string | null
+          created_at?: string | null
+          id?: string
+          job_type?: string | null
+          supplier_id?: string | null
+          value_cents?: number | null
+        }
+        Update: {
+          budget_id?: string | null
+          created_at?: string | null
+          id?: string
+          job_type?: string | null
+          supplier_id?: string | null
+          value_cents?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_jobs_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_jobs_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          cnpj: string | null
+          contact_name: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          cnpj?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          cnpj?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       versions: {
         Row: {
           budget_id: string | null
@@ -752,6 +836,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_budget_previews: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       create_budget_full_rpc: {
         Args: { p_payload: Json; p_total: number; p_type_text: string }
         Returns: {
