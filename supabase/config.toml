@@ -1,1 +1,7 @@
 project_id = "wturfdjywbpzassyuwun"
+
+[functions.ancine_proxy]
+verify_jwt = false
+
+[functions.clube_news]
+verify_jwt = false

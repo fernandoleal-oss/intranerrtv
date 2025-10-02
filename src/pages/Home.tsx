@@ -2,13 +2,28 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { FileText, DollarSign, Eye, LogOut, Settings, Car, TrendingUp } from "lucide-react";
+import { FileText, DollarSign, Eye, LogOut, Settings, Car, Clapperboard, Newspaper } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
+  const [clubeNews, setClubeNews] = useState<Array<{ title: string; url: string }>>([]);
+
+  useEffect(() => {
+    const fetchClubeNews = async () => {
+      try {
+        const { data } = await supabase.functions.invoke("clube_news");
+        if (data?.items) setClubeNews(data.items);
+      } catch (e) {
+        console.error("Erro ao carregar notícias do Clube:", e);
+      }
+    };
+    fetchClubeNews();
+  }, []);
 
   const sections = [
     {
@@ -31,6 +46,13 @@ export default function Home() {
       icon: DollarSign,
       color: "from-green-500 to-emerald-600",
       path: "/financeiro",
+    },
+    {
+      title: "Consulta ANCINE",
+      description: "Claquetes & registros oficiais",
+      icon: Clapperboard,
+      color: "from-yellow-500 to-amber-600",
+      path: "/ancine",
     },
     {
       title: "Comparador BYD",
@@ -142,6 +164,42 @@ export default function Home() {
             </motion.div>
           ))}
         </div>
+
+        {/* Clube de Criação */}
+        {clubeNews.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="mt-12 max-w-6xl mx-auto"
+          >
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Newspaper className="w-5 h-5 text-primary" />
+                  <CardTitle>Clube de Criação — Últimas Notícias</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {clubeNews.map((news, idx) => (
+                    <li key={idx}>
+                      <a
+                        href={news.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm hover:text-primary transition-colors flex items-center gap-2 group"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary group-hover:scale-125 transition-transform" />
+                        {news.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </main>
     </div>
   );
