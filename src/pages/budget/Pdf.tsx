@@ -165,21 +165,10 @@ export default function PdfView() {
         await handleStatusChange(finalStatus);
       }
 
-      // cria versão antes de imprimir
-      const nextVersion = versions.length > 0 ? Math.max(...versions.map((v) => v.versao)) + 1 : 1;
-      const { error } = await supabase.from("versions").insert({
-        budget_id: view.budgetId,
-        versao: nextVersion,
-        payload: view.payload,
-      });
-      if (error) throw error;
-
-      toast({ title: "Versão criada", description: `Versão ${nextVersion} salva antes da impressão.` });
-
-      // imprime
-      setTimeout(() => window.print(), 350);
+      // imprime diretamente
+      window.print();
     } catch (e: any) {
-      toast({ title: "Erro ao criar versão", description: e?.message, variant: "destructive" });
+      toast({ title: "Erro ao imprimir", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -829,11 +818,10 @@ export default function PdfView() {
         </div>
       </div>
 
-      {/* Estilos: A4 fit */}
+      {/* Estilos: Impressão otimizada */}
       <style>{`
         @media print {
           @page { 
-            size: A4 landscape; 
             margin: 8mm; 
           }
           body { 
@@ -841,39 +829,11 @@ export default function PdfView() {
             print-color-adjust: exact; 
           }
 
-          /* Forçar tudo em uma página no modo paisagem */
-          html, body { 
-            height: 100%; 
-            overflow: hidden;
-          }
-          
-          #print-root { 
-            transform: scale(0.85);
-            transform-origin: top left;
-            width: 117.6%;
-          }
-          
-          #print-root { 
-            display: flex; 
-            flex-direction: column; 
-            max-height: 190mm;
-          }
-          
-          #page-body { 
-            flex: 1 0 auto; 
-            display: flex; 
-            flex-direction: column; 
-          }
-          
-          #page-body footer { 
-            margin-top: auto; 
-          }
-
           .no-print { 
             display: none !important; 
           }
 
-          /* Reduzir espaçamentos para caber em uma página */
+          /* Reduzir espaçamentos para melhor aproveitamento */
           section { 
             margin-top: 0.5rem !important; 
           }
