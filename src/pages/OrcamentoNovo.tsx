@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -24,6 +25,14 @@ interface QuoteFilm {
   desconto: number;
 }
 
+interface QuoteAudio {
+  id: string;
+  produtora: string;
+  descricao: string;
+  valor: number;
+  desconto: number;
+}
+
 interface BudgetData {
   type: BudgetType;
   produtor?: string;
@@ -34,7 +43,12 @@ interface BudgetData {
   midias?: string;
   territorio?: string;
   periodo?: string;
+  entregaveis?: string;
+  adaptacoes?: string;
+  exclusividade_elenco?: "orcado" | "nao_orcado" | "nao_aplica";
+  inclui_audio?: boolean;
   quotes_film?: QuoteFilm[];
+  quotes_audio?: QuoteAudio[];
   honorario_perc?: number;
   total: number;
   pendente_faturamento?: boolean;
@@ -58,9 +72,12 @@ export default function OrcamentoNovo() {
   const [data, setData] = useState<BudgetData>({
     type: "filme",
     quotes_film: [],
+    quotes_audio: [],
     honorario_perc: 0,
     total: 0,
     pendente_faturamento: false,
+    inclui_audio: false,
+    exclusividade_elenco: "nao_aplica",
   });
 
   // Redirecionar para página específica quando tipo for imagem
@@ -74,13 +91,33 @@ export default function OrcamentoNovo() {
     setData((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  // Recalcular totais
+  // Recalcular totais usando APENAS as mais baratas
   useEffect(() => {
-    const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
-    const honorario = filmSubtotal * ((data.honorario_perc || 0) / 100);
-    const total = filmSubtotal + honorario;
+    // Encontrar a produtora de filme mais barata
+    const cheapestFilm = (data.quotes_film || []).length > 0
+      ? (data.quotes_film || []).reduce((min, q) => {
+          const qVal = q.valor - (q.desconto || 0);
+          const minVal = min.valor - (min.desconto || 0);
+          return qVal < minVal ? q : min;
+        })
+      : null;
+
+    // Encontrar a produtora de áudio mais barata
+    const cheapestAudio = data.inclui_audio && (data.quotes_audio || []).length > 0
+      ? (data.quotes_audio || []).reduce((min, q) => {
+          const qVal = q.valor - (q.desconto || 0);
+          const minVal = min.valor - (min.desconto || 0);
+          return qVal < minVal ? q : min;
+        })
+      : null;
+
+    const filmSubtotal = cheapestFilm ? (cheapestFilm.valor - (cheapestFilm.desconto || 0)) : 0;
+    const audioSubtotal = cheapestAudio ? (cheapestAudio.valor - (cheapestAudio.desconto || 0)) : 0;
+    const subtotalGeral = filmSubtotal + audioSubtotal;
+    const honorario = subtotalGeral * ((data.honorario_perc || 0) / 100);
+    const total = subtotalGeral + honorario;
     setData((prev) => ({ ...prev, total }));
-  }, [data.quotes_film, data.honorario_perc]);
+  }, [data.quotes_film, data.quotes_audio, data.honorario_perc, data.inclui_audio]);
 
   const addQuote = () => {
     const newQuote: QuoteFilm = {
@@ -102,6 +139,26 @@ export default function OrcamentoNovo() {
 
   const removeQuote = (id: string) => {
     updateData({ quotes_film: (data.quotes_film || []).filter((q) => q.id !== id) });
+  };
+
+  const addAudioQuote = () => {
+    const newQuote: QuoteAudio = {
+      id: crypto.randomUUID(),
+      produtora: "",
+      descricao: "",
+      valor: 0,
+      desconto: 0,
+    };
+    updateData({ quotes_audio: [...(data.quotes_audio || []), newQuote] });
+  };
+
+  const updateAudioQuote = (id: string, updates: Partial<QuoteAudio>) => {
+    const updated = (data.quotes_audio || []).map((q) => (q.id === id ? { ...q, ...updates } : q));
+    updateData({ quotes_audio: updated });
+  };
+
+  const removeAudioQuote = (id: string) => {
+    updateData({ quotes_audio: (data.quotes_audio || []).filter((q) => q.id !== id) });
   };
 
   const handleSave = async () => {
@@ -154,8 +211,26 @@ export default function OrcamentoNovo() {
     }
   };
 
-  const filmSubtotal = (data.quotes_film || []).reduce((s, q) => s + (q.valor - (q.desconto || 0)), 0);
-  const honorValue = (filmSubtotal * (data.honorario_perc || 0)) / 100;
+  const cheapestFilm = (data.quotes_film || []).length > 0
+    ? (data.quotes_film || []).reduce((min, q) => {
+        const qVal = q.valor - (q.desconto || 0);
+        const minVal = min.valor - (min.desconto || 0);
+        return qVal < minVal ? q : min;
+      })
+    : null;
+
+  const cheapestAudio = data.inclui_audio && (data.quotes_audio || []).length > 0
+    ? (data.quotes_audio || []).reduce((min, q) => {
+        const qVal = q.valor - (q.desconto || 0);
+        const minVal = min.valor - (min.desconto || 0);
+        return qVal < minVal ? q : min;
+      })
+    : null;
+
+  const filmVal = cheapestFilm ? (cheapestFilm.valor - (cheapestFilm.desconto || 0)) : 0;
+  const audioVal = cheapestAudio ? (cheapestAudio.valor - (cheapestAudio.desconto || 0)) : 0;
+  const subtotal = filmVal + audioVal;
+  const honorValue = subtotal * ((data.honorario_perc || 0) / 100);
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,9 +261,10 @@ export default function OrcamentoNovo() {
           </CardHeader>
           <CardContent className="text-sm text-blue-900/70 space-y-1">
             <p>• <b>Cliente</b> e <b>Produto</b>: Campos obrigatórios para identificação.</p>
-            <p>• <b>Cotações</b>: Adicione todas as produtoras com valores e descontos.</p>
-            <p>• <b>Honorário</b>: Percentual aplicado sobre o subtotal das cotações.</p>
-            <p>• <b>Pendente de faturamento</b>: Marca o orçamento para inclusão em próximo faturamento.</p>
+            <p>• <b>Cotações</b>: Adicione múltiplas produtoras para comparação lado a lado.</p>
+            <p>• <b>Mais Barata</b>: O sistema destaca automaticamente a opção mais econômica.</p>
+            <p>• <b>Total Sugerido</b>: Calcula usando APENAS as produtoras mais baratas (1 filme + 1 áudio).</p>
+            <p>• <b>Honorário</b>: Percentual aplicado sobre o subtotal das produtoras selecionadas.</p>
           </CardContent>
         </Card>
 
@@ -277,89 +353,268 @@ export default function OrcamentoNovo() {
                     <Input value={data.periodo || ""} onChange={(e) => updateData({ periodo: e.target.value })} />
                   </div>
                 </div>
+
+                <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div>
+                    <Label>Entregáveis</Label>
+                    <Input
+                      value={data.entregaveis || ""}
+                      onChange={(e) => updateData({ entregaveis: e.target.value })}
+                      placeholder="Ex: 1 filme 30s, 1 filme 15s..."
+                    />
+                  </div>
+                  <div>
+                    <Label>Adaptações</Label>
+                    <Input
+                      value={data.adaptacoes || ""}
+                      onChange={(e) => updateData({ adaptacoes: e.target.value })}
+                      placeholder="Ex: 2 adaptações..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="exclusividade">Exclusividade de Elenco</Label>
+                    <Select
+                      value={data.exclusividade_elenco || "nao_aplica"}
+                      onValueChange={(v: any) => updateData({ exclusividade_elenco: v })}
+                    >
+                      <SelectTrigger id="exclusividade">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="orcado">Orçado</SelectItem>
+                        <SelectItem value="nao_orcado">Não Orçado</SelectItem>
+                        <SelectItem value="nao_aplica">Não se Aplica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Cotações</CardTitle>
+                <CardTitle>Cotações de Produtoras - Filme</CardTitle>
                 <Button size="sm" variant="outline" onClick={addQuote} className="gap-2">
                   <Plus className="h-4 w-4" />
-                  Adicionar
+                  Adicionar Cotação
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                {(data.quotes_film || []).map((q) => (
-                  <motion.div
-                    key={q.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="border rounded-lg p-4 space-y-3"
-                  >
-                    <div className="grid md:grid-cols-3 gap-3">
-                      <div>
-                        <Label>Produtora</Label>
-                        <Input
-                          value={q.produtora}
-                          onChange={(e) => updateQuote(q.id, { produtora: e.target.value })}
-                          placeholder="Nome da produtora"
-                        />
+                {(data.quotes_film || []).map((q) => {
+                  const isCheapest = cheapestFilm?.id === q.id;
+                  return (
+                    <motion.div
+                      key={q.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`border rounded-lg p-4 space-y-3 ${
+                        isCheapest 
+                          ? 'border-green-500 bg-green-50/50 border-2' 
+                          : 'border-border bg-secondary/20'
+                      }`}
+                    >
+                      {isCheapest && (
+                        <div className="mb-3">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-600 text-white">
+                            ⭐ MAIS BARATA - FILME
+                          </span>
+                        </div>
+                      )}
+                      <div className="grid md:grid-cols-3 gap-3">
+                        <div>
+                          <Label>Produtora</Label>
+                          <Input
+                            value={q.produtora}
+                            onChange={(e) => updateQuote(q.id, { produtora: e.target.value })}
+                            placeholder="Nome da produtora"
+                          />
+                        </div>
+                        <div>
+                          <Label>Diretor (opcional)</Label>
+                          <Input value={q.diretor} onChange={(e) => updateQuote(q.id, { diretor: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label>Tratamento (opcional)</Label>
+                          <Input
+                            value={q.tratamento}
+                            onChange={(e) => updateQuote(q.id, { tratamento: e.target.value })}
+                            placeholder="Link ou descrição"
+                          />
+                        </div>
                       </div>
-                      <div className="md:col-span-2">
-                        <Label>Escopo</Label>
-                        <Input
+                      <div>
+                        <Label>Escopo Detalhado</Label>
+                        <textarea
+                          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background"
                           value={q.escopo}
                           onChange={(e) => updateQuote(q.id, { escopo: e.target.value })}
-                          placeholder="Descrição detalhada"
+                          placeholder="Descreva o escopo completo da produtora..."
                         />
                       </div>
-                      <div>
-                        <Label>Diretor</Label>
-                        <Input value={q.diretor} onChange={(e) => updateQuote(q.id, { diretor: e.target.value })} />
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div>
+                          <Label>Valor (R$)</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={q.valor ? String(q.valor) : ""}
+                            onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
+                            placeholder="0,00"
+                          />
+                        </div>
+                        <div>
+                          <Label>Desconto (R$)</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={q.desconto ? String(q.desconto) : ""}
+                            onChange={(e) => updateQuote(q.id, { desconto: parseCurrency(e.target.value) })}
+                            placeholder="0,00"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <Label>Tratamento</Label>
-                        <Input
-                          value={q.tratamento}
-                          onChange={(e) => updateQuote(q.id, { tratamento: e.target.value })}
-                        />
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-sm">
+                          <span className="font-semibold">Valor Final: </span>
+                          <span className="text-lg font-bold text-primary">
+                            {money(q.valor - (q.desconto || 0))}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeQuote(q.id)}
+                          className="text-destructive gap-1"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remover
+                        </Button>
                       </div>
-                      <div>
-                        <Label>Valor (R$)</Label>
-                        <Input
-                          inputMode="decimal"
-                          value={q.valor ? String(q.valor) : ""}
-                          onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
-                          placeholder="0,00"
-                        />
-                      </div>
-                      <div>
-                        <Label>Desconto (R$)</Label>
-                        <Input
-                          inputMode="decimal"
-                          value={q.desconto ? String(q.desconto) : ""}
-                          onChange={(e) => updateQuote(q.id, { desconto: parseCurrency(e.target.value) })}
-                          placeholder="0,00"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeQuote(q.id)}
-                        className="text-destructive gap-1"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        Remover
-                      </Button>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
                 {(!data.quotes_film || data.quotes_film.length === 0) && (
                   <div className="text-sm text-muted-foreground">Nenhuma cotação adicionada.</div>
                 )}
               </CardContent>
+            </Card>
+
+            {/* Seção de Áudio Opcional */}
+            <Card className="border-2 border-blue-200 bg-blue-50/30">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      Produtora de Áudio
+                      {!data.inclui_audio && (
+                        <span className="text-sm font-normal text-blue-600">💡 Adicionar cotação de áudio?</span>
+                      )}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {data.inclui_audio 
+                        ? "Adicione cotações de produtoras de áudio para comparação" 
+                        : "Ative para incluir cotações de produtoras de áudio"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={data.inclui_audio || false}
+                    onCheckedChange={(v) => updateData({ inclui_audio: v })}
+                  />
+                </div>
+              </CardHeader>
+              {data.inclui_audio && (
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Adicione cotações de produtoras de áudio
+                    </p>
+                    <Button size="sm" variant="secondary" onClick={addAudioQuote} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Adicionar Áudio
+                    </Button>
+                  </div>
+                  {(data.quotes_audio || []).map((q) => {
+                    const isCheapest = cheapestAudio?.id === q.id;
+                    return (
+                      <motion.div
+                        key={q.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`border rounded-lg p-4 space-y-3 ${
+                          isCheapest 
+                            ? 'border-blue-500 bg-blue-50/50 border-2' 
+                            : 'border-border bg-blue-50/30'
+                        }`}
+                      >
+                        {isCheapest && (
+                          <div className="mb-3">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white">
+                              ⭐ MAIS BARATA - ÁUDIO
+                            </span>
+                          </div>
+                        )}
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <div>
+                            <Label>Produtora</Label>
+                            <Input
+                              value={q.produtora}
+                              onChange={(e) => updateAudioQuote(q.id, { produtora: e.target.value })}
+                              placeholder="Nome"
+                            />
+                          </div>
+                          <div>
+                            <Label>Descrição/Escopo</Label>
+                            <textarea
+                              className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
+                              value={q.descricao}
+                              onChange={(e) => updateAudioQuote(q.id, { descricao: e.target.value })}
+                              placeholder="Descreva o escopo de áudio..."
+                            />
+                          </div>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <div>
+                            <Label>Valor (R$)</Label>
+                            <Input
+                              inputMode="decimal"
+                              value={q.valor ? String(q.valor) : ""}
+                              onChange={(e) => updateAudioQuote(q.id, { valor: parseCurrency(e.target.value) })}
+                              placeholder="0,00"
+                            />
+                          </div>
+                          <div>
+                            <Label>Desconto (R$)</Label>
+                            <Input
+                              inputMode="decimal"
+                              value={q.desconto ? String(q.desconto) : ""}
+                              onChange={(e) => updateAudioQuote(q.id, { desconto: parseCurrency(e.target.value) })}
+                              placeholder="0,00"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <div className="text-sm">
+                            <span className="font-semibold">Valor Final: </span>
+                            <span className="text-lg font-bold text-blue-600">
+                              {money(q.valor - (q.desconto || 0))}
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeAudioQuote(q.id)}
+                            className="text-destructive gap-1"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Remover
+                          </Button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {(!data.quotes_audio || data.quotes_audio.length === 0) && (
+                    <div className="text-sm text-blue-700/70">Nenhuma cotação de áudio adicionada.</div>
+                  )}
+                </CardContent>
+              )}
             </Card>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -445,17 +700,26 @@ export default function OrcamentoNovo() {
                   </div>
 
                   <div className="border-t pt-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span className="font-mono">{money(filmSubtotal)}</span>
-                    </div>
+                    <div className="text-xs font-semibold mb-2 text-primary">💡 Melhor Combinação</div>
+                    {cheapestFilm && (
+                      <div className="flex justify-between p-2 rounded-lg bg-green-50 border border-green-200">
+                        <span className="text-xs text-green-700">Filme - {cheapestFilm.produtora}</span>
+                        <span className="font-mono text-green-700">{money(filmVal)}</span>
+                      </div>
+                    )}
+                    {cheapestAudio && (
+                      <div className="flex justify-between p-2 rounded-lg bg-blue-50 border border-blue-200">
+                        <span className="text-xs text-blue-700">Áudio - {cheapestAudio.produtora}</span>
+                        <span className="font-mono text-blue-700">{money(audioVal)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span>Honorário ({data.honorario_perc || 0}%):</span>
                       <span className="font-mono">{money(honorValue)}</span>
                     </div>
                     <div className="flex justify-between font-semibold text-base border-t pt-2">
                       <span>Total:</span>
-                      <span className="font-mono">{money(data.total)}</span>
+                      <span className="font-mono text-primary">{money(data.total)}</span>
                     </div>
                   </div>
                 </CardContent>
