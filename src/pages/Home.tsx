@@ -72,6 +72,13 @@ export default function Home() {
       gradient: "gradient-cyan",
       path: "/claquete",
     },
+    {
+      title: "BYD Pronta Entrega",
+      description: "Orçamento para atendimento",
+      icon: FileText,
+      gradient: "gradient-indigo",
+      path: "/byd-pronta-entrega",
+    },
   ];
 
   return (
