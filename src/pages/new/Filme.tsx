@@ -454,10 +454,22 @@ export default function FilmeBudget() {
             </Card>
 
             {/* Seção de Áudio Opcional */}
-            <Card className="border-2">
+            <Card className="border-2 border-blue-200 bg-blue-50/30">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Incluir Produtora de Áudio?</CardTitle>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      Produtora de Áudio
+                      {!data.inclui_audio && (
+                        <span className="text-sm font-normal text-blue-600">💡 Adicionar cotação de áudio?</span>
+                      )}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {data.inclui_audio 
+                        ? "Adicione cotações de produtoras de áudio para comparação" 
+                        : "Ative para incluir cotações de produtoras de áudio"}
+                    </p>
+                  </div>
                   <Switch
                     checked={data.inclui_audio || false}
                     onCheckedChange={(v) => updateData({ inclui_audio: v })}
