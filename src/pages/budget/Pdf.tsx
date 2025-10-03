@@ -246,32 +246,6 @@ export default function PdfView() {
 
   const statusBadge = getStatusBadge();
 
-  // fit-to-page (A4)
-  useEffect(() => {
-    const handleBeforePrint = () => {
-      const el = printRef.current;
-      if (!el) return;
-      const TARGET_HEIGHT_PX = 1047;
-      el.style.setProperty("--print-scale", "1");
-      const actual = el.scrollHeight;
-      if (actual <= TARGET_HEIGHT_PX) return;
-      const MIN_SCALE = 0.72;
-      const scale = Math.max(MIN_SCALE, Math.min(1, (TARGET_HEIGHT_PX / actual) * 0.985));
-      el.style.setProperty("--print-scale", String(scale));
-    };
-    const handleAfterPrint = () => {
-      const el = printRef.current;
-      if (!el) return;
-      el.style.setProperty("--print-scale", "1");
-    };
-    window.addEventListener("beforeprint", handleBeforePrint);
-    window.addEventListener("afterprint", handleAfterPrint);
-    return () => {
-      window.removeEventListener("beforeprint", handleBeforePrint);
-      window.removeEventListener("afterprint", handleAfterPrint);
-    };
-  }, []);
-
   // ----- estados de tela -----
   if (loading) {
     return (
@@ -858,20 +832,76 @@ export default function PdfView() {
       {/* Estilos: A4 fit */}
       <style>{`
         @media print {
-          @page { size: A4; margin: 10mm; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { 
+            size: A4 landscape; 
+            margin: 8mm; 
+          }
+          body { 
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact; 
+          }
 
-          /* Fit-to-page */
-          #print-root { transform: scale(var(--print-scale, 1)); }
-          #print-root { min-height: 277mm; display: flex; flex-direction: column; }
-          #page-body { flex: 1 0 auto; display: flex; flex-direction: column; }
-          #page-body footer { margin-top: auto; }
+          /* Forçar tudo em uma página no modo paisagem */
+          html, body { 
+            height: 100%; 
+            overflow: hidden;
+          }
+          
+          #print-root { 
+            transform: scale(0.85);
+            transform-origin: top left;
+            width: 117.6%;
+          }
+          
+          #print-root { 
+            display: flex; 
+            flex-direction: column; 
+            max-height: 190mm;
+          }
+          
+          #page-body { 
+            flex: 1 0 auto; 
+            display: flex; 
+            flex-direction: column; 
+          }
+          
+          #page-body footer { 
+            margin-top: auto; 
+          }
 
-          .no-print { display: none !important; }
+          .no-print { 
+            display: none !important; 
+          }
+
+          /* Reduzir espaçamentos para caber em uma página */
+          section { 
+            margin-top: 0.5rem !important; 
+          }
+          
+          .mt-3 { 
+            margin-top: 0.5rem !important; 
+          }
+          
+          .mt-4 { 
+            margin-top: 0.75rem !important; 
+          }
+          
+          .py-3 { 
+            padding-top: 0.5rem !important; 
+            padding-bottom: 0.5rem !important; 
+          }
+          
+          .py-4 { 
+            padding-top: 0.75rem !important; 
+            padding-bottom: 0.75rem !important; 
+          }
+
+          /* Evitar quebras de página */
+          * { 
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
         }
-
-        /* Evitar quebras no meio dos blocos */
-        #print-root, #print-root * { page-break-inside: avoid; }
       `}</style>
     </div>
   );
