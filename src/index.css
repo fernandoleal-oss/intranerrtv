@@ -4,24 +4,28 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 20 14% 15%;
+    /* WE Theme Colors */
+    --background: 0 0% 97%;
+    --foreground: 0 0% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 20 14% 15%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 20 14% 15%;
+    --popover-foreground: 0 0% 9%;
     --primary: 18 100% 50%;
+    --primary-dark: 18 100% 43%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 20 14% 96%;
-    --secondary-foreground: 20 14% 15%;
-    --muted: 20 14% 96%;
-    --muted-foreground: 20 10% 50%;
-    --accent: 20 14% 96%;
-    --accent-foreground: 20 14% 15%;
-    --destructive: 0 84% 60%;
+    --secondary: 0 4% 96%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 4% 96%;
+    --muted-foreground: 218 11% 45%;
+    --accent: 0 4% 96%;
+    --accent-foreground: 0 0% 9%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 20 10% 90%;
-    --input: 20 10% 90%;
+    --border: 240 6% 91%;
+    --input: 240 6% 91%;
     --ring: 18 100% 50%;
     --radius: 1rem;
     --chart-1: 18 100% 50%;
