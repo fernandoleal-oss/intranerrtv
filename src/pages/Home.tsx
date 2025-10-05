@@ -34,8 +34,9 @@ export default function Home() {
       title: "Orçamentos",
       description: "Criar e gerenciar orçamentos de produção",
       icon: FileText,
-      gradient: "gradient-blue",
+      gradient: "gradient-orange",
       path: "/orcamentos",
+      disabled: false,
     },
     {
       title: "Direitos",
@@ -60,10 +61,11 @@ export default function Home() {
     },
     {
       title: "Comparador BYD",
-      description: "Compare modelos de carros elétricos",
+      description: "Em breve – recurso em configuração",
       icon: Car,
       gradient: "gradient-orange",
       path: "/comparador-byd",
+      disabled: true,
     },
     {
       title: "Gerador de Claquete",
@@ -159,8 +161,8 @@ export default function Home() {
               transition={{ delay: index * 0.1 }}
             >
               <Card
-                className="cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-border/50"
-                onClick={() => navigate(section.path)}
+                className={`${section.disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'} transition-all duration-300 group border-border/50 rounded-2xl`}
+                onClick={() => !section.disabled && navigate(section.path)}
               >
                 <CardHeader className="text-center pb-4">
                   <div
@@ -174,8 +176,12 @@ export default function Home() {
                 </CardHeader>
                 <CardContent className="text-center">
                   <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{section.description}</p>
-                  <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                    Acessar
+                  <Button 
+                    variant="outline" 
+                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                    disabled={section.disabled}
+                  >
+                    {section.disabled ? 'Em breve' : 'Acessar'}
                   </Button>
                 </CardContent>
               </Card>
