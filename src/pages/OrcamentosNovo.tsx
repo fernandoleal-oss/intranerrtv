@@ -41,6 +41,12 @@ interface Categoria {
   itens: ItemPreco[];
 }
 
+interface Campanha {
+  id: string;
+  nome: string;
+  categorias: Categoria[];
+}
+
 const CATEGORIAS_BASE = [
   { nome: "Filme", podeExcluir: false },
   { nome: "Áudio", podeExcluir: false },
@@ -68,106 +74,213 @@ export default function OrcamentosNovo() {
   const [job, setJob] = useState("");
   const [observacoes, setObservacoes] = useState("");
 
-  // Categorias
-  const [categorias, setCategorias] = useState<Categoria[]>(
-    CATEGORIAS_BASE.map((c, idx) => ({
+  // Campanhas
+  const [campanhas, setCampanhas] = useState<Campanha[]>([
+    {
       id: crypto.randomUUID(),
-      nome: c.nome,
-      ordem: idx,
-      visivel: true,
-      podeExcluir: c.podeExcluir,
-      modoPreco: "fechado" as const,
-      fornecedores: [],
-      itens: [],
-    }))
-  );
-
-  const adicionarCategoria = (nome: string) => {
-    setCategorias([
-      ...categorias,
-      {
+      nome: "Campanha 1",
+      categorias: CATEGORIAS_BASE.map((c, idx) => ({
         id: crypto.randomUUID(),
-        nome,
-        ordem: categorias.length,
+        nome: c.nome,
+        ordem: idx,
         visivel: true,
-        podeExcluir: true,
-        modoPreco: "fechado",
+        podeExcluir: c.podeExcluir,
+        modoPreco: "fechado" as const,
         fornecedores: [],
         itens: [],
+      })),
+    },
+  ]);
+
+  const adicionarCampanha = () => {
+    setCampanhas([
+      ...campanhas,
+      {
+        id: crypto.randomUUID(),
+        nome: `Campanha ${campanhas.length + 1}`,
+        categorias: CATEGORIAS_BASE.map((c, idx) => ({
+          id: crypto.randomUUID(),
+          nome: c.nome,
+          ordem: idx,
+          visivel: true,
+          podeExcluir: c.podeExcluir,
+          modoPreco: "fechado" as const,
+          fornecedores: [],
+          itens: [],
+        })),
       },
     ]);
-    toast({ title: `Categoria "${nome}" adicionada` });
+    toast({ title: `Nova campanha adicionada` });
   };
 
-  const removerCategoria = (id: string) => {
-    setCategorias(categorias.filter((c) => c.id !== id));
+  const removerCampanha = (id: string) => {
+    if (campanhas.length === 1) {
+      toast({ title: "É necessário pelo menos uma campanha", variant: "destructive" });
+      return;
+    }
+    setCampanhas(campanhas.filter((c) => c.id !== id));
   };
 
-  const alternarVisibilidade = (id: string) => {
-    setCategorias(categorias.map((c) => (c.id === id ? { ...c, visivel: !c.visivel } : c)));
+  const atualizarNomeCampanha = (id: string, nome: string) => {
+    setCampanhas(campanhas.map((c) => (c.id === id ? { ...c, nome } : c)));
   };
 
-  const atualizarCategoria = (id: string, updates: Partial<Categoria>) => {
-    setCategorias(categorias.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-  };
-
-  const adicionarFornecedor = (categoriaId: string) => {
-    setCategorias(
-      categorias.map((c) =>
-        c.id === categoriaId
+  const adicionarCategoria = (campanhaId: string, nome: string) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
           ? {
-              ...c,
-              fornecedores: [
-                ...c.fornecedores,
-                { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, desconto: 0 },
-              ],
-            }
-          : c
-      )
-    );
-  };
-
-  const atualizarFornecedor = (categoriaId: string, fornecedorId: string, updates: Partial<Fornecedor>) => {
-    setCategorias(
-      categorias.map((c) =>
-        c.id === categoriaId
-          ? {
-              ...c,
-              fornecedores: c.fornecedores.map((f) => (f.id === fornecedorId ? { ...f, ...updates } : f)),
-            }
-          : c
-      )
-    );
-  };
-
-  const removerFornecedor = (categoriaId: string, fornecedorId: string) => {
-    setCategorias(
-      categorias.map((c) =>
-        c.id === categoriaId
-          ? { ...c, fornecedores: c.fornecedores.filter((f) => f.id !== fornecedorId) }
-          : c
-      )
-    );
-  };
-
-  const adicionarItem = (categoriaId: string) => {
-    setCategorias(
-      categorias.map((c) =>
-        c.id === categoriaId
-          ? {
-              ...c,
-              itens: [
-                ...c.itens,
+              ...camp,
+              categorias: [
+                ...camp.categorias,
                 {
                   id: crypto.randomUUID(),
-                  unidade: "",
-                  quantidade: 1,
-                  valorUnitario: 0,
-                  desconto: 0,
+                  nome,
+                  ordem: camp.categorias.length,
+                  visivel: true,
+                  podeExcluir: true,
+                  modoPreco: "fechado",
+                  fornecedores: [],
+                  itens: [],
                 },
               ],
             }
-          : c
+          : camp
+      )
+    );
+    toast({ title: `Categoria "${nome}" adicionada` });
+  };
+
+  const removerCategoria = (campanhaId: string, categoriaId: string) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? { ...camp, categorias: camp.categorias.filter((c) => c.id !== categoriaId) }
+          : camp
+      )
+    );
+  };
+
+  const alternarVisibilidade = (campanhaId: string, categoriaId: string) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? {
+              ...camp,
+              categorias: camp.categorias.map((c) =>
+                c.id === categoriaId ? { ...c, visivel: !c.visivel } : c
+              ),
+            }
+          : camp
+      )
+    );
+  };
+
+  const atualizarCategoria = (campanhaId: string, categoriaId: string, updates: Partial<Categoria>) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? {
+              ...camp,
+              categorias: camp.categorias.map((c) => (c.id === categoriaId ? { ...c, ...updates } : c)),
+            }
+          : camp
+      )
+    );
+  };
+
+  const adicionarFornecedor = (campanhaId: string, categoriaId: string) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? {
+              ...camp,
+              categorias: camp.categorias.map((c) =>
+                c.id === categoriaId
+                  ? {
+                      ...c,
+                      fornecedores: [
+                        ...c.fornecedores,
+                        { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, desconto: 0 },
+                      ],
+                    }
+                  : c
+              ),
+            }
+          : camp
+      )
+    );
+  };
+
+  const atualizarFornecedor = (
+    campanhaId: string,
+    categoriaId: string,
+    fornecedorId: string,
+    updates: Partial<Fornecedor>
+  ) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? {
+              ...camp,
+              categorias: camp.categorias.map((c) =>
+                c.id === categoriaId
+                  ? {
+                      ...c,
+                      fornecedores: c.fornecedores.map((f) =>
+                        f.id === fornecedorId ? { ...f, ...updates } : f
+                      ),
+                    }
+                  : c
+              ),
+            }
+          : camp
+      )
+    );
+  };
+
+  const removerFornecedor = (campanhaId: string, categoriaId: string, fornecedorId: string) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? {
+              ...camp,
+              categorias: camp.categorias.map((c) =>
+                c.id === categoriaId
+                  ? { ...c, fornecedores: c.fornecedores.filter((f) => f.id !== fornecedorId) }
+                  : c
+              ),
+            }
+          : camp
+      )
+    );
+  };
+
+  const adicionarItem = (campanhaId: string, categoriaId: string) => {
+    setCampanhas(
+      campanhas.map((camp) =>
+        camp.id === campanhaId
+          ? {
+              ...camp,
+              categorias: camp.categorias.map((c) =>
+                c.id === categoriaId
+                  ? {
+                      ...c,
+                      itens: [
+                        ...c.itens,
+                        {
+                          id: crypto.randomUUID(),
+                          unidade: "",
+                          quantidade: 1,
+                          valorUnitario: 0,
+                          desconto: 0,
+                        },
+                      ],
+                    }
+                  : c
+              ),
+            }
+          : camp
       )
     );
   };
@@ -189,9 +302,16 @@ export default function OrcamentosNovo() {
     }
   }, []);
 
-  const totalGeral = categorias
-    .filter((c) => c.visivel)
-    .reduce((sum, c) => sum + calcularSubtotalCategoria(c), 0);
+  const calcularSubtotalCampanha = useCallback(
+    (campanha: Campanha) => {
+      return campanha.categorias
+        .filter((c) => c.visivel)
+        .reduce((sum, c) => sum + calcularSubtotalCategoria(c), 0);
+    },
+    [calcularSubtotalCategoria]
+  );
+
+  const totalGeral = campanhas.reduce((sum, camp) => sum + calcularSubtotalCampanha(camp), 0);
 
   const handleSalvar = async () => {
     if (!cliente || !produto) {
@@ -206,13 +326,16 @@ export default function OrcamentosNovo() {
         produto,
         job,
         observacoes,
-        categorias: categorias.map((c) => ({
-          nome: c.nome,
-          visivel: c.visivel,
-          modoPreco: c.modoPreco,
-          observacao: c.observacao,
-          fornecedores: c.fornecedores,
-          itens: c.itens,
+        campanhas: campanhas.map((camp) => ({
+          nome: camp.nome,
+          categorias: camp.categorias.map((c) => ({
+            nome: c.nome,
+            visivel: c.visivel,
+            modoPreco: c.modoPreco,
+            observacao: c.observacao,
+            fornecedores: c.fornecedores,
+            itens: c.itens,
+          })),
         })),
       };
 
@@ -243,8 +366,6 @@ export default function OrcamentosNovo() {
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-
-  const categoriasVisiveis = categorias.filter((c) => c.visivel);
 
   return (
     <AppLayout>
@@ -304,53 +425,32 @@ export default function OrcamentosNovo() {
           </CardContent>
         </Card>
 
-        {/* Gerenciador de Categorias */}
+        {/* Gerenciador de Campanhas */}
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Gerenciador de Categorias</CardTitle>
-              <div className="flex gap-2">
-                <Select onValueChange={(v) => v && adicionarCategoria(v)}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="+ Adicionar categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIAS_SUGERIDAS.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__custom__">✏️ Personalizada...</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <CardTitle>Campanhas</CardTitle>
+              <Button onClick={adicionarCampanha} size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Adicionar Campanha
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {categorias.map((cat) => (
-                <div
-                  key={cat.id}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
-                    cat.visivel ? "bg-primary/10 border-primary/30" : "bg-muted border-border"
-                  }`}
-                >
-                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{cat.nome}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => alternarVisibilidade(cat.id)}
-                  >
-                    {cat.visivel ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  </Button>
-                  {cat.podeExcluir && (
+              {campanhas.map((camp) => (
+                <div key={camp.id} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-primary/10 border-primary/30">
+                  <Input
+                    value={camp.nome}
+                    onChange={(e) => atualizarNomeCampanha(camp.id, e.target.value)}
+                    className="h-7 w-32 text-sm font-medium"
+                  />
+                  {campanhas.length > 1 && (
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-destructive"
-                      onClick={() => removerCategoria(cat.id)}
+                      onClick={() => removerCampanha(camp.id)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -363,161 +463,235 @@ export default function OrcamentosNovo() {
 
         {/* Layout em 2 colunas */}
         <div className="grid grid-cols-[1fr_320px] gap-6">
-          {/* Categorias - Esquerda */}
-          <div className="space-y-6">
-            {categoriasVisiveis.map((cat) => (
-              <Card key={cat.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>{cat.nome}</CardTitle>
-                    <Select
-                      value={cat.modoPreco}
-                      onValueChange={(v: any) => atualizarCategoria(cat.id, { modoPreco: v })}
-                    >
-                      <SelectTrigger className="w-[150px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fechado">Valor Fechado</SelectItem>
-                        <SelectItem value="itens">Por Itens</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Observação da Categoria (opcional)</Label>
-                    <Textarea
-                      value={cat.observacao || ""}
-                      onChange={(e) => atualizarCategoria(cat.id, { observacao: e.target.value })}
-                      rows={2}
-                    />
+          {/* Campanhas e Categorias - Esquerda */}
+          <div className="space-y-8">
+            {campanhas.map((campanha) => {
+              const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
+              
+              return (
+                <div key={campanha.id} className="space-y-4">
+                  {/* Cabeçalho da Campanha */}
+                  <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border-2 border-primary/20">
+                    <h2 className="text-xl font-semibold text-primary">{campanha.nome}</h2>
+                    <div className="text-sm text-muted-foreground">
+                      {formatCurrency(calcularSubtotalCampanha(campanha))}
+                    </div>
                   </div>
 
-                  {cat.modoPreco === "fechado" ? (
-                    <>
+                  {/* Gerenciador de Categorias da Campanha */}
+                  <Card>
+                    <CardHeader>
                       <div className="flex items-center justify-between">
-                        <Label>Fornecedores/Cotações</Label>
-                        <Button size="sm" variant="outline" onClick={() => adicionarFornecedor(cat.id)}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Adicionar
-                        </Button>
+                        <CardTitle className="text-base">Gerenciador de Categorias</CardTitle>
+                        <Select onValueChange={(v) => v && adicionarCategoria(campanha.id, v)}>
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="+ Adicionar categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORIAS_SUGERIDAS.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="__custom__">✏️ Personalizada...</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-
-                      <div className="space-y-3">
-                        {cat.fornecedores.map((forn) => {
-                          const valorFinal = forn.valor - forn.desconto;
-                          const maisBarato =
-                            cat.fornecedores.length > 0 &&
-                            cat.fornecedores.reduce((min, f) => {
-                              const v = f.valor - f.desconto;
-                              const minV = min.valor - min.desconto;
-                              return v < minV ? f : min;
-                            }).id === forn.id;
-
-                          return (
-                            <div
-                              key={forn.id}
-                              className={`border rounded-xl p-3 space-y-2 ${
-                                maisBarato ? "border-success bg-success/5" : "border-border"
-                              }`}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {campanha.categorias.map((cat) => (
+                          <div
+                            key={cat.id}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
+                              cat.visivel ? "bg-primary/10 border-primary/30" : "bg-muted border-border"
+                            }`}
+                          >
+                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">{cat.nome}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => alternarVisibilidade(campanha.id, cat.id)}
                             >
-                              {maisBarato && (
-                                <div className="text-xs font-semibold text-success mb-2">
-                                  ⭐ MAIS BARATA
-                                </div>
-                              )}
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                  placeholder="Fornecedor"
-                                  value={forn.nome}
-                                  onChange={(e) =>
-                                    atualizarFornecedor(cat.id, forn.id, { nome: e.target.value })
-                                  }
-                                />
-                                <Input
-                                  placeholder="Valor (R$)"
-                                  type="number"
-                                  value={forn.valor || ""}
-                                  onChange={(e) =>
-                                    atualizarFornecedor(cat.id, forn.id, {
-                                      valor: parseFloat(e.target.value) || 0,
-                                    })
-                                  }
-                                />
-                              </div>
-                              <Textarea
-                                placeholder="Descrição/Escopo"
-                                value={forn.descricao}
-                                onChange={(e) =>
-                                  atualizarFornecedor(cat.id, forn.id, { descricao: e.target.value })
-                                }
-                                rows={2}
-                              />
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  placeholder="Desconto (R$)"
-                                  type="number"
-                                  value={forn.desconto || ""}
-                                  onChange={(e) =>
-                                    atualizarFornecedor(cat.id, forn.id, {
-                                      desconto: parseFloat(e.target.value) || 0,
-                                    })
-                                  }
-                                />
-                                <span className="text-sm font-medium whitespace-nowrap">
-                                  = {formatCurrency(valorFinal)}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removerFornecedor(cat.id, forn.id)}
-                                  className="text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
+                              {cat.visivel ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                            </Button>
+                            {cat.podeExcluir && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-destructive"
+                                onClick={() => removerCategoria(campanha.id, cat.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Categorias da Campanha */}
+                  <div className="space-y-4">
+                    {categoriasVisiveis.map((cat) => (
+                      <Card key={cat.id}>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle>{cat.nome}</CardTitle>
+                            <Select
+                              value={cat.modoPreco}
+                              onValueChange={(v: any) => atualizarCategoria(campanha.id, cat.id, { modoPreco: v })}
+                            >
+                              <SelectTrigger className="w-[150px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="fechado">Valor Fechado</SelectItem>
+                                <SelectItem value="itens">Por Itens</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <Label>Observação da Categoria (opcional)</Label>
+                            <Textarea
+                              value={cat.observacao || ""}
+                              onChange={(e) => atualizarCategoria(campanha.id, cat.id, { observacao: e.target.value })}
+                              rows={2}
+                            />
+                          </div>
+
+                          {cat.modoPreco === "fechado" ? (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <Label>Fornecedores/Cotações</Label>
+                                <Button size="sm" variant="outline" onClick={() => adicionarFornecedor(campanha.id, cat.id)}>
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Adicionar
                                 </Button>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <Label>Itens</Label>
-                        <Button size="sm" variant="outline" onClick={() => adicionarItem(cat.id)}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Adicionar
-                        </Button>
-                      </div>
 
-                      <div className="text-xs text-muted-foreground">
-                        Total = Σ(Qtd × Valor unit.) − Descontos
-                      </div>
+                              <div className="space-y-3">
+                                {cat.fornecedores.map((forn) => {
+                                  const valorFinal = forn.valor - forn.desconto;
+                                  const maisBarato =
+                                    cat.fornecedores.length > 0 &&
+                                    cat.fornecedores.reduce((min, f) => {
+                                      const v = f.valor - f.desconto;
+                                      const minV = min.valor - min.desconto;
+                                      return v < minV ? f : min;
+                                    }).id === forn.id;
 
-                      {cat.itens.map((item) => (
-                        <div key={item.id} className="border rounded-xl p-3 space-y-2">
-                          <div className="grid grid-cols-4 gap-2">
-                            <Input placeholder="Unidade" value={item.unidade} />
-                            <Input placeholder="Qtd" type="number" value={item.quantidade} />
-                            <Input placeholder="Valor unit." type="number" value={item.valorUnitario} />
-                            <Input placeholder="Desconto" type="number" value={item.desconto} />
+                                  return (
+                                    <div
+                                      key={forn.id}
+                                      className={`border rounded-xl p-3 space-y-2 ${
+                                        maisBarato ? "border-success bg-success/5" : "border-border"
+                                      }`}
+                                    >
+                                      {maisBarato && (
+                                        <div className="text-xs font-semibold text-success mb-2">
+                                          ⭐ MAIS BARATA
+                                        </div>
+                                      )}
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                          placeholder="Fornecedor"
+                                          value={forn.nome}
+                                          onChange={(e) =>
+                                            atualizarFornecedor(campanha.id, cat.id, forn.id, { nome: e.target.value })
+                                          }
+                                        />
+                                        <Input
+                                          placeholder="Valor (R$)"
+                                          type="number"
+                                          value={forn.valor || ""}
+                                          onChange={(e) =>
+                                            atualizarFornecedor(campanha.id, cat.id, forn.id, {
+                                              valor: parseFloat(e.target.value) || 0,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                      <Textarea
+                                        placeholder="Descrição/Escopo"
+                                        value={forn.descricao}
+                                        onChange={(e) =>
+                                          atualizarFornecedor(campanha.id, cat.id, forn.id, { descricao: e.target.value })
+                                        }
+                                        rows={2}
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          placeholder="Desconto (R$)"
+                                          type="number"
+                                          value={forn.desconto || ""}
+                                          onChange={(e) =>
+                                            atualizarFornecedor(campanha.id, cat.id, forn.id, {
+                                              desconto: parseFloat(e.target.value) || 0,
+                                            })
+                                          }
+                                        />
+                                        <span className="text-sm font-medium whitespace-nowrap">
+                                          = {formatCurrency(valorFinal)}
+                                        </span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removerFornecedor(campanha.id, cat.id, forn.id)}
+                                          className="text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <Label>Itens</Label>
+                                <Button size="sm" variant="outline" onClick={() => adicionarItem(campanha.id, cat.id)}>
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Adicionar
+                                </Button>
+                              </div>
+
+                              <div className="text-xs text-muted-foreground">
+                                Total = Σ(Qtd × Valor unit.) − Descontos
+                              </div>
+
+                              {cat.itens.map((item) => (
+                                <div key={item.id} className="border rounded-xl p-3 space-y-2">
+                                  <div className="grid grid-cols-4 gap-2">
+                                    <Input placeholder="Unidade" value={item.unidade} />
+                                    <Input placeholder="Qtd" type="number" value={item.quantidade} />
+                                    <Input placeholder="Valor unit." type="number" value={item.valorUnitario} />
+                                    <Input placeholder="Desconto" type="number" value={item.desconto} />
+                                  </div>
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          <div className="pt-3 border-t flex justify-between items-center">
+                            <span className="font-semibold">Subtotal</span>
+                            <span className="text-lg font-bold text-primary">
+                              {formatCurrency(calcularSubtotalCategoria(cat))}
+                            </span>
                           </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                  <div className="pt-3 border-t flex justify-between items-center">
-                    <span className="font-semibold">Subtotal</span>
-                    <span className="text-lg font-bold text-primary">
-                      {formatCurrency(calcularSubtotalCategoria(cat))}
-                    </span>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              );
+            })}
 
             <Card>
               <CardHeader>
@@ -535,33 +709,47 @@ export default function OrcamentosNovo() {
           </div>
 
           {/* Resumo - Direita (sticky) */}
-          <div className="sticky top-8 h-fit">
+          <div className="sticky top-8 h-fit space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Resumo</CardTitle>
+                <CardTitle>Resumo por Campanha</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  {categoriasVisiveis.map((cat) => (
-                    <div key={cat.id} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{cat.nome}</span>
-                      <span className="font-medium">
-                        {formatCurrency(calcularSubtotalCategoria(cat))}
-                      </span>
+              <CardContent className="space-y-6">
+                {campanhas.map((campanha) => {
+                  const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
+                  const subtotalCampanha = calcularSubtotalCampanha(campanha);
+                  
+                  return (
+                    <div key={campanha.id} className="space-y-2">
+                      <div className="font-semibold text-primary pb-2 border-b">
+                        {campanha.nome}
+                      </div>
+                      {categoriasVisiveis.map((cat) => (
+                        <div key={cat.id} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">{cat.nome}</span>
+                          <span className="font-medium">
+                            {formatCurrency(calcularSubtotalCategoria(cat))}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between text-sm font-semibold pt-1 border-t">
+                        <span>Subtotal {campanha.nome}</span>
+                        <span className="text-primary">{formatCurrency(subtotalCampanha)}</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
 
                 <div className="pt-4 border-t">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">Total Sugerido</span>
+                    <span className="text-lg font-semibold">Total Geral</span>
                     <span className="text-2xl font-bold text-primary">{formatCurrency(totalGeral)}</span>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t text-xs text-muted-foreground">
-                  <p>• Melhor combinação (menor cotação por categoria)</p>
-                  <p>• {categoriasVisiveis.length} categorias ativas</p>
+                  <p>• Melhor combinação de cada campanha</p>
+                  <p>• {campanhas.length} campanha(s)</p>
                 </div>
               </CardContent>
             </Card>
