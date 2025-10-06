@@ -225,11 +225,11 @@ export default function Orcamentos() {
                     )}
 
                     <div className="flex gap-2 pt-2">
-                      <Button size="sm" variant="outline" onClick={() => navigate(`/budget/${b.id}/pdf`)} className="flex-1 gap-1">
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/budget/${b.id}`)} className="flex-1 gap-1">
                         <Eye className="h-3 w-3" />
                         Ver
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => navigate(`/budget/${b.id}`)} className="flex-1 gap-1">
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/budget/${b.id}/edit`)} className="flex-1 gap-1">
                         <Edit className="h-3 w-3" />
                         Editar
                       </Button>

@@ -20,6 +20,7 @@ const BudgetPreview = lazy(() => import('@/pages/budget/Preview'))
 const PdfView       = lazy(() => import('@/pages/budget/Pdf'))
 const BudgetList    = lazy(() => import('@/pages/BudgetList'))
 const BudgetEdit    = lazy(() => import('@/pages/budget/Edit'))
+const BudgetView    = lazy(() => import('@/pages/budget/View'))
 const Finance       = lazy(() => import('@/pages/Finance'))
 const FinanceClient = lazy(() => import('@/pages/FinanceClient'))
 const Direitos      = lazy(() => import('@/pages/Direitos'))
@@ -156,12 +157,12 @@ const App = () => (
                 }
               />
 
-              {/* /budget/:id → edição; /budget/:id/edit mantido por compatibilidade */}
+              {/* Budget routes */}
               <Route
                 path="/budget/:id"
                 element={
                   <ProtectedRoute>
-                    <BudgetEdit />
+                    <BudgetView />
                   </ProtectedRoute>
                 }
               />

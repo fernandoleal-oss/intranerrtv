@@ -156,20 +156,6 @@ export default function BudgetEdit() {
     return () => abortRef.current?.abort()
   }, [id, fetchBudget])
 
-  // Redirect to appropriate form page for editing
-  useEffect(() => {
-    if (data && data.type === 'filme') {
-      // Navigate to Filme.tsx with edit data
-      navigate('/orcamentos/novo/filme', {
-        state: { 
-          editData: data.payload, 
-          budgetId: data.id 
-        },
-        replace: true
-      })
-    }
-  }, [data, navigate])
-
   const handleSaveClick = () => {
     // Dispara um evento global para o BudgetForm salvar.
     // No BudgetForm, adicione um useEffect para ouvir "budget:save".
@@ -303,7 +289,6 @@ export default function BudgetEdit() {
             <BudgetForm
               budgetId={data.id}
               versionId={data.version_id}
-              budgetType={data.type as any}
               initialPayload={data.payload}
             />
           </motion.div>
