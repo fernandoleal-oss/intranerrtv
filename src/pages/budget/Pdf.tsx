@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
@@ -136,7 +136,46 @@ export default function BudgetPdf() {
   if (!data) return null;
 
   const payload = data.payload;
-  const categorias = payload.categorias || [];
+  const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
+
+  const getMaisBarato = (cat: any) => {
+    if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
+    return cat.fornecedores.reduce((min: any, f: any) => {
+      const valor = (f.valor || 0) - (f.desconto || 0);
+      const minValor = (min.valor || 0) - (min.desconto || 0);
+      return valor < minValor ? f : min;
+    });
+  };
+
+  const calcularSubtotal = (cat: any) => {
+    if (cat.modoPreco === "fechado") {
+      const maisBarato = getMaisBarato(cat);
+      if (!maisBarato) return 0;
+      return (maisBarato.valor || 0) - (maisBarato.desconto || 0);
+    }
+    return (cat.itens || []).reduce(
+      (sum: number, item: any) =>
+        sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
+      0
+    );
+  };
+
+  const calcularTotalCampanha = (campanha: any) => {
+    return (campanha.categorias || [])
+      .filter((c: any) => c.visivel !== false)
+      .filter((c: any) => {
+        if (c.modoPreco === "fechado") {
+          return c.fornecedores && c.fornecedores.length > 0;
+        }
+        return c.itens && c.itens.length > 0;
+      })
+      .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
+  };
+
+  const totalGeral = campanhas.reduce(
+    (sum: number, camp: any) => sum + calcularTotalCampanha(camp),
+    0
+  );
 
   return (
     <AppLayout>
@@ -163,98 +202,119 @@ export default function BudgetPdf() {
           className="bg-white p-6 rounded-2xl shadow-sm max-w-[210mm] mx-auto text-black"
           style={{ minHeight: "297mm" }}
         >
-          <div className="border-b-2 border-[#FF6A00] pb-3 mb-4">
+          <div className="border-b-2 border-[#FF6A00] pb-2 mb-3">
             <h1 className="text-2xl font-bold text-[#FF6A00] mb-1">ORÇAMENTO</h1>
             <p className="text-base text-gray-600">{data.display_id}</p>
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+          <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">Cliente</p>
+              <p className="text-gray-500 mb-0.5">Cliente</p>
               <p className="font-semibold">{payload.cliente || "-"}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">Produto</p>
+              <p className="text-gray-500 mb-0.5">Produto</p>
               <p className="font-semibold">{payload.produto || "-"}</p>
             </div>
             {payload.job && (
-              <div className="col-span-2">
-                <p className="text-xs text-gray-500 mb-0.5">Job</p>
-                <p className="font-semibold text-sm">{payload.job}</p>
+              <div>
+                <p className="text-gray-500 mb-0.5">Job</p>
+                <p className="font-semibold">{payload.job}</p>
               </div>
             )}
           </div>
 
-          <div className="space-y-3 mb-4">
-            {categorias
+          {campanhas.map((campanha: any, campIdx: number) => {
+            const categoriasVisiveis = (campanha.categorias || [])
               .filter((c: any) => c.visivel !== false)
-              .map((cat: any, idx: number) => {
-                const subtotal =
-                  cat.modoPreco === "fechado"
-                    ? cat.fornecedores?.reduce((min: number, f: any) => {
-                        const valor = (f.valor || 0) - (f.desconto || 0);
-                        return Math.min(min, valor);
-                      }, Infinity) || 0
-                    : cat.itens?.reduce(
-                        (sum: number, item: any) =>
-                          sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
-                        0
-                      ) || 0;
+              .filter((c: any) => {
+                if (c.modoPreco === "fechado") {
+                  return c.fornecedores && c.fornecedores.length > 0;
+                }
+                return c.itens && c.itens.length > 0;
+              });
 
-                return (
-                  <div key={idx} className="border-l-4 border-[#FF6A00] pl-3 py-1.5">
-                    <div className="flex justify-between items-start mb-1">
-                      <h3 className="font-bold text-sm">{cat.nome}</h3>
-                      <span className="font-bold text-sm">{formatCurrency(subtotal)}</span>
-                    </div>
+            if (categoriasVisiveis.length === 0) return null;
 
-                    {cat.observacao && (
-                      <p className="text-xs text-gray-600 mb-1 italic">{cat.observacao}</p>
-                    )}
+            return (
+              <div key={campIdx} className="mb-4">
+                <div className="bg-[#FF6A00]/10 border-l-4 border-[#FF6A00] px-3 py-2 mb-2">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-base font-bold text-[#FF6A00]">{campanha.nome}</h2>
+                    <span className="text-sm font-bold text-[#FF6A00]">
+                      {formatCurrency(calcularTotalCampanha(campanha))}
+                    </span>
+                  </div>
+                </div>
 
-                    {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
-                      <div className="space-y-0.5 text-xs">
-                        {cat.fornecedores.map((f: any, fIdx: number) => (
-                          <div key={fIdx} className="flex justify-between text-gray-700">
-                            <span>• {f.nome}</span>
-                            <span>{formatCurrency((f.valor || 0) - (f.desconto || 0))}</span>
+                <div className="space-y-2">
+                  {categoriasVisiveis.map((cat: any, idx: number) => {
+                    const maisBarato = getMaisBarato(cat);
+                    const subtotal = calcularSubtotal(cat);
+
+                    return (
+                      <div key={idx} className="border-l-2 border-gray-300 pl-2 py-1">
+                        <div className="flex justify-between items-start mb-1">
+                          <h3 className="font-bold text-sm">{cat.nome}</h3>
+                          <span className="font-bold text-sm">{formatCurrency(subtotal)}</span>
+                        </div>
+
+                        {cat.observacao && (
+                          <p className="text-xs text-gray-600 mb-1 italic">{cat.observacao}</p>
+                        )}
+
+                        {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
+                          <div className="space-y-1 text-xs">
+                            {cat.fornecedores.map((f: any, fIdx: number) => {
+                              const isMaisBarato = maisBarato === f || maisBarato?.id === f.id;
+                              const valorFinal = (f.valor || 0) - (f.desconto || 0);
+
+                              return (
+                                <div
+                                  key={fIdx}
+                                  className={`flex justify-between text-gray-700 py-0.5 ${
+                                    isMaisBarato ? "bg-green-50 border-l-2 border-green-500 pl-1 font-semibold" : ""
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-1">
+                                    {isMaisBarato && <Star className="h-3 w-3 fill-green-600 text-green-600" />}
+                                    • {f.nome}
+                                    {isMaisBarato && <span className="text-green-600 text-[10px]">(SUGESTÃO)</span>}
+                                  </span>
+                                  <span>{formatCurrency(valorFinal)}</span>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="border-t-2 border-[#FF6A00] pt-3 mt-4 space-y-1">
+            {campanhas.length > 1 &&
+              campanhas.map((camp: any, idx: number) => {
+                const total = calcularTotalCampanha(camp);
+                if (total === 0) return null;
+                return (
+                  <div key={idx} className="flex justify-between text-sm font-semibold">
+                    <span>{camp.nome}:</span>
+                    <span>{formatCurrency(total)}</span>
                   </div>
                 );
               })}
-          </div>
-
-          <div className="border-t-2 border-[#FF6A00] pt-3 mt-4">
-            <div className="flex justify-between items-center">
-              <span className="text-xl font-bold">TOTAL GERAL:</span>
-              <span className="text-2xl font-bold text-[#FF6A00]">
-                {formatCurrency(
-                  categorias
-                    .filter((c: any) => c.visivel !== false)
-                    .reduce((sum: number, cat: any) => {
-                      const subtotal =
-                        cat.modoPreco === "fechado"
-                          ? cat.fornecedores?.reduce((min: number, f: any) => {
-                              const valor = (f.valor || 0) - (f.desconto || 0);
-                              return Math.min(min, valor);
-                            }, Infinity) || 0
-                          : cat.itens?.reduce(
-                              (sum: number, item: any) =>
-                                sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
-                              0
-                            ) || 0;
-                      return sum + subtotal;
-                    }, 0)
-                )}
-              </span>
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="text-lg font-bold">TOTAL GERAL SUGERIDO:</span>
+              <span className="text-2xl font-bold text-[#FF6A00]">{formatCurrency(totalGeral)}</span>
             </div>
           </div>
 
           {payload.observacoes && (
-            <div className="mt-4 pt-3 border-t">
+            <div className="mt-3 pt-2 border-t">
               <p className="text-xs font-semibold mb-1">Observações:</p>
               <p className="text-xs text-gray-700 whitespace-pre-wrap">{payload.observacoes}</p>
             </div>

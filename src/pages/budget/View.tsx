@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Edit, FileText } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
@@ -86,7 +86,46 @@ export default function BudgetView() {
   if (!data) return null;
 
   const payload = data.payload;
-  const categorias = payload.categorias || [];
+  const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
+
+  const getMaisBarato = (cat: any) => {
+    if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
+    return cat.fornecedores.reduce((min: any, f: any) => {
+      const valor = (f.valor || 0) - (f.desconto || 0);
+      const minValor = (min.valor || 0) - (min.desconto || 0);
+      return valor < minValor ? f : min;
+    });
+  };
+
+  const calcularSubtotal = (cat: any) => {
+    if (cat.modoPreco === "fechado") {
+      const maisBarato = getMaisBarato(cat);
+      if (!maisBarato) return 0;
+      return (maisBarato.valor || 0) - (maisBarato.desconto || 0);
+    }
+    return (cat.itens || []).reduce(
+      (sum: number, item: any) =>
+        sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
+      0
+    );
+  };
+
+  const calcularTotalCampanha = (campanha: any) => {
+    return (campanha.categorias || [])
+      .filter((c: any) => c.visivel !== false)
+      .filter((c: any) => {
+        if (c.modoPreco === "fechado") {
+          return c.fornecedores && c.fornecedores.length > 0;
+        }
+        return c.itens && c.itens.length > 0;
+      })
+      .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
+  };
+
+  const totalGeral = campanhas.reduce(
+    (sum: number, camp: any) => sum + calcularTotalCampanha(camp),
+    0
+  );
 
   return (
     <AppLayout>
@@ -138,91 +177,116 @@ export default function BudgetView() {
           </CardContent>
         </Card>
 
-        {/* Categorias */}
-        <div className="space-y-6">
-          {categorias
+        {/* Campanhas */}
+        {campanhas.map((campanha: any, campIdx: number) => {
+          const categoriasVisiveis = (campanha.categorias || [])
             .filter((c: any) => c.visivel !== false)
-            .map((cat: any, idx: number) => {
-              const subtotal =
-                cat.modoPreco === "fechado"
-                  ? cat.fornecedores?.reduce((min: number, f: any) => {
-                      const valor = (f.valor || 0) - (f.desconto || 0);
-                      return Math.min(min, valor);
-                    }, Infinity) || 0
-                  : cat.itens?.reduce(
-                      (sum: number, item: any) =>
-                        sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
-                      0
-                    ) || 0;
+            .filter((c: any) => {
+              if (c.modoPreco === "fechado") {
+                return c.fornecedores && c.fornecedores.length > 0;
+              }
+              return c.itens && c.itens.length > 0;
+            });
 
-              return (
-                <Card key={idx}>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>{cat.nome}</CardTitle>
-                      <span className="text-sm text-muted-foreground">
-                        {cat.modoPreco === "fechado" ? "Valor Fechado" : "Por Itens"}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {cat.observacao && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-1">Observação</p>
-                        <p className="text-sm">{cat.observacao}</p>
-                      </div>
-                    )}
+          if (categoriasVisiveis.length === 0) return null;
 
-                    {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
-                      <div className="space-y-3">
-                        <p className="font-medium">Fornecedores</p>
-                        {cat.fornecedores.map((f: any, fIdx: number) => (
-                          <div key={fIdx} className="border rounded-xl p-3 space-y-2">
-                            <div className="flex justify-between">
-                              <span className="font-medium">{f.nome}</span>
-                              <span>{formatCurrency((f.valor || 0) - (f.desconto || 0))}</span>
-                            </div>
-                            {f.descricao && <p className="text-sm text-muted-foreground">{f.descricao}</p>}
+          return (
+            <div key={campIdx} className="mb-8">
+              <Card className="border-2 border-primary/20">
+                <CardHeader className="bg-primary/5">
+                  <div className="flex justify-between items-center">
+                    <CardTitle>{campanha.nome}</CardTitle>
+                    <span className="text-lg font-semibold text-primary">
+                      {formatCurrency(calcularTotalCampanha(campanha))}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-6">
+                  {categoriasVisiveis.map((cat: any, idx: number) => {
+                    const maisBarato = getMaisBarato(cat);
+                    const subtotal = calcularSubtotal(cat);
+
+                    return (
+                      <Card key={idx}>
+                        <CardHeader>
+                          <div className="flex justify-between items-center">
+                            <CardTitle>{cat.nome}</CardTitle>
+                            <span className="text-sm text-muted-foreground">
+                              {cat.modoPreco === "fechado" ? "Valor Fechado" : "Por Itens"}
+                            </span>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {cat.observacao && (
+                            <div>
+                              <p className="text-sm text-muted-foreground mb-1">Observação</p>
+                              <p className="text-sm">{cat.observacao}</p>
+                            </div>
+                          )}
 
-                    <div className="pt-2 border-t flex justify-between font-semibold">
-                      <span>Subtotal:</span>
-                      <span>{formatCurrency(subtotal)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-        </div>
+                          {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
+                            <div className="space-y-3">
+                              <p className="font-medium">Fornecedores</p>
+                              {cat.fornecedores.map((f: any, fIdx: number) => {
+                                const isMaisBarato = maisBarato?.id === f.id || maisBarato === f;
+                                const valorFinal = (f.valor || 0) - (f.desconto || 0);
 
-        {/* Total */}
-        <Card className="mt-6">
+                                return (
+                                  <div
+                                    key={fIdx}
+                                    className={`border rounded-xl p-3 space-y-2 ${
+                                      isMaisBarato
+                                        ? "border-success bg-success/5 ring-2 ring-success/20"
+                                        : "border-border"
+                                    }`}
+                                  >
+                                    {isMaisBarato && (
+                                      <div className="flex items-center gap-2 text-xs font-semibold text-success mb-2">
+                                        <Star className="h-4 w-4 fill-current" />
+                                        SUGESTÃO - MAIS BARATO
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between">
+                                      <span className="font-medium">{f.nome}</span>
+                                      <span className="font-semibold">{formatCurrency(valorFinal)}</span>
+                                    </div>
+                                    {f.descricao && (
+                                      <p className="text-sm text-muted-foreground">{f.descricao}</p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          <div className="pt-2 border-t flex justify-between font-semibold">
+                            <span>Subtotal:</span>
+                            <span>{formatCurrency(subtotal)}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })}
+
+        {/* Total Geral */}
+        <Card>
           <CardContent className="pt-6">
-            <div className="flex justify-between items-center text-xl font-bold">
-              <span>Total Geral:</span>
-              <span className="text-primary">
-                {formatCurrency(
-                  categorias
-                    .filter((c: any) => c.visivel !== false)
-                    .reduce((sum: number, cat: any) => {
-                      const subtotal =
-                        cat.modoPreco === "fechado"
-                          ? cat.fornecedores?.reduce((min: number, f: any) => {
-                              const valor = (f.valor || 0) - (f.desconto || 0);
-                              return Math.min(min, valor);
-                            }, Infinity) || 0
-                          : cat.itens?.reduce(
-                              (sum: number, item: any) =>
-                                sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
-                              0
-                            ) || 0;
-                      return sum + subtotal;
-                    }, 0)
-                )}
-              </span>
+            <div className="space-y-3">
+              {campanhas.map((camp: any, idx: number) => (
+                <div key={idx} className="flex justify-between text-lg">
+                  <span className="font-medium">{camp.nome}:</span>
+                  <span className="font-semibold">{formatCurrency(calcularTotalCampanha(camp))}</span>
+                </div>
+              ))}
+              <div className="pt-3 border-t-2 flex justify-between items-center text-xl font-bold">
+                <span>Total Geral Sugerido:</span>
+                <span className="text-primary">{formatCurrency(totalGeral)}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
