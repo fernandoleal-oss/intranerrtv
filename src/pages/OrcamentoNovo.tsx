@@ -1,2091 +1,733 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Save, FileText, Plus, Trash2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  ArrowLeft,
-  Save,
-  Copy,
-  FileText,
-  Plus,
-  Trash2,
-  GripVertical,
-  Eye,
-  EyeOff,
-  Printer,
-  RefreshCcw,
-} from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
+import { HeaderBar } from "@/components/HeaderBar";
 
-/*********************** Types ***********************/
-interface Fornecedor {
+type BudgetType = "filme" | "audio" | "imagem" | "cc";
+
+interface QuoteFilm {
   id: string;
-  nome: string;
+  produtora: string;
+  escopo: string;
+  valor: number;
+  diretor: string;
+  tratamento: string;
+  desconto: number;
+}
+
+interface QuoteAudio {
+  id: string;
+  produtora: string;
   descricao: string;
   valor: number;
   desconto: number;
-  link?: string;
 }
 
-interface ItemPreco {
-  id: string;
-  unidade: string;
-  quantidade: number;
-  valorUnitario: number;
-  desconto: number;
-  observacao?: string;
+interface BudgetData {
+  type: BudgetType;
+  produtor?: string;
+  email?: string;
+  cliente?: string;
+  produto?: string;
+  job?: string;
+  midias?: string;
+  territorio?: string;
+  periodo?: string;
+  entregaveis?: string;
+  adaptacoes?: string;
+  exclusividade_elenco?: "orcado" | "nao_orcado" | "nao_aplica";
+  inclui_audio?: boolean;
+  quotes_film?: QuoteFilm[];
+  quotes_audio?: QuoteAudio[];
+  honorario_perc?: number;
+  total: number;
+  pendente_faturamento?: boolean;
+  observacoes?: string;
 }
 
-interface Categoria {
-  id: string;
-  nome: string;
-  ordem: number;
-  visivel: boolean;
-  podeExcluir: boolean;
-  observacao?: string;
-  modoPreco: "fechado" | "itens";
-  fornecedores: Fornecedor[];
-  itens: ItemPreco[];
-}
+const parseCurrency = (val: string): number => {
+  if (!val) return 0;
+  const clean = val.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
+  return parseFloat(clean) || 0;
+};
 
-interface Campanha {
-  id: string;
-  nome: string;
-  categorias: Categoria[];
-}
+const money = (n: number | undefined) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 
-/*********************** Consts ***********************/
-const CATEGORIAS_BASE = [
-  { nome: "Filme", podeExcluir: false },
-  { nome: "Áudio", podeExcluir: false },
-  { nome: "Imagem", podeExcluir: false },
-  { nome: "CC", podeExcluir: false },
-];
-
-const CATEGORIAS_SUGERIDAS = [
-  "Tradução/Legendagem",
-  "Produção de KV (Key Visual)",
-  "Locução",
-  "Trilha/Música",
-  "Motion/Animação",
-  "Edição/Finalização",
-  "Captação/Filmagem/Still",
-];
-
-/*********************** Utils ***********************/
-const normNum = (n: any) => (Number.isFinite(+n) ? +n : 0);
-const brl = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
-const hojeBR = () => new Intl.DateTimeFormat("pt-BR").format(new Date());
-const esc = (s?: string) =>
-  (s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-/*********************** Shared Hooks/Logic ***********************/
-function useCalculos() {
-  const finalDe = useCallback((f: Fornecedor) => normNum(f.valor) - normNum(f.desconto), []);
-
-  const cheapestFornecedor = useCallback(
-    (categoria: Categoria | null) => {
-      if (!categoria || categoria.modoPreco !== "fechado" || categoria.fornecedores.length === 0) return null;
-      return categoria.fornecedores.reduce((min, cur) => (finalDe(cur) < finalDe(min) ? cur : min));
-    },
-    [finalDe],
-  );
-
-  const calcularSubtotalCategoria = useCallback(
-    (categoria: Categoria) => {
-      if (categoria.modoPreco === "fechado") {
-        const cheap = cheapestFornecedor(categoria);
-        return cheap ? finalDe(cheap) : 0;
-      }
-      return categoria.itens.reduce((sum, item) => {
-        const subtotal = normNum(item.quantidade) * normNum(item.valorUnitario) - normNum(item.desconto);
-        return sum + subtotal;
-      }, 0);
-    },
-    [cheapestFornecedor, finalDe],
-  );
-
-  const calcularSubtotalCampanha = useCallback(
-    (campanha: Campanha) =>
-      campanha.categorias.filter((c) => c.visivel).reduce((sum, c) => sum + calcularSubtotalCategoria(c), 0),
-    [calcularSubtotalCategoria],
-  );
-
-  const bestFilmAudioCombo = useCallback(
-    (camp: Campanha) => {
-      const catFilme = camp.categorias.find((c) => c.nome.toLowerCase() === "filme");
-      const catAudio = camp.categorias.find((c) => c.nome.toLowerCase() === "áudio");
-      const fFilm = cheapestFornecedor(catFilme || null);
-      const fAudio = cheapestFornecedor(catAudio || null);
-      if (!fFilm || !fAudio) return { film: fFilm || null, audio: fAudio || null, sum: null as number | null };
-      return { film: fFilm, audio: fAudio, sum: finalDe(fFilm) + finalDe(fAudio) };
-    },
-    [cheapestFornecedor, finalDe],
-  );
-
-  return { finalDe, cheapestFornecedor, calcularSubtotalCategoria, calcularSubtotalCampanha, bestFilmAudioCombo };
-}
-
-function snapshotOrcamento(args: {
-  cliente: string;
-  produto: string;
-  job: string;
-  observacoes: string;
-  campanhas: Campanha[];
-}) {
-  const { cliente, produto, job, observacoes, campanhas } = args;
-  return {
-    cliente,
-    produto,
-    job,
-    observacoes,
-    hojeBR: hojeBR(),
-    campanhas: campanhas.map((camp) => ({
-      id: camp.id,
-      nome: camp.nome,
-      categorias: camp.categorias.map((c) => ({
-        id: c.id,
-        nome: c.nome,
-        visivel: c.visivel,
-        modoPreco: c.modoPreco,
-        observacao: c.observacao,
-        fornecedores: c.fornecedores.map((f) => ({
-          id: f.id,
-          nome: f.nome,
-          descricao: f.descricao,
-          valor: normNum(f.valor),
-          desconto: normNum(f.desconto),
-        })),
-        itens: c.itens.map((it) => ({
-          id: it.id,
-          unidade: it.unidade,
-          quantidade: normNum(it.quantidade),
-          valorUnitario: normNum(it.valorUnitario),
-          desconto: normNum(it.desconto),
-          observacao: it.observacao,
-        })),
-      })),
-    })),
-  };
-}
-
-function templateHTML(jsonData: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>Orçamento</title>
-  <style>
-    @page { size: A4; margin: 12mm; }
-    html, body { padding:0; margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    body { font-size:10.5px; line-height:1.32; color:#111; }
-    .wrap { width: 794px; margin: 0 auto; transform-origin: top left; }
-    .muted { color:#666 } .bold { font-weight:600 }
-    .cab { border-bottom:1px solid #ddd; padding-bottom:8px; margin-bottom:8px; }
-    .cab .linha { display:flex; justify-content:space-between; align-items:flex-start; }
-    h1 { font-size:14px; margin:0 0 4px 0; } h3 { font-size:12.5px; margin:0; }
-    .linha { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-    .lista { margin-top:4px } .linha + .linha { margin-top:2px }
-    .bloco { margin: 16px 0 24px } .cat { margin-top:8px }
-    .total { padding-top:8px; border-top:1px solid #ddd; display:flex; justify-content:space-between; align-items:center }
-    .rod { margin-top:12px; padding-top:8px; border-top:1px solid #eee; color:#666; font-size:9.5px }
-    .avoid-break { break-inside: avoid; page-break-inside: avoid; }
-    .tight p { margin: 2mm 0; } .small { font-size:9.5px }
-  </style>
-  </head><body>
-  <div id="app" class="wrap"></div>
-  <script>
-    window.__DATA__ = ${jsonData};
-    (function(){
-      const data = window.__DATA__;
-      const brl = (n) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n||0);
-      const esc = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      const finalDe = (f) => (+f.valor||0) - (+f.desconto||0);
-      const cheapFornecedor = (cat) => {
-        if (!cat || cat.modoPreco!=="fechado" || !(cat.fornecedores||[]).length) return null;
-        return cat.fornecedores.reduce((m,c)=> finalDe(c)<finalDe(m)?c:m);
-      };
-      const subtotalCat = (c) => c.modoPreco==="fechado" ? (cheapFornecedor(c)? finalDe(cheapFornecedor(c)) : 0) : (c.itens||[]).reduce((s,it)=> s + ((+it.quantidade||0)*(+it.valorUnitario||0) - (+it.desconto||0)),0);
-      const subtotalCamp = (camp) => (camp.categorias||[]).filter(c=>c.visivel).reduce((s,c)=> s+subtotalCat(c),0);
-      const total = (data.campanhas||[]).reduce((s,c)=> s+subtotalCamp(c),0);
-
-      function renderFornecedores(cat){
-        const arr = [...(cat.fornecedores||[])].sort((a,b)=> finalDe(a)-finalDe(b)).slice(0,3);
-        const cheap = cheapFornecedor(cat);
-        if (!arr.length) return '<div class="muted">Sem cotações adicionadas.</div>';
-        return '<div class="lista js-lista-fornecedores">' + arr.map(f => (
-          '<div class="linha js-forn">'+
-            '<div><span class="bold">'+(esc(f.nome)||'Cotação')+'</span>' + (f.descricao ? '<span class="muted js-escopo"> — '+esc(f.descricao)+'</span>' : '') + (cheap && cheap.id===f.id ? ' <span>• ⭐</span>' : '') + '</div>' +
-            '<div class="bold">'+brl(finalDe(f))+'</div>'+
-          '</div>'
-        )).join('') + ((cat.fornecedores||[]).length>3 ? '<div class="muted">+'+((cat.fornecedores||[]).length-3)+' no orçamento online</div>' : '') + '</div>';
-      }
-
-      function renderItens(cat){
-        const arr = (cat.itens||[]).slice(0,5);
-        return '<div class="lista js-lista-itens">' + arr.map(it => {
-          const sub = (+it.quantidade||0)*(+it.valorUnitario||0) - (+it.desconto||0);
-          return '<div class="linha js-item">' +
-            '<div><span class="bold">'+(esc(it.unidade)||'Item')+'</span> <span class="muted"> '+(+it.quantidade||0)+' × '+brl(+it.valorUnitario||0)+(it.observacao?(' — '+esc(it.observacao)):'')+'</span></div>' +
-            '<div class="bold">'+brl(sub)+'</div>' +
-          '</div>';
-        }).join('') + ((cat.itens||[]).length>5 ? '<div class="muted">+'+((cat.itens||[]).length-5)+' no orçamento online</div>' : '') + '</div>';
-      }
-
-      function renderCampanhas(){
-        return (data.campanhas||[]).map(camp => {
-          const cats = (camp.categorias||[]).filter(c=>c.visivel);
-          return '<section class="bloco avoid-break">' +
-            '<div class="linha cab-camp"><h3>'+esc(camp.nome)+'</h3><div class="bold">'+brl(subtotalCamp(camp))+'</div></div>' +
-            cats.map(cat => (
-              '<div class="cat avoid-break">' +
-                '<div class="linha"><div class="bold">'+esc(cat.nome)+'</div><div>'+brl(subtotalCat(cat))+'</div></div>' +
-                (cat.observacao ? '<div class="muted js-tratamento">'+esc(cat.observacao)+'</div>' : '') +
-                (cat.modoPreco==="fechado" ? renderFornecedores(cat) : renderItens(cat)) +
-              '</div>'
-            )).join('') +
-          '</section>';
-        }).join('');
-      }
-
-      function layout(){
-        return '' +
-        '<header class="cab">' +
-          '<div class="linha">' +
-            '<h1>ORÇAMENTO • CONFIDENCIAL</h1>' +
-            '<div class="small"><div>Data: '+esc(data.hojeBR||'')+'</div><div>Validade: 7 dias</div></div>' +
-          '</div>' +
-          '<div class="small muted">' +
-            (data.cliente ? 'Cliente: <span class="bold">'+esc(data.cliente)+'</span> • ' : '') +
-            (data.produto ? 'Produto: <span class="bold">'+esc(data.produto)+'</span> • ' : '') +
-            (data.job ? 'Job: <span class="bold">'+esc(data.job)+'</span>' : '') +
-          '</div>' +
-        '</header>' +
-        '<main id="content">' +
-          renderCampanhas() +
-          (data.observacoes ? '<section class="bloco avoid-break"><div class="bold" style="margin-bottom:4px">Observações</div><div class="js-obs">'+esc(data.observacoes)+'</div></section>' : '') +
-          '<div class="total avoid-break"><div class="bold" style="font-size:12px">Total Geral</div><div class="bold" style="font-size:16px">'+brl(total)+'</div></div>' +
-        '</main>' +
-        '<footer class="rod">WF/MOTTA • CNPJ • p. 1/2*</footer>';
-      }
-
-      function collapseLongText(selectors, maxChars) {
-        selectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
-            const t = (el.textContent||'').trim(); if (t.length > maxChars) el.textContent = t.slice(0, maxChars - 1) + '…';
-          });
-        });
-      }
-      function limitRows(selector, max) {
-        const nodes = Array.from(document.querySelectorAll(selector));
-        nodes.forEach((el, i) => { if (i >= max) el.style.display = 'none'; });
-      }
-      function fitToTwoPages() {
-        const root = document.querySelector('.wrap');
-        const PAGE = 1122; const LIMIT = 2 * PAGE;
-        const steps = [
-          () => collapseLongText(['.js-escopo','.js-tratamento','.js-obs'], 180),
-          () => limitRows('.js-lista-fornecedores > .js-forn', 3),
-          () => limitRows('.js-lista-itens > .js-item', 5),
-          () => root.classList.add('small'),
-        ];
-        let i = 0; while (document.body.scrollHeight > LIMIT && i < steps.length) steps[i++]();
-        if (document.body.scrollHeight > LIMIT) {
-          const scale = Math.max(0.8, LIMIT / document.body.scrollHeight);
-          root.style.transform = 'scale('+scale+')';
-          root.style.width = (794/scale) + 'px';
-        }
-      }
-
-      document.getElementById('app').innerHTML = layout();
-      window.scrollTo(0,0); fitToTwoPages(); setTimeout(()=>window.print(),0); window.addEventListener('afterprint', ()=>window.close());
-    })();
-  </script></body></html>`;
-}
-
-/*********************** Component: Novo Orçamento (com Wizard + PDF + Save) ***********************/
-export default function OrcamentosNovo() {
+export default function OrcamentoNovo() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
-  // Dados principais
-  const [cliente, setCliente] = useState("");
-  const [produto, setProduto] = useState("");
-  const [job, setJob] = useState("");
-  const [observacoes, setObservacoes] = useState("");
+  const [data, setData] = useState<BudgetData>({
+    type: "filme",
+    quotes_film: [],
+    quotes_audio: [],
+    honorario_perc: 0,
+    total: 0,
+    pendente_faturamento: false,
+    inclui_audio: false,
+    exclusividade_elenco: "nao_aplica",
+  });
 
-  // Campanhas
-  const [campanhas, setCampanhas] = useState<Campanha[]>([]);
-
-  // Wizard
-  const [wizardOpen, setWizardOpen] = useState(true);
-  const [wizardStep, setWizardStep] = useState<"total" | "campanha">("total");
-  const [wizardTotalStr, setWizardTotalStr] = useState<string>("");
-  const [wizardTotal, setWizardTotal] = useState<number>(0);
-  const [wizardIndex, setWizardIndex] = useState<number>(0);
-  const [wizNome, setWizNome] = useState<string>("Campanha 1");
-  const [wizQtdFilme, setWizQtdFilme] = useState<string>("2");
-  const [wizQtdAudio, setWizQtdAudio] = useState<string>("2");
-
-  const { finalDe, calcularSubtotalCategoria, calcularSubtotalCampanha, bestFilmAudioCombo } = useCalculos();
-
-  const parseIntSafe = (s: string) => Math.max(0, Math.floor(Number(s || "0"))) || 0;
-
-  const startWizard = () => {
-    const total = parseIntSafe(wizardTotalStr);
-    if (!total || total < 1) {
-      toast({ title: "Informe um número válido de campanhas (>=1)", variant: "destructive" });
-      return;
+  // Redirecionar para página específica quando tipo for imagem
+  useEffect(() => {
+    if (data.type === "imagem") {
+      navigate("/new/imagem");
     }
-    setWizardTotal(total);
-    setWizardIndex(0);
-    setWizNome("Campanha 1");
-    setWizQtdFilme(total > 1 ? "2" : "1");
-    setWizQtdAudio(total > 1 ? "2" : "1");
-    setWizardStep("campanha");
-  };
+  }, [data.type, navigate]);
 
-  const addCampaignFromWizard = (nome: string, qtdFilme: number, qtdAudio: number) => {
-    const nova: Campanha = {
+  const updateData = useCallback((updates: Partial<BudgetData>) => {
+    setData((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  // Recalcular totais usando APENAS as mais baratas
+  useEffect(() => {
+    // Encontrar a produtora de filme mais barata
+    const cheapestFilm = (data.quotes_film || []).length > 0
+      ? (data.quotes_film || []).reduce((min, q) => {
+          const qVal = q.valor - (q.desconto || 0);
+          const minVal = min.valor - (min.desconto || 0);
+          return qVal < minVal ? q : min;
+        })
+      : null;
+
+    // Encontrar a produtora de áudio mais barata
+    const cheapestAudio = data.inclui_audio && (data.quotes_audio || []).length > 0
+      ? (data.quotes_audio || []).reduce((min, q) => {
+          const qVal = q.valor - (q.desconto || 0);
+          const minVal = min.valor - (min.desconto || 0);
+          return qVal < minVal ? q : min;
+        })
+      : null;
+
+    const filmSubtotal = cheapestFilm ? (cheapestFilm.valor - (cheapestFilm.desconto || 0)) : 0;
+    const audioSubtotal = cheapestAudio ? (cheapestAudio.valor - (cheapestAudio.desconto || 0)) : 0;
+    const subtotalGeral = filmSubtotal + audioSubtotal;
+    const honorario = subtotalGeral * ((data.honorario_perc || 0) / 100);
+    const total = subtotalGeral + honorario;
+    setData((prev) => ({ ...prev, total }));
+  }, [data.quotes_film, data.quotes_audio, data.honorario_perc, data.inclui_audio]);
+
+  const addQuote = () => {
+    const newQuote: QuoteFilm = {
       id: crypto.randomUUID(),
-      nome,
-      categorias: CATEGORIAS_BASE.map((c, idx) => {
-        let fornecedores: Fornecedor[] = [];
-        if (c.nome === "Filme")
-          fornecedores = Array.from({ length: Math.max(0, qtdFilme) }).map(() => ({
-            id: crypto.randomUUID(),
-            nome: "",
-            descricao: "",
-            valor: 0,
-            desconto: 0,
-          }));
-        if (c.nome === "Áudio")
-          fornecedores = Array.from({ length: Math.max(0, qtdAudio) }).map(() => ({
-            id: crypto.randomUUID(),
-            nome: "",
-            descricao: "",
-            valor: 0,
-            desconto: 0,
-          }));
-        return {
-          id: crypto.randomUUID(),
-          nome: c.nome,
-          ordem: idx,
-          visivel: true,
-          podeExcluir: c.podeExcluir,
-          modoPreco: "fechado",
-          fornecedores,
-          itens: [],
-        };
-      }),
+      produtora: "",
+      escopo: "",
+      valor: 0,
+      diretor: "",
+      tratamento: "",
+      desconto: 0,
     };
-    setCampanhas((prev) => [...prev, nova]);
+    updateData({ quotes_film: [...(data.quotes_film || []), newQuote] });
   };
 
-  const nextCampaignInWizard = () => {
-    const qtdF = parseIntSafe(wizQtdFilme);
-    const qtdA = parseIntSafe(wizQtdAudio);
-    const nome = (wizNome || "").trim() || `Campanha ${wizardIndex + 1}`;
-    addCampaignFromWizard(nome, qtdF, qtdA);
-    const nextIndex = wizardIndex + 1;
-    if (nextIndex >= wizardTotal) {
-      setWizardOpen(false);
-      return;
-    }
-    setWizardIndex(nextIndex);
-    setWizNome(`Campanha ${nextIndex + 1}`);
-    setWizQtdFilme("2");
-    setWizQtdAudio("2");
+  const updateQuote = (id: string, updates: Partial<QuoteFilm>) => {
+    const updated = (data.quotes_film || []).map((q) => (q.id === id ? { ...q, ...updates } : q));
+    updateData({ quotes_film: updated });
   };
 
-  // Mutators básicos
-  const atualizarNomeCampanha = (id: string, nome: string) =>
-    setCampanhas((prev) => prev.map((c) => (c.id === id ? { ...c, nome } : c)));
-  const adicionarCampanha = () => {
-    const nome = `Campanha ${campanhas.length + 1}`;
-    const nova: Campanha = {
+  const removeQuote = (id: string) => {
+    updateData({ quotes_film: (data.quotes_film || []).filter((q) => q.id !== id) });
+  };
+
+  const addAudioQuote = () => {
+    const newQuote: QuoteAudio = {
       id: crypto.randomUUID(),
-      nome,
-      categorias: CATEGORIAS_BASE.map((c, idx) => ({
-        id: crypto.randomUUID(),
-        nome: c.nome,
-        ordem: idx,
-        visivel: true,
-        podeExcluir: c.podeExcluir,
-        modoPreco: "fechado",
-        fornecedores: [],
-        itens: [],
-      })),
+      produtora: "",
+      descricao: "",
+      valor: 0,
+      desconto: 0,
     };
-    setCampanhas((prev) => [...prev, nova]);
-    toast({ title: "Nova campanha adicionada" });
+    updateData({ quotes_audio: [...(data.quotes_audio || []), newQuote] });
   };
-  const removerCampanha = (id: string) =>
-    setCampanhas((prev) => {
-      if (prev.length === 1) {
-        toast({ title: "É necessário pelo menos uma campanha", variant: "destructive" });
-        return prev;
-      }
-      return prev.filter((c) => c.id !== id);
-    });
-  const adicionarCategoria = (campanhaId: string, nome: string) => {
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: [
-                ...camp.categorias,
-                {
-                  id: crypto.randomUUID(),
-                  nome,
-                  ordem: camp.categorias.length,
-                  visivel: true,
-                  podeExcluir: true,
-                  modoPreco: "fechado",
-                  fornecedores: [],
-                  itens: [],
-                },
-              ],
-            }
-          : camp,
-      ),
-    );
-    toast({ title: `Categoria "${nome}" adicionada` });
+
+  const updateAudioQuote = (id: string, updates: Partial<QuoteAudio>) => {
+    const updated = (data.quotes_audio || []).map((q) => (q.id === id ? { ...q, ...updates } : q));
+    updateData({ quotes_audio: updated });
   };
-  const removerCategoria = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId ? { ...camp, categorias: camp.categorias.filter((c) => c.id !== categoriaId) } : camp,
-      ),
-    );
-  const alternarVisibilidade = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) => (c.id === categoriaId ? { ...c, visivel: !c.visivel } : c)),
-            }
-          : camp,
-      ),
-    );
-  const atualizarCategoria = (campanhaId: string, categoriaId: string, updates: Partial<Categoria>) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? { ...camp, categorias: camp.categorias.map((c) => (c.id === categoriaId ? { ...c, ...updates } : c)) }
-          : camp,
-      ),
-    );
-  const adicionarFornecedor = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? {
-                      ...c,
-                      fornecedores: [
-                        ...c.fornecedores,
-                        { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, desconto: 0 },
-                      ],
-                    }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const atualizarFornecedor = (
-    campanhaId: string,
-    categoriaId: string,
-    fornecedorId: string,
-    updates: Partial<Fornecedor>,
-  ) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? {
-                      ...c,
-                      fornecedores: c.fornecedores.map((f) => (f.id === fornecedorId ? { ...f, ...updates } : f)),
-                    }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const removerFornecedor = (campanhaId: string, categoriaId: string, fornecedorId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId ? { ...c, fornecedores: c.fornecedores.filter((f) => f.id !== fornecedorId) } : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const adicionarItem = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? {
-                      ...c,
-                      itens: [
-                        ...c.itens,
-                        { id: crypto.randomUUID(), unidade: "", quantidade: 1, valorUnitario: 0, desconto: 0 },
-                      ],
-                    }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const atualizarItem = (campanhaId: string, categoriaId: string, itemId: string, updates: Partial<ItemPreco>) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? { ...c, itens: c.itens.map((it) => (it.id === itemId ? { ...it, ...updates } : it)) }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const removerItem = (campanhaId: string, categoriaId: string, itemId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId ? { ...c, itens: c.itens.filter((it) => it.id !== itemId) } : c,
-              ),
-            }
-          : camp,
-      ),
-    );
 
-  const totalGeral = useMemo(
-    () => campanhas.reduce((sum, camp) => sum + calcularSubtotalCampanha(camp), 0),
-    [campanhas, calcularSubtotalCampanha],
-  );
+  const removeAudioQuote = (id: string) => {
+    updateData({ quotes_audio: (data.quotes_audio || []).filter((q) => q.id !== id) });
+  };
 
-  const combosOrdenados = useMemo(() => {
-    const combos = campanhas.map((camp) => ({ campId: camp.id, campNome: camp.nome, combo: bestFilmAudioCombo(camp) }));
-    return combos.sort((a, b) => {
-      if (a.combo.sum == null && b.combo.sum == null) return 0;
-      if (a.combo.sum == null) return 1;
-      if (b.combo.sum == null) return -1;
-      return a.combo.sum! - b.combo.sum!;
-    });
-  }, [campanhas, bestFilmAudioCombo]);
-
-  // Save -> budgets + versions, navega para /budget/:id
-  const handleSalvar = async () => {
-    if (!cliente || !produto) {
+  const handleSave = async () => {
+    if (!data.cliente || !data.produto) {
       toast({ title: "Preencha cliente e produto", variant: "destructive" });
       return;
     }
-    if (!campanhas.length) {
-      toast({ title: "Finalize o lançamento das campanhas", variant: "destructive" });
-      return;
-    }
+
     setSaving(true);
     try {
-      const payload = snapshotOrcamento({ cliente, produto, job, observacoes, campanhas });
+      const payload = { ...data };
+      
+      // Usar create_budget_with_version que existe no DB
       const { data: budgetData, error: budgetError } = await supabase
         .from("budgets")
-        .insert({ type: "filme", status: "rascunho" })
+        .insert({
+          type: data.type,
+          status: "rascunho",
+        })
         .select()
         .single();
+
       if (budgetError) throw budgetError;
-      const { error: versionError } = await supabase
+
+      // Criar versão inicial
+      const { data: versionData, error: versionError } = await supabase
         .from("versions")
-        .insert([{ budget_id: budgetData.id, versao: 1, payload: payload as any, total_geral: totalGeral }])
+        .insert([{
+          budget_id: budgetData.id,
+          versao: 1,
+          payload: payload as any,
+          total_geral: data.total,
+        }])
         .select()
         .single();
+
       if (versionError) throw versionError;
-      toast({ title: "Orçamento salvo!" });
-      navigate(`/budget/${budgetData.id}`);
+
+      toast({ title: "Orçamento salvo com sucesso!" });
+      navigate(`/budget/${budgetData.id}/pdf`);
     } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
+      console.error("[save-budget] error:", err);
+      toast({
+        title: "Erro ao salvar orçamento",
+        description: err?.message || "Erro desconhecido",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  // PDF (snapshot + nova janela)
-  const gerarPDF = () => {
-    if (!cliente || !produto) {
-      toast({ title: "Preencha cliente e produto", variant: "destructive" });
-      return;
-    }
-    const data = snapshotOrcamento({ cliente, produto, job, observacoes, campanhas });
-    const json = JSON.stringify(data);
-    const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
-    if (!w) {
-      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para gerar o PDF.", variant: "destructive" });
-      return;
-    }
-    w.document.open();
-    w.document.write(templateHTML(json));
-    w.document.close();
-  };
+  const cheapestFilm = (data.quotes_film || []).length > 0
+    ? (data.quotes_film || []).reduce((min, q) => {
+        const qVal = q.valor - (q.desconto || 0);
+        const minVal = min.valor - (min.desconto || 0);
+        return qVal < minVal ? q : min;
+      })
+    : null;
+
+  const cheapestAudio = data.inclui_audio && (data.quotes_audio || []).length > 0
+    ? (data.quotes_audio || []).reduce((min, q) => {
+        const qVal = q.valor - (q.desconto || 0);
+        const minVal = min.valor - (min.desconto || 0);
+        return qVal < minVal ? q : min;
+      })
+    : null;
+
+  const filmVal = cheapestFilm ? (cheapestFilm.valor - (cheapestFilm.desconto || 0)) : 0;
+  const audioVal = cheapestAudio ? (cheapestAudio.valor - (cheapestAudio.desconto || 0)) : 0;
+  const subtotal = filmVal + audioVal;
+  const honorValue = subtotal * ((data.honorario_perc || 0) / 100);
 
   return (
-    <AppLayout>
-      {/* WIZARD OVERLAY */}
-      {wizardOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6">
-            {wizardStep === "total" && (
+    <div className="min-h-screen bg-background">
+      <HeaderBar
+        title="Novo Orçamento"
+        subtitle="Preencha os dados e visualize em tempo real"
+        backTo="/orcamentos"
+        actions={
+          <Button onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? "Salvando..." : (
               <>
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold">Lançar campanhas</h2>
-                  <p className="text-sm text-muted-foreground">Quantas campanhas você deseja lançar agora?</p>
-                </div>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <Label>Quantidade de campanhas</Label>
-                    <Input
-                      inputMode="numeric"
-                      value={wizardTotalStr}
-                      onChange={(e) => setWizardTotalStr(e.target.value)}
-                      placeholder="Ex.: 2"
-                    />
-                  </div>
-                  <Button className="mt-6" onClick={startWizard}>
-                    Continuar
-                  </Button>
-                </div>
+                <Save className="h-4 w-4" />
+                Salvar e Gerar PDF
               </>
             )}
-            {wizardStep === "campanha" && (
-              <>
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold">
-                    Campanha {wizardIndex + 1} de {wizardTotal}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Informe o nome e quantas produtoras para <b>Filme</b> e <b>Áudio</b>.
-                  </p>
-                </div>
-                <div className="space-y-4">
+          </Button>
+        }
+      />
+
+      <div className="container-page">
+        {/* Instruções */}
+        <Card className="mb-6 border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-700 text-base">
+              <AlertCircle className="h-5 w-5" />
+              Instruções de Preenchimento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-blue-900/70 space-y-1">
+            <p>• <b>Cliente</b> e <b>Produto</b>: Campos obrigatórios para identificação.</p>
+            <p>• <b>Cotações</b>: Adicione múltiplas produtoras para comparação lado a lado.</p>
+            <p>• <b>Mais Barata</b>: O sistema destaca automaticamente a opção mais econômica.</p>
+            <p>• <b>Total Sugerido</b>: Calcula usando APENAS as produtoras mais baratas (1 filme + 1 áudio).</p>
+            <p>• <b>Honorário</b>: Percentual aplicado sobre o subtotal das produtoras selecionadas.</p>
+          </CardContent>
+        </Card>
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Formulário */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Identificação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
                   <div>
-                    <Label>Nome da campanha</Label>
-                    <Input value={wizNome} onChange={(e) => setWizNome(e.target.value)} />
+                    <Label>Tipo</Label>
+                    <Select value={data.type} onValueChange={(v) => updateData({ type: v as BudgetType })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="filme">Filme</SelectItem>
+                        <SelectItem value="audio">Áudio</SelectItem>
+                        <SelectItem value="imagem">Imagem</SelectItem>
+                        <SelectItem value="cc">Closed Caption</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>
-                        Produtoras de <b>Filme</b>
-                      </Label>
-                      <Input inputMode="numeric" value={wizQtdFilme} onChange={(e) => setWizQtdFilme(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>
-                        Produtoras de <b>Áudio</b>
-                      </Label>
-                      <Input inputMode="numeric" value={wizQtdAudio} onChange={(e) => setWizQtdAudio(e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-between">
-                  <div className="text-xs text-muted-foreground">Abrirei os campos abaixo automaticamente.</div>
-                  <Button onClick={nextCampaignInWizard}>
-                    {wizardIndex + 1 === wizardTotal ? "Concluir" : "Adicionar e continuar"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/orcamentos")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-[28px] leading-8 font-semibold">Novo Orçamento</h1>
-              <p className="text-muted-foreground">
-                Use o assistente para lançar campanhas e produtoras. Gere o PDF (máx. 2 páginas).
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => toast({ title: "Em breve" })} className="gap-2">
-              <Copy className="h-4 w-4" />
-              Duplicar
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/orcamentos/tabela")} className="gap-2">
-              <FileText className="h-4 w-4" />
-              Exportar p/ BYD
-            </Button>
-            <Button variant="outline" onClick={gerarPDF} className="gap-2">
-              <Printer className="h-4 w-4" />
-              Gerar PDF
-            </Button>
-            <Button onClick={handleSalvar} disabled={saving || campanhas.length === 0} className="gap-2">
-              <Save className="h-4 w-4" />
-              {saving ? "Salvando..." : "Salvar"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Identificação */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Identificação</CardTitle>
-              <span className="text-xs text-muted-foreground">Use nomes completos</span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Cliente *</Label>
-                <Input value={cliente} onChange={(e) => setCliente(e.target.value)} required />
-              </div>
-              <div>
-                <Label>Produto *</Label>
-                <Input value={produto} onChange={(e) => setProduto(e.target.value)} required />
-              </div>
-              <div>
-                <Label>Job</Label>
-                <Input value={job} onChange={(e) => setJob(e.target.value)} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Campanhas */}
-        {campanhas.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Campanhas</CardTitle>
-                <Button onClick={adicionarCampanha} size="sm" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Adicionar Campanha
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {campanhas.map((camp) => (
-                  <div
-                    key={camp.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-primary/10 border-primary/30"
-                  >
+                  <div>
+                    <Label>Produtor</Label>
                     <Input
-                      value={camp.nome}
-                      onChange={(e) => atualizarNomeCampanha(camp.id, e.target.value)}
-                      className="h-7 w-44 text-sm font-medium"
+                      value={data.produtor || ""}
+                      onChange={(e) => updateData({ produtor: e.target.value })}
+                      placeholder="Nome do produtor"
                     />
-                    {campanhas.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive"
-                        onClick={() => removerCampanha(camp.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <div>
+                    <Label>E-mail</Label>
+                    <Input
+                      type="email"
+                      value={data.email || ""}
+                      onChange={(e) => updateData({ email: e.target.value })}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Colunas */}
-        <div className="grid grid-cols-[1fr_320px] gap-6">
-          <div className="space-y-8">
-            {campanhas.map((campanha) => {
-              const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
-              const idCamp = campanha.id;
-              const combo = bestFilmAudioCombo(campanha);
-              const comboTexto =
-                combo.sum == null
-                  ? "Aguardando cotações de Filme e Áudio"
-                  : `${combo.film?.nome || "Filme"} + ${combo.audio?.nome || "Áudio"} = ${brl(combo.sum)}`;
-              return (
-                <div key={idCamp} className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border-2 border-primary/20">
-                    <div>
-                      <h2 className="text-xl font-semibold text-primary">{campanha.nome}</h2>
-                      <div className="text-xs text-muted-foreground">
-                        Melhor combinação (Filme + Áudio): {comboTexto}
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {brl(
-                        categoriasVisiveis.reduce(
-                          (s, c) =>
-                            s +
-                            (c.modoPreco === "fechado"
-                              ? c.fornecedores.length
-                                ? c.fornecedores.reduce((m, f) =>
-                                    normNum(f.valor) - normNum(f.desconto) < normNum(m.valor) - normNum(m.desconto)
-                                      ? f
-                                      : m,
-                                  ).valor -
-                                  c.fornecedores.reduce((m, f) =>
-                                    normNum(f.valor) - normNum(f.desconto) < normNum(m.valor) - normNum(m.desconto)
-                                      ? f
-                                      : m,
-                                  ).desconto
-                                : 0
-                              : c.itens.reduce(
-                                  (x, it) =>
-                                    x + normNum(it.quantidade) * normNum(it.valorUnitario) - normNum(it.desconto),
-                                  0,
-                                )),
-                          0,
-                        ),
+            <Card>
+              <CardHeader>
+                <CardTitle>Cliente & Produto</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Cliente *</Label>
+                    <Input
+                      value={data.cliente || ""}
+                      onChange={(e) => updateData({ cliente: e.target.value })}
+                      placeholder="Nome do cliente"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Produto *</Label>
+                    <Input
+                      value={data.produto || ""}
+                      onChange={(e) => updateData({ produto: e.target.value })}
+                      placeholder="Nome do produto"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Job</Label>
+                    <Input value={data.job || ""} onChange={(e) => updateData({ job: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Mídias</Label>
+                    <Input value={data.midias || ""} onChange={(e) => updateData({ midias: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Território</Label>
+                    <Input value={data.territorio || ""} onChange={(e) => updateData({ territorio: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Período</Label>
+                    <Input value={data.periodo || ""} onChange={(e) => updateData({ periodo: e.target.value })} />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div>
+                    <Label>Entregáveis</Label>
+                    <Input
+                      value={data.entregaveis || ""}
+                      onChange={(e) => updateData({ entregaveis: e.target.value })}
+                      placeholder="Ex: 1 filme 30s, 1 filme 15s..."
+                    />
+                  </div>
+                  <div>
+                    <Label>Adaptações</Label>
+                    <Input
+                      value={data.adaptacoes || ""}
+                      onChange={(e) => updateData({ adaptacoes: e.target.value })}
+                      placeholder="Ex: 2 adaptações..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="exclusividade">Exclusividade de Elenco</Label>
+                    <Select
+                      value={data.exclusividade_elenco || "nao_aplica"}
+                      onValueChange={(v: any) => updateData({ exclusividade_elenco: v })}
+                    >
+                      <SelectTrigger id="exclusividade">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="orcado">Orçado</SelectItem>
+                        <SelectItem value="nao_orcado">Não Orçado</SelectItem>
+                        <SelectItem value="nao_aplica">Não se Aplica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Cotações de Produtoras - Filme</CardTitle>
+                <Button size="sm" variant="outline" onClick={addQuote} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Adicionar Cotação
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(data.quotes_film || []).map((q) => {
+                  const isCheapest = cheapestFilm?.id === q.id;
+                  return (
+                    <motion.div
+                      key={q.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`border rounded-lg p-4 space-y-3 ${
+                        isCheapest 
+                          ? 'border-green-500 bg-green-50/50 border-2' 
+                          : 'border-border bg-secondary/20'
+                      }`}
+                    >
+                      {isCheapest && (
+                        <div className="mb-3">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-600 text-white">
+                            ⭐ MAIS BARATA - FILME
+                          </span>
+                        </div>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Gerenciador de Categorias */}
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">Gerenciador de Categorias</CardTitle>
-                        <Select
-                          onValueChange={(v) => {
-                            if (!v) return;
-                            if (v === "__custom__") {
-                              const nome = window.prompt("Nome da categoria personalizada:");
-                              if (nome && nome.trim()) adicionarCategoria(idCamp, nome.trim());
-                              return;
-                            }
-                            adicionarCategoria(idCamp, v);
-                          }}
-                        >
-                          <SelectTrigger className="w-[220px]">
-                            <SelectValue placeholder="+ Adicionar categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CATEGORIAS_SUGERIDAS.map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="__custom__">✏️ Personalizada...</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        {campanha.categorias.map((cat) => (
-                          <div
-                            key={cat.id}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${cat.visivel ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}
-                            title={cat.visivel ? "Visível" : "Oculta"}
-                          >
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">{cat.nome}</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => alternarVisibilidade(idCamp, cat.id)}
-                            >
-                              {cat.visivel ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                            </Button>
-                            {cat.podeExcluir && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-destructive"
-                                onClick={() => removerCategoria(idCamp, cat.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Categorias */}
-                  <div className="space-y-4">
-                    {categoriasVisiveis.map((cat) => {
-                      const idMaisBarata =
-                        cat.modoPreco === "fechado" && cat.fornecedores.length
-                          ? cat.fornecedores.reduce((min, f) =>
-                              normNum(f.valor) - normNum(f.desconto) < normNum(min.valor) - normNum(min.desconto)
-                                ? f
-                                : min,
-                            ).id
-                          : null;
-                      return (
-                        <Card key={cat.id}>
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <CardTitle>{cat.nome}</CardTitle>
-                              <Select
-                                value={cat.modoPreco}
-                                onValueChange={(v: any) => atualizarCategoria(idCamp, cat.id, { modoPreco: v })}
-                              >
-                                <SelectTrigger className="w-[170px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="fechado">Valor Fechado</SelectItem>
-                                  <SelectItem value="itens">Por Itens</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div>
-                              <Label>Observação da Categoria (opcional)</Label>
-                              <Textarea
-                                value={cat.observacao || ""}
-                                onChange={(e) => atualizarCategoria(idCamp, cat.id, { observacao: e.target.value })}
-                                rows={2}
-                                placeholder="Ex.: período, premissas, limitações..."
-                              />
-                            </div>
-
-                            {cat.modoPreco === "fechado" ? (
-                              <>
-                                <div className="flex items-center justify-between">
-                                  <Label>Fornecedores/Cotações</Label>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => adicionarFornecedor(idCamp, cat.id)}
-                                  >
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Adicionar
-                                  </Button>
-                                </div>
-                                <div className="space-y-3">
-                                  {cat.fornecedores.map((forn) => {
-                                    const valorFinal = normNum(forn.valor) - normNum(forn.desconto);
-                                    const isCheapest = idMaisBarata === forn.id;
-                                    return (
-                                      <div
-                                        key={forn.id}
-                                        className={`border rounded-xl p-3 space-y-2 ${isCheapest ? "border-green-500 bg-green-500/5" : "border-border"}`}
-                                      >
-                                        {isCheapest && (
-                                          <div className="text-xs font-semibold text-green-600 mb-2">
-                                            ⭐ Mais barata considerada no subtotal
-                                          </div>
-                                        )}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <Input
-                                            placeholder="Fornecedor"
-                                            value={forn.nome}
-                                            onChange={(e) =>
-                                              atualizarFornecedor(idCamp, cat.id, forn.id, { nome: e.target.value })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Valor (R$)"
-                                            type="number"
-                                            value={forn.valor ?? 0}
-                                            onChange={(e) =>
-                                              atualizarFornecedor(idCamp, cat.id, forn.id, {
-                                                valor: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                        </div>
-                                        <Textarea
-                                          placeholder="Descrição/Escopo"
-                                          value={forn.descricao}
-                                          onChange={(e) =>
-                                            atualizarFornecedor(idCamp, cat.id, forn.id, { descricao: e.target.value })
-                                          }
-                                          rows={2}
-                                        />
-                                        <div className="flex items-center gap-2">
-                                          <Input
-                                            placeholder="Desconto (R$)"
-                                            type="number"
-                                            value={forn.desconto ?? 0}
-                                            onChange={(e) =>
-                                              atualizarFornecedor(idCamp, cat.id, forn.id, {
-                                                desconto: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <span className="text-sm font-medium whitespace-nowrap">
-                                            = {brl(valorFinal)}
-                                          </span>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => removerFornecedor(idCamp, cat.id, forn.id)}
-                                            className="text-destructive"
-                                            title="Remover fornecedor"
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between">
-                                  <Label>Itens</Label>
-                                  <Button size="sm" variant="outline" onClick={() => adicionarItem(idCamp, cat.id)}>
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Adicionar
-                                  </Button>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  Total = Σ(Qtd × Valor unit.) − Descontos
-                                </div>
-                                <div className="space-y-3">
-                                  {cat.itens.map((item) => {
-                                    const subtotal =
-                                      normNum(item.quantidade) * normNum(item.valorUnitario) - normNum(item.desconto);
-                                    return (
-                                      <div key={item.id} className="border rounded-xl p-3 space-y-2">
-                                        <div className="grid grid-cols-5 gap-2">
-                                          <Input
-                                            placeholder="Unidade"
-                                            value={item.unidade}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, { unidade: e.target.value })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Qtd"
-                                            type="number"
-                                            value={item.quantidade}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, {
-                                                quantidade: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Valor unit."
-                                            type="number"
-                                            value={item.valorUnitario}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, {
-                                                valorUnitario: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Desconto"
-                                            type="number"
-                                            value={item.desconto}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, {
-                                                desconto: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <div className="flex items-center justify-end">
-                                            <span className="text-sm">Subtotal: {brl(subtotal)}</span>
-                                          </div>
-                                        </div>
-                                        <Textarea
-                                          placeholder="Observação do item (opcional)"
-                                          value={item.observacao || ""}
-                                          onChange={(e) =>
-                                            atualizarItem(idCamp, cat.id, item.id, { observacao: e.target.value })
-                                          }
-                                          rows={2}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </>
-                            )}
-
-                            <div className="pt-3 border-t flex justify-between items-center">
-                              <span className="font-semibold">Subtotal</span>
-                              <span className="text-lg font-bold text-primary">
-                                {brl(calcularSubtotalCategoria(cat))}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Observações gerais */}
-            {campanhas.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Observações Gerais</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    value={observacoes}
-                    onChange={(e) => setObservacoes(e.target.value)}
-                    rows={4}
-                    placeholder="Adicione observações gerais do orçamento..."
-                  />
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Resumo (Direita) */}
-          <div className="sticky top-8 h-fit space-y-4">
-            {campanhas.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Resumo por Campanha</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {campanhas.map((campanha) => {
-                    const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
-                    const subtotalCampanha = categoriasVisiveis.reduce(
-                      (s, c) =>
-                        s +
-                        (c.modoPreco === "fechado"
-                          ? c.fornecedores.length
-                            ? c.fornecedores.reduce((m, f) =>
-                                normNum(f.valor) - normNum(f.desconto) < normNum(m.valor) - normNum(m.desconto) ? f : m,
-                              ).valor -
-                              c.fornecedores.reduce((m, f) =>
-                                normNum(f.valor) - normNum(f.desconto) < normNum(m.valor) - normNum(m.desconto) ? f : m,
-                              ).desconto
-                            : 0
-                          : c.itens.reduce(
-                              (x, it) => x + normNum(it.quantidade) * normNum(it.valorUnitario) - normNum(it.desconto),
-                              0,
-                            )),
-                      0,
-                    );
-                    return (
-                      <div key={campanha.id} className="space-y-2">
-                        <div className="font-semibold text-primary pb-2 border-b">{campanha.nome}</div>
-                        {categoriasVisiveis.map((cat) => (
-                          <div key={cat.id} className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">{cat.nome}</span>
-                            <span className="font-medium">{brl(calcularSubtotalCategoria(cat))}</span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between text-sm font-semibold pt-1 border-t">
-                          <span>Subtotal {campanha.nome}</span>
-                          <span className="text-primary">{brl(subtotalCampanha)}</span>
+                      <div className="grid md:grid-cols-3 gap-3">
+                        <div>
+                          <Label>Produtora</Label>
+                          <Input
+                            value={q.produtora}
+                            onChange={(e) => updateQuote(q.id, { produtora: e.target.value })}
+                            placeholder="Nome da produtora"
+                          />
+                        </div>
+                        <div>
+                          <Label>Diretor (opcional)</Label>
+                          <Input value={q.diretor} onChange={(e) => updateQuote(q.id, { diretor: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label>Tratamento (opcional)</Label>
+                          <Input
+                            value={q.tratamento}
+                            onChange={(e) => updateQuote(q.id, { tratamento: e.target.value })}
+                            placeholder="Link ou descrição"
+                          />
                         </div>
                       </div>
-                    );
-                  })}
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold">Total Geral</span>
-                      <span className="text-2xl font-bold text-primary">{brl(totalGeral)}</span>
-                    </div>
+                      <div>
+                        <Label>Escopo Detalhado</Label>
+                        <textarea
+                          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background"
+                          value={q.escopo}
+                          onChange={(e) => updateQuote(q.id, { escopo: e.target.value })}
+                          placeholder="Descreva o escopo completo da produtora..."
+                        />
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div>
+                          <Label>Valor (R$)</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={q.valor ? String(q.valor) : ""}
+                            onChange={(e) => updateQuote(q.id, { valor: parseCurrency(e.target.value) })}
+                            placeholder="0,00"
+                          />
+                        </div>
+                        <div>
+                          <Label>Desconto (R$)</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={q.desconto ? String(q.desconto) : ""}
+                            onChange={(e) => updateQuote(q.id, { desconto: parseCurrency(e.target.value) })}
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-sm">
+                          <span className="font-semibold">Valor Final: </span>
+                          <span className="text-lg font-bold text-primary">
+                            {money(q.valor - (q.desconto || 0))}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeQuote(q.id)}
+                          className="text-destructive gap-1"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remover
+                        </Button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+                {(!data.quotes_film || data.quotes_film.length === 0) && (
+                  <div className="text-sm text-muted-foreground">Nenhuma cotação adicionada.</div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Seção de Áudio Opcional */}
+            <Card className="border-2 border-blue-200 bg-blue-50/30">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      Produtora de Áudio
+                      {!data.inclui_audio && (
+                        <span className="text-sm font-normal text-blue-600">💡 Adicionar cotação de áudio?</span>
+                      )}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {data.inclui_audio 
+                        ? "Adicione cotações de produtoras de áudio para comparação" 
+                        : "Ative para incluir cotações de produtoras de áudio"}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Ranking */}
-            {campanhas.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Campanhas — Soma das mais baratas (Filme + Áudio)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {combosOrdenados.map(({ campId, campNome, combo }, idx) => (
-                    <div
-                      key={campId}
-                      className={`flex justify-between items-center text-sm px-2 py-1.5 rounded ${idx === 0 && combo.sum != null ? "bg-green-500/10" : "bg-muted/40"}`}
-                      title={
-                        combo.sum == null
-                          ? "Complete Filme e Áudio"
-                          : "Soma do mais barato de Filme com o mais barato de Áudio"
-                      }
-                    >
-                      <span className="font-medium">{campNome}</span>
-                      <span className="font-semibold">{combo.sum == null ? "—" : brl(combo.sum)}</span>
-                    </div>
-                  ))}
-                  <div className="text-xs text-muted-foreground">Critério: (menor Filme) + (menor Áudio).</div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-      </div>
-    </AppLayout>
-  );
-}
-
-/*********************** Component: BudgetDetalhe (reidrata a partir da última versão) ***********************/
-export function BudgetDetalhe() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // Estados do orçamento reidratados
-  const [cliente, setCliente] = useState("");
-  const [produto, setProduto] = useState("");
-  const [job, setJob] = useState("");
-  const [observacoes, setObservacoes] = useState("");
-  const [campanhas, setCampanhas] = useState<Campanha[]>([]);
-
-  const { finalDe, calcularSubtotalCategoria, calcularSubtotalCampanha, bestFilmAudioCombo } = useCalculos();
-
-  const hydrateFromPayload = (payload: any) => {
-    try {
-      setCliente(payload?.cliente || "");
-      setProduto(payload?.produto || "");
-      setJob(payload?.job || "");
-      setObservacoes(payload?.observacoes || "");
-      const camps: Campanha[] = (payload?.campanhas || []).map((camp: any) => ({
-        id: camp.id || crypto.randomUUID(),
-        nome: camp.nome || "Campanha",
-        categorias: (camp.categorias || []).map((c: any, idx: number) => ({
-          id: c.id || crypto.randomUUID(),
-          nome: c.nome || "Categoria",
-          ordem: idx,
-          visivel: c.visivel !== false,
-          podeExcluir: ["Filme", "Áudio", "Imagem", "CC"].includes(c.nome) ? false : true,
-          modoPreco: c.modoPreco === "itens" ? "itens" : "fechado",
-          observacao: c.observacao || "",
-          fornecedores: (c.fornecedores || []).map((f: any) => ({
-            id: f.id || crypto.randomUUID(),
-            nome: f.nome || "",
-            descricao: f.descricao || "",
-            valor: normNum(f.valor),
-            desconto: normNum(f.desconto),
-          })),
-          itens: (c.itens || []).map((it: any) => ({
-            id: it.id || crypto.randomUUID(),
-            unidade: it.unidade || "",
-            quantidade: normNum(it.quantidade),
-            valorUnitario: normNum(it.valorUnitario),
-            desconto: normNum(it.desconto),
-            observacao: it.observacao || "",
-          })),
-        })),
-      }));
-      setCampanhas(camps);
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Falha ao carregar payload", variant: "destructive" });
-    }
-  };
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const budgetId = id;
-        if (!budgetId) {
-          toast({ title: "ID inválido", variant: "destructive" });
-          navigate("/orcamentos");
-          return;
-        }
-        const { data, error } = await supabase
-          .from("versions")
-          .select("id, versao, payload, total_geral, created_at")
-          .eq("budget_id", budgetId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
-        if (mounted) {
-          if (data?.payload) hydrateFromPayload(data.payload);
-          else toast({ title: "Nenhuma versão encontrada" });
-        }
-      } catch (err: any) {
-        toast({ title: "Erro ao carregar", description: err.message, variant: "destructive" });
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [id, navigate]);
-
-  // Mutators (mesmos da página nova, sem wizard)
-  const atualizarNomeCampanha = (id: string, nome: string) =>
-    setCampanhas((prev) => prev.map((c) => (c.id === id ? { ...c, nome } : c)));
-  const adicionarCampanha = () => {
-    const nome = `Campanha ${campanhas.length + 1}`;
-    const nova: Campanha = {
-      id: crypto.randomUUID(),
-      nome,
-      categorias: CATEGORIAS_BASE.map((c, idx) => ({
-        id: crypto.randomUUID(),
-        nome: c.nome,
-        ordem: idx,
-        visivel: true,
-        podeExcluir: c.podeExcluir,
-        modoPreco: "fechado",
-        fornecedores: [],
-        itens: [],
-      })),
-    };
-    setCampanhas((prev) => [...prev, nova]);
-    toast({ title: "Nova campanha adicionada" });
-  };
-  const removerCampanha = (id: string) =>
-    setCampanhas((prev) => {
-      if (prev.length === 1) {
-        toast({ title: "É necessário pelo menos uma campanha", variant: "destructive" });
-        return prev;
-      }
-      return prev.filter((c) => c.id !== id);
-    });
-  const adicionarCategoria = (campanhaId: string, nome: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: [
-                ...camp.categorias,
-                {
-                  id: crypto.randomUUID(),
-                  nome,
-                  ordem: camp.categorias.length,
-                  visivel: true,
-                  podeExcluir: true,
-                  modoPreco: "fechado",
-                  fornecedores: [],
-                  itens: [],
-                },
-              ],
-            }
-          : camp,
-      ),
-    );
-  const removerCategoria = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId ? { ...camp, categorias: camp.categorias.filter((c) => c.id !== categoriaId) } : camp,
-      ),
-    );
-  const alternarVisibilidade = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) => (c.id === categoriaId ? { ...c, visivel: !c.visivel } : c)),
-            }
-          : camp,
-      ),
-    );
-  const atualizarCategoria = (campanhaId: string, categoriaId: string, updates: Partial<Categoria>) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? { ...camp, categorias: camp.categorias.map((c) => (c.id === categoriaId ? { ...c, ...updates } : c)) }
-          : camp,
-      ),
-    );
-  const adicionarFornecedor = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? {
-                      ...c,
-                      fornecedores: [
-                        ...c.fornecedores,
-                        { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, desconto: 0 },
-                      ],
-                    }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const atualizarFornecedor = (
-    campanhaId: string,
-    categoriaId: string,
-    fornecedorId: string,
-    updates: Partial<Fornecedor>,
-  ) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? {
-                      ...c,
-                      fornecedores: c.fornecedores.map((f) => (f.id === fornecedorId ? { ...f, ...updates } : f)),
-                    }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const removerFornecedor = (campanhaId: string, categoriaId: string, fornecedorId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId ? { ...c, fornecedores: c.fornecedores.filter((f) => f.id !== fornecedorId) } : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const adicionarItem = (campanhaId: string, categoriaId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? {
-                      ...c,
-                      itens: [
-                        ...c.itens,
-                        { id: crypto.randomUUID(), unidade: "", quantidade: 1, valorUnitario: 0, desconto: 0 },
-                      ],
-                    }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const atualizarItem = (campanhaId: string, categoriaId: string, itemId: string, updates: Partial<ItemPreco>) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId
-                  ? { ...c, itens: c.itens.map((it) => (it.id === itemId ? { ...it, ...updates } : it)) }
-                  : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-  const removerItem = (campanhaId: string, categoriaId: string, itemId: string) =>
-    setCampanhas((prev) =>
-      prev.map((camp) =>
-        camp.id === campanhaId
-          ? {
-              ...camp,
-              categorias: camp.categorias.map((c) =>
-                c.id === categoriaId ? { ...c, itens: c.itens.filter((it) => it.id !== itemId) } : c,
-              ),
-            }
-          : camp,
-      ),
-    );
-
-  const totalGeral = useMemo(
-    () => campanhas.reduce((sum, camp) => sum + calcularSubtotalCampanha(camp), 0),
-    [campanhas, calcularSubtotalCampanha],
-  );
-
-  const combosOrdenados = useMemo(() => {
-    const combos = campanhas.map((camp) => ({ campId: camp.id, campNome: camp.nome, combo: bestFilmAudioCombo(camp) }));
-    return combos.sort((a, b) => {
-      if (a.combo.sum == null && b.combo.sum == null) return 0;
-      if (a.combo.sum == null) return 1;
-      if (b.combo.sum == null) return -1;
-      return a.combo.sum! - b.combo.sum!;
-    });
-  }, [campanhas, bestFilmAudioCombo]);
-
-  const salvarNovaVersao = async () => {
-    setSaving(true);
-    try {
-      const payload = snapshotOrcamento({ cliente, produto, job, observacoes, campanhas });
-      // pega última versao atual para incrementar
-      const { data: last } = await supabase
-        .from("versions")
-        .select("versao")
-        .eq("budget_id", id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const nextVersao = (last?.versao || 0) + 1;
-      const { error: vErr } = await supabase
-        .from("versions")
-        .insert([{ budget_id: id, versao: nextVersao, payload: payload as any, total_geral: totalGeral }])
-        .select()
-        .single();
-      if (vErr) throw vErr;
-      toast({ title: "Versão salva!" });
-    } catch (err: any) {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const gerarPDF = () => {
-    if (!cliente || !produto) {
-      toast({ title: "Preencha cliente e produto", variant: "destructive" });
-      return;
-    }
-    const data = snapshotOrcamento({ cliente, produto, job, observacoes, campanhas });
-    const json = JSON.stringify(data);
-    const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
-    if (!w) {
-      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para gerar o PDF.", variant: "destructive" });
-      return;
-    }
-    w.document.open();
-    w.document.write(templateHTML(json));
-    w.document.close();
-  };
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="p-8">
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <RefreshCcw className="h-4 w-4 animate-spin" /> Carregando orçamento...
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/orcamentos")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-[28px] leading-8 font-semibold">Orçamento</h1>
-              <p className="text-muted-foreground">
-                Reidratado da última versão salva. Edite e salve nova versão quando quiser.
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={gerarPDF} className="gap-2">
-              <Printer className="h-4 w-4" />
-              Gerar PDF
-            </Button>
-            <Button onClick={salvarNovaVersao} disabled={saving} className="gap-2">
-              <Save className="h-4 w-4" />
-              {saving ? "Salvando..." : "Salvar versão"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Identificação */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Identificação</CardTitle>
-              <span className="text-xs text-muted-foreground">Dados carregados do payload</span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Cliente *</Label>
-                <Input value={cliente} onChange={(e) => setCliente(e.target.value)} required />
-              </div>
-              <div>
-                <Label>Produto *</Label>
-                <Input value={produto} onChange={(e) => setProduto(e.target.value)} required />
-              </div>
-              <div>
-                <Label>Job</Label>
-                <Input value={job} onChange={(e) => setJob(e.target.value)} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Campanhas */}
-        {campanhas.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Campanhas</CardTitle>
-                <Button onClick={adicionarCampanha} size="sm" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Adicionar Campanha
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {campanhas.map((camp) => (
-                  <div
-                    key={camp.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-primary/10 border-primary/30"
-                  >
-                    <Input
-                      value={camp.nome}
-                      onChange={(e) => atualizarNomeCampanha(camp.id, e.target.value)}
-                      className="h-7 w-44 text-sm font-medium"
-                    />
-                    {campanhas.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive"
-                        onClick={() => removerCampanha(camp.id)}
+                  <Switch
+                    checked={data.inclui_audio || false}
+                    onCheckedChange={(v) => updateData({ inclui_audio: v })}
+                  />
+                </div>
+              </CardHeader>
+              {data.inclui_audio && (
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Adicione cotações de produtoras de áudio
+                    </p>
+                    <Button size="sm" variant="secondary" onClick={addAudioQuote} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Adicionar Áudio
+                    </Button>
+                  </div>
+                  {(data.quotes_audio || []).map((q) => {
+                    const isCheapest = cheapestAudio?.id === q.id;
+                    return (
+                      <motion.div
+                        key={q.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`border rounded-lg p-4 space-y-3 ${
+                          isCheapest 
+                            ? 'border-blue-500 bg-blue-50/50 border-2' 
+                            : 'border-border bg-blue-50/30'
+                        }`}
                       >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Colunas */}
-        <div className="grid grid-cols-[1fr_320px] gap-6">
-          <div className="space-y-8">
-            {campanhas.map((campanha) => {
-              const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
-              const idCamp = campanha.id;
-              const combo = bestFilmAudioCombo(campanha);
-              const comboTexto =
-                combo.sum == null
-                  ? "Aguardando cotações de Filme e Áudio"
-                  : `${combo.film?.nome || "Filme"} + ${combo.audio?.nome || "Áudio"} = ${brl(combo.sum)}`;
-              return (
-                <div key={idCamp} className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border-2 border-primary/20">
-                    <div>
-                      <h2 className="text-xl font-semibold text-primary">{campanha.nome}</h2>
-                      <div className="text-xs text-muted-foreground">
-                        Melhor combinação (Filme + Áudio): {comboTexto}
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">{brl(calcularSubtotalCampanha(campanha))}</div>
-                  </div>
-
-                  {/* Gerenciador de Categorias */}
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">Gerenciador de Categorias</CardTitle>
-                        <Select
-                          onValueChange={(v) => {
-                            if (!v) return;
-                            if (v === "__custom__") {
-                              const nome = window.prompt("Nome da categoria personalizada:");
-                              if (nome && nome.trim()) adicionarCategoria(idCamp, nome.trim());
-                              return;
-                            }
-                            adicionarCategoria(idCamp, v);
-                          }}
-                        >
-                          <SelectTrigger className="w-[220px]">
-                            <SelectValue placeholder="+ Adicionar categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CATEGORIAS_SUGERIDAS.map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="__custom__">✏️ Personalizada...</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        {campanha.categorias.map((cat) => (
-                          <div
-                            key={cat.id}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${cat.visivel ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}
-                            title={cat.visivel ? "Visível" : "Oculta"}
-                          >
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">{cat.nome}</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => alternarVisibilidade(idCamp, cat.id)}
-                            >
-                              {cat.visivel ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                            </Button>
-                            {cat.podeExcluir && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-destructive"
-                                onClick={() => removerCategoria(idCamp, cat.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
+                        {isCheapest && (
+                          <div className="mb-3">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white">
+                              ⭐ MAIS BARATA - ÁUDIO
+                            </span>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                        )}
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <div>
+                            <Label>Produtora</Label>
+                            <Input
+                              value={q.produtora}
+                              onChange={(e) => updateAudioQuote(q.id, { produtora: e.target.value })}
+                              placeholder="Nome"
+                            />
+                          </div>
+                          <div>
+                            <Label>Descrição/Escopo</Label>
+                            <textarea
+                              className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
+                              value={q.descricao}
+                              onChange={(e) => updateAudioQuote(q.id, { descricao: e.target.value })}
+                              placeholder="Descreva o escopo de áudio..."
+                            />
+                          </div>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-3">
+                          <div>
+                            <Label>Valor (R$)</Label>
+                            <Input
+                              inputMode="decimal"
+                              value={q.valor ? String(q.valor) : ""}
+                              onChange={(e) => updateAudioQuote(q.id, { valor: parseCurrency(e.target.value) })}
+                              placeholder="0,00"
+                            />
+                          </div>
+                          <div>
+                            <Label>Desconto (R$)</Label>
+                            <Input
+                              inputMode="decimal"
+                              value={q.desconto ? String(q.desconto) : ""}
+                              onChange={(e) => updateAudioQuote(q.id, { desconto: parseCurrency(e.target.value) })}
+                              placeholder="0,00"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <div className="text-sm">
+                            <span className="font-semibold">Valor Final: </span>
+                            <span className="text-lg font-bold text-blue-600">
+                              {money(q.valor - (q.desconto || 0))}
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeAudioQuote(q.id)}
+                            className="text-destructive gap-1"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Remover
+                          </Button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {(!data.quotes_audio || data.quotes_audio.length === 0) && (
+                    <div className="text-sm text-blue-700/70">Nenhuma cotação de áudio adicionada.</div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
 
-                  {/* Categorias */}
-                  <div className="space-y-4">
-                    {categoriasVisiveis.map((cat) => {
-                      const idMaisBarata =
-                        cat.modoPreco === "fechado" && cat.fornecedores.length
-                          ? cat.fornecedores.reduce((min, f) =>
-                              normNum(f.valor) - normNum(f.desconto) < normNum(min.valor) - normNum(min.desconto)
-                                ? f
-                                : min,
-                            ).id
-                          : null;
-                      return (
-                        <Card key={cat.id}>
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <CardTitle>{cat.nome}</CardTitle>
-                              <Select
-                                value={cat.modoPreco}
-                                onValueChange={(v: any) => atualizarCategoria(idCamp, cat.id, { modoPreco: v })}
-                              >
-                                <SelectTrigger className="w-[170px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="fechado">Valor Fechado</SelectItem>
-                                  <SelectItem value="itens">Por Itens</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div>
-                              <Label>Observação da Categoria (opcional)</Label>
-                              <Textarea
-                                value={cat.observacao || ""}
-                                onChange={(e) => atualizarCategoria(idCamp, cat.id, { observacao: e.target.value })}
-                                rows={2}
-                                placeholder="Ex.: período, premissas, limitações..."
-                              />
-                            </div>
-
-                            {cat.modoPreco === "fechado" ? (
-                              <>
-                                <div className="flex items-center justify-between">
-                                  <Label>Fornecedores/Cotações</Label>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => adicionarFornecedor(idCamp, cat.id)}
-                                  >
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Adicionar
-                                  </Button>
-                                </div>
-                                <div className="space-y-3">
-                                  {cat.fornecedores.map((forn) => {
-                                    const valorFinal = normNum(forn.valor) - normNum(forn.desconto);
-                                    const isCheapest = idMaisBarata === forn.id;
-                                    return (
-                                      <div
-                                        key={forn.id}
-                                        className={`border rounded-xl p-3 space-y-2 ${isCheapest ? "border-green-500 bg-green-500/5" : "border-border"}`}
-                                      >
-                                        {isCheapest && (
-                                          <div className="text-xs font-semibold text-green-600 mb-2">
-                                            ⭐ Mais barata considerada no subtotal
-                                          </div>
-                                        )}
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <Input
-                                            placeholder="Fornecedor"
-                                            value={forn.nome}
-                                            onChange={(e) =>
-                                              atualizarFornecedor(idCamp, cat.id, forn.id, { nome: e.target.value })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Valor (R$)"
-                                            type="number"
-                                            value={forn.valor ?? 0}
-                                            onChange={(e) =>
-                                              atualizarFornecedor(idCamp, cat.id, forn.id, {
-                                                valor: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                        </div>
-                                        <Textarea
-                                          placeholder="Descrição/Escopo"
-                                          value={forn.descricao}
-                                          onChange={(e) =>
-                                            atualizarFornecedor(idCamp, cat.id, forn.id, { descricao: e.target.value })
-                                          }
-                                          rows={2}
-                                        />
-                                        <div className="flex items-center gap-2">
-                                          <Input
-                                            placeholder="Desconto (R$)"
-                                            type="number"
-                                            value={forn.desconto ?? 0}
-                                            onChange={(e) =>
-                                              atualizarFornecedor(idCamp, cat.id, forn.id, {
-                                                desconto: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <span className="text-sm font-medium whitespace-nowrap">
-                                            = {brl(valorFinal)}
-                                          </span>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => removerFornecedor(idCamp, cat.id, forn.id)}
-                                            className="text-destructive"
-                                            title="Remover fornecedor"
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between">
-                                  <Label>Itens</Label>
-                                  <Button size="sm" variant="outline" onClick={() => adicionarItem(idCamp, cat.id)}>
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Adicionar
-                                  </Button>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  Total = Σ(Qtd × Valor unit.) − Descontos
-                                </div>
-                                <div className="space-y-3">
-                                  {cat.itens.map((item) => {
-                                    const subtotal =
-                                      normNum(item.quantidade) * normNum(item.valorUnitario) - normNum(item.desconto);
-                                    return (
-                                      <div key={item.id} className="border rounded-xl p-3 space-y-2">
-                                        <div className="grid grid-cols-5 gap-2">
-                                          <Input
-                                            placeholder="Unidade"
-                                            value={item.unidade}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, { unidade: e.target.value })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Qtd"
-                                            type="number"
-                                            value={item.quantidade}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, {
-                                                quantidade: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Valor unit."
-                                            type="number"
-                                            value={item.valorUnitario}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, {
-                                                valorUnitario: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <Input
-                                            placeholder="Desconto"
-                                            type="number"
-                                            value={item.desconto}
-                                            onChange={(e) =>
-                                              atualizarItem(idCamp, cat.id, item.id, {
-                                                desconto: parseFloat(e.target.value) || 0,
-                                              })
-                                            }
-                                          />
-                                          <div className="flex items-center justify-end">
-                                            <span className="text-sm">Subtotal: {brl(subtotal)}</span>
-                                          </div>
-                                        </div>
-                                        <Textarea
-                                          placeholder="Observação do item (opcional)"
-                                          value={item.observacao || ""}
-                                          onChange={(e) =>
-                                            atualizarItem(idCamp, cat.id, item.id, { observacao: e.target.value })
-                                          }
-                                          rows={2}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </>
-                            )}
-
-                            <div className="pt-3 border-t flex justify-between items-center">
-                              <span className="font-semibold">Subtotal</span>
-                              <span className="text-lg font-bold text-primary">
-                                {brl(calcularSubtotalCategoria(cat))}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Observações gerais */}
-            {campanhas.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Observações Gerais</CardTitle>
+                  <CardTitle>Honorário</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    value={observacoes}
-                    onChange={(e) => setObservacoes(e.target.value)}
-                    rows={4}
-                    placeholder="Adicione observações gerais do orçamento..."
+                  <Label>Percentual (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={data.honorario_perc || 0}
+                    onChange={(e) => updateData({ honorario_perc: parseFloat(e.target.value) || 0 })}
                   />
                 </CardContent>
               </Card>
-            )}
-          </div>
 
-          {/* Resumo (Direita) */}
-          <div className="sticky top-8 h-fit space-y-4">
-            {campanhas.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Resumo por Campanha</CardTitle>
+                  <CardTitle>Faturamento</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {campanhas.map((campanha) => {
-                    const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
-                    const subtotalCampanha = calcularSubtotalCampanha(campanha);
-                    return (
-                      <div key={campanha.id} className="space-y-2">
-                        <div className="font-semibold text-primary pb-2 border-b">{campanha.nome}</div>
-                        {categoriasVisiveis.map((cat) => (
-                          <div key={cat.id} className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">{cat.nome}</span>
-                            <span className="font-medium">{brl(calcularSubtotalCategoria(cat))}</span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between text-sm font-semibold pt-1 border-t">
-                          <span>Subtotal {campanha.nome}</span>
-                          <span className="text-primary">{brl(subtotalCampanha)}</span>
-                        </div>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="pendente"
+                      checked={!!data.pendente_faturamento}
+                      onCheckedChange={(checked) => updateData({ pendente_faturamento: Boolean(checked) })}
+                    />
+                    <div>
+                      <Label htmlFor="pendente" className="cursor-pointer">
+                        Pendente de faturamento
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Marcará visualmente no PDF
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Observações</Label>
+                    <Input
+                      value={data.observacoes || ""}
+                      onChange={(e) => updateData({ observacoes: e.target.value })}
+                      placeholder="Ex.: incluir em outubro"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-24">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Preview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {data.pendente_faturamento && (
+                    <div className="rounded-md border border-yellow-600 bg-yellow-50 text-yellow-800 text-xs px-3 py-2">
+                      <strong>PENDENTE DE FATURAMENTO</strong>
+                    </div>
+                  )}
+
+                  <div className="text-sm space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cliente:</span>
+                      <span className="font-medium">{data.cliente || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Produto:</span>
+                      <span className="font-medium">{data.produto || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cotações:</span>
+                      <span className="font-medium">{data.quotes_film?.length || 0}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-2 text-sm">
+                    <div className="text-xs font-semibold mb-2 text-primary">💡 Melhor Combinação</div>
+                    {cheapestFilm && (
+                      <div className="flex justify-between p-2 rounded-lg bg-green-50 border border-green-200">
+                        <span className="text-xs text-green-700">Filme - {cheapestFilm.produtora}</span>
+                        <span className="font-mono text-green-700">{money(filmVal)}</span>
                       </div>
-                    );
-                  })}
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold">Total Geral</span>
-                      <span className="text-2xl font-bold text-primary">{brl(totalGeral)}</span>
+                    )}
+                    {cheapestAudio && (
+                      <div className="flex justify-between p-2 rounded-lg bg-blue-50 border border-blue-200">
+                        <span className="text-xs text-blue-700">Áudio - {cheapestAudio.produtora}</span>
+                        <span className="font-mono text-blue-700">{money(audioVal)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span>Honorário ({data.honorario_perc || 0}%):</span>
+                      <span className="font-mono">{money(honorValue)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-base border-t pt-2">
+                      <span>Total:</span>
+                      <span className="font-mono text-primary">{money(data.total)}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            )}
-
-            {/* Ranking */}
-            {campanhas.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Campanhas — Soma das mais baratas (Filme + Áudio)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {combosOrdenados.map(({ campId, campNome, combo }, idx) => (
-                    <div
-                      key={campId}
-                      className={`flex justify-between items-center text-sm px-2 py-1.5 rounded ${idx === 0 && combo.sum != null ? "bg-green-500/10" : "bg-muted/40"}`}
-                      title={
-                        combo.sum == null
-                          ? "Complete Filme e Áudio"
-                          : "Soma do mais barato de Filme com o mais barato de Áudio"
-                      }
-                    >
-                      <span className="font-medium">{campNome}</span>
-                      <span className="font-semibold">{combo.sum == null ? "—" : brl(combo.sum)}</span>
-                    </div>
-                  ))}
-                  <div className="text-xs text-muted-foreground">Critério: (menor Filme) + (menor Áudio).</div>
-                </CardContent>
-              </Card>
-            )}
+            </div>
           </div>
         </div>
       </div>
-    </AppLayout>
+    </div>
   );
 }
