@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ArrowLeft, Home, Printer, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import logoWeWhite from "@/assets/LOGO-WE.png";
-import logoWeColor from "@/assets/Logo_WE-2.png";
 
+// ===== Tipos =====
 type Quote = {
   id: string;
   produtora: string;
@@ -43,20 +43,20 @@ type Payload = {
   // complementares
   entregaveis?: string;
   adaptacoes?: string;
-  exclusividade_elenco?: string;
+  exclusividade_elenco?: string; // "orcado" | "nao_orcado" | "nao_aplica"
   inclui_audio?: boolean;
 
   // financeiro
   quotes_film?: Quote[];
   quotes_audio?: QuoteAudio[];
   honorario_perc?: number;
-  total?: number;
+  total?: number; // opcionalmente salvo pelo form
 
   // faturamento
   pendente_pagamento?: boolean;
   observacoes_faturamento?: string;
 
-  // assets (imagem/vídeo)
+  // imagem/vídeo (outros tipos)
   assets?: Array<{
     provider: string;
     type: "video" | "image" | "unknown";
@@ -75,6 +75,8 @@ type Payload = {
   referenciaImageUrl?: string;
 };
 
+type VersionMeta = { id: string; versao: number; created_at: string };
+
 type View = {
   budgetId: string;
   displayId: string;
@@ -82,8 +84,11 @@ type View = {
   status: string;
   createdAt: string;
   payload: Payload;
+  versionId: string;
+  versao: number;
 };
 
+// ===== Helpers =====
 const fmt = (v?: any) => (v == null || v === "" ? "—" : String(v));
 const BRL = (n: number | undefined) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(n || 0));
@@ -98,22 +103,23 @@ export default function PdfView() {
   const [error, setError] = useState<string | null>(null);
   const [logoOk, setLogoOk] = useState<boolean | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>("rascunho");
-  const [versions, setVersions] = useState<Array<{ id: string; versao: number; created_at: string }>>([]);
+  const [versions, setVersions] = useState<VersionMeta[]>([]);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
   const printRef = useRef<HTMLDivElement>(null);
 
-  const fetchView = useCallback(async () => {
+  const commonSelect = `w-48` as const;
+
+  // ===== Carregar última versão + metadados
+  const fetchLatestWithList = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const { data, error } = await supabase
         .from("versions")
-        .select(`
-          id, payload, created_at, versao, budget_id,
-          budgets!inner(id, display_id, type, status, created_at)
-        `)
+        .select(`id, payload, created_at, versao, budget_id, budgets!inner(id, display_id, type, status, created_at)`)
         .eq("budget_id", id)
-        .order("created_at", { ascending: false });
+        .order("versao", { ascending: false });
 
       if (error || !data || data.length === 0) throw error || new Error("Orçamento não encontrado");
 
@@ -127,8 +133,10 @@ export default function PdfView() {
         status: latest.budgets.status,
         createdAt: latest.budgets.created_at,
         payload,
+        versionId: latest.id,
+        versao: latest.versao,
       });
-
+      setSelectedVersionId(latest.id);
       setCurrentStatus(latest.budgets.status || "rascunho");
       setVersions(data.map((v: any) => ({ id: v.id, versao: v.versao, created_at: v.created_at })));
     } catch (e: any) {
@@ -139,9 +147,47 @@ export default function PdfView() {
     }
   }, [id]);
 
+  // Carrega versão específica (quando o usuário troca na UI)
+  const fetchVersionById = useCallback(
+    async (versionId: string) => {
+      if (!versionId) return;
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("versions")
+          .select(`id, payload, created_at, versao, budget_id, budgets!inner(id, display_id, type, status, created_at)`)
+          .eq("id", versionId)
+          .maybeSingle();
+        if (error || !data) throw error || new Error("Versão não encontrada");
+        const payload: Payload = (data.payload as Payload) || {};
+        setView({
+          budgetId: data.budgets.id,
+          displayId: data.budgets.display_id,
+          type: data.budgets.type,
+          status: data.budgets.status,
+          createdAt: data.budgets.created_at,
+          payload,
+          versionId: data.id,
+          versao: data.versao,
+        });
+        setCurrentStatus(data.budgets.status || "rascunho");
+      } catch (e: any) {
+        toast({ title: "Erro", description: e?.message, variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [toast],
+  );
+
   useEffect(() => {
-    fetchView();
-  }, [fetchView]);
+    fetchLatestWithList();
+  }, [fetchLatestWithList]);
+
+  const handleVersionChange = async (newId: string) => {
+    setSelectedVersionId(newId);
+    await fetchVersionById(newId);
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (!view) return;
@@ -155,91 +201,55 @@ export default function PdfView() {
     }
   };
 
-  const handlePrint = async () => {
-    if (!view) return;
-    try {
-      // garante ORÇADO caso esteja rascunho
-      let finalStatus = currentStatus;
-      if (!finalStatus || finalStatus === "rascunho") {
-        finalStatus = "orçado";
-        await handleStatusChange(finalStatus);
-      }
-
-      // imprime diretamente
-      window.print();
-    } catch (e: any) {
-      toast({ title: "Erro ao imprimir", description: e?.message, variant: "destructive" });
-    }
+  const handlePrint = () => {
+    window.print();
   };
 
-  // ----- cálculos -----
+  // ===== cálculos =====
   const p = view?.payload || {};
-  const linhas: Quote[] = useMemo(() => p.quotes_film ?? [], [p.quotes_film]);
-  const linhasAudio: QuoteAudio[] = useMemo(() => p.quotes_audio ?? [], [p.quotes_audio]);
+  const linhas: Quote[] = useMemo(() => (Array.isArray(p.quotes_film) ? p.quotes_film : []), [p.quotes_film]);
+  const linhasAudio: QuoteAudio[] = useMemo(
+    () => (Array.isArray(p.quotes_audio) ? p.quotes_audio : []),
+    [p.quotes_audio],
+  );
 
   const subtotalFilm = useMemo(() => {
-    return linhas.reduce((s, q) => {
-      const unit = Number(q.valor || 0);
-      const desc = Number(q.desconto || 0);
-      return s + (unit - desc);
-    }, 0);
+    return linhas.reduce((s, q) => s + (Number(q.valor || 0) - Number(q.desconto || 0)), 0);
   }, [linhas]);
 
   const subtotalAudio = useMemo(() => {
-    return linhasAudio.reduce((s, q) => {
-      const unit = Number(q.valor || 0);
-      const desc = Number(q.desconto || 0);
-      return s + (unit - desc);
-    }, 0);
+    return linhasAudio.reduce((s, q) => s + (Number(q.valor || 0) - Number(q.desconto || 0)), 0);
   }, [linhasAudio]);
 
   const subtotal = subtotalFilm + subtotalAudio;
   const honorario = useMemo(() => subtotal * ((p.honorario_perc || 0) / 100), [subtotal, p.honorario_perc]);
-
   const totalGeral = useMemo(
     () => (typeof p.total === "number" ? p.total : subtotal + honorario),
-    [p.total, subtotal, honorario]
+    [p.total, subtotal, honorario],
   );
 
   const isAudio = (view?.type || "").toLowerCase() === "audio";
   const isFilme = (view?.type || "").toLowerCase() === "filme";
 
-  // Encontrar as mais baratas
   const cheapestFilm = useMemo(() => {
     if (linhas.length === 0) return null;
-    return linhas.reduce((prev, curr) => {
-      const prevVal = prev.valor - (prev.desconto || 0);
-      const currVal = curr.valor - (curr.desconto || 0);
-      return currVal < prevVal ? curr : prev;
-    });
+    return linhas.reduce((prev, curr) =>
+      curr.valor - (curr.desconto || 0) < prev.valor - (prev.desconto || 0) ? curr : prev,
+    );
   }, [linhas]);
 
   const cheapestAudio = useMemo(() => {
     if (linhasAudio.length === 0) return null;
-    return linhasAudio.reduce((prev, curr) => {
-      const prevVal = prev.valor - (prev.desconto || 0);
-      const currVal = curr.valor - (curr.desconto || 0);
-      return currVal < prevVal ? curr : prev;
-    });
+    return linhasAudio.reduce((prev, curr) =>
+      curr.valor - (curr.desconto || 0) < prev.valor - (prev.desconto || 0) ? curr : prev,
+    );
   }, [linhasAudio]);
 
-  // Badge do status para exibir
-  const getStatusBadge = () => {
-    const s = (currentStatus || "").toLowerCase();
-    if (s === "enviado") return { text: "EM APROVAÇÃO", variant: "default" as const };
-    if (s === "aprovado") return { text: "APROVADO", variant: "default" as const };
-    if (s === "reprovado") return { text: "REPROVADO", variant: "destructive" as const };
-    if (s === "orçado") return { text: "ORÇADO", variant: "secondary" as const };
-    return null;
-  };
-
-  const statusBadge = getStatusBadge();
-
-  // ----- estados de tela -----
+  // ===== estados de tela =====
   if (loading) {
     return (
       <div className="min-h-screen bg-background grid place-items-center">
-        <div className="text-muted-foreground">Gerando PDF…</div>
+        <div className="text-muted-foreground">Carregando orçamento…</div>
       </div>
     );
   }
@@ -282,10 +292,11 @@ export default function PdfView() {
           <Home className="w-4 h-4 mr-2" /> Início
         </Button>
 
+        {/* Status */}
         <div className="ml-4 flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Status:</span>
           <Select value={currentStatus} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className={commonSelect}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -300,8 +311,26 @@ export default function PdfView() {
           </Select>
         </div>
 
+        {/* Versão */}
+        <div className="ml-4 flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Versão:</span>
+          <Select value={selectedVersionId || undefined} onValueChange={handleVersionChange}>
+            <SelectTrigger className={commonSelect}>
+              <SelectValue placeholder="Escolher" />
+            </SelectTrigger>
+            <SelectContent>
+              {versions.map((v) => (
+                <SelectItem
+                  key={v.id}
+                  value={v.id}
+                >{`v${v.versao} — ${new Date(v.created_at).toLocaleDateString("pt-BR")}`}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="ml-auto text-sm text-muted-foreground">
-          {view.displayId} • {String(view.type).toUpperCase()}
+          {view.displayId} • {String(view.type).toUpperCase()} • v{view.versao}
         </div>
 
         {logoOk === false && <span className="ml-3 text-xs text-amber-600">Logo não encontrado</span>}
@@ -313,11 +342,11 @@ export default function PdfView() {
       </div>
 
       {/* Aviso sobre status — preview somente */}
-      {statusBadge && (
+      {currentStatus && currentStatus !== "rascunho" && (
         <Alert className="m-4 print:hidden border-amber-200 bg-amber-50">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-amber-900">
-            Status atual: <strong>{statusBadge.text}</strong>
+            Status atual: <strong>{currentStatus.toUpperCase()}</strong>
           </AlertDescription>
         </Alert>
       )}
@@ -341,19 +370,11 @@ export default function PdfView() {
                     onLoad={() => setLogoOk(true)}
                     onError={(e) => {
                       setLogoOk(false);
-                      (e.currentTarget.style.display = "none");
+                      e.currentTarget.style.display = "none";
                     }}
                   />
                 </div>
                 <div className="text-right flex items-center gap-3">
-                  {statusBadge && (
-                    <Badge 
-                      variant={statusBadge.variant} 
-                      className="px-3 py-1 text-xs font-semibold"
-                    >
-                      {statusBadge.text}
-                    </Badge>
-                  )}
                   <div>
                     <div className="text-base font-semibold leading-none">Orçamento #{view.displayId}</div>
                     <div className="text-[10px] opacity-80 mt-1 leading-none">
@@ -375,19 +396,21 @@ export default function PdfView() {
                 <div className="text-xs">
                   <div className="font-semibold uppercase leading-none">Não faturado</div>
                   <div>Este orçamento está pendente e precisa ser incluso em algum faturamento.</div>
-                  {p.observacoes_faturamento && <div className="mt-1 opacity-90">Obs.: {p.observacoes_faturamento}</div>}
+                  {p.observacoes_faturamento && (
+                    <div className="mt-1 opacity-90">Obs.: {p.observacoes_faturamento}</div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* GRID PRINCIPAL (cotações maiores) */}
+            {/* GRID PRINCIPAL */}
             <div className="mt-3 grid grid-cols-12 gap-3">
               {/* ESQUERDA = 9/12 */}
               <div className="col-span-12 md:col-span-9">
                 {/* Identificação */}
                 <section className="rounded-lg border px-4 py-3">
                   <h2 className="text-sm font-semibold mb-2">Identificação</h2>
-                  {view.type === 'imagem' ? (
+                  {view.type === "imagem" ? (
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                       <div>
                         <span className="text-neutral-500">Cliente:</span> {fmt(p.cliente)}
@@ -423,8 +446,8 @@ export default function PdfView() {
                   )}
                 </section>
 
-                {/* Entregáveis/Adaptações/Exclusividade - Filme */}
-                {isFilme && (
+                {/* Detalhes do Projeto (Filme) */}
+                {isFilme && (p.entregaveis || p.adaptacoes || p.exclusividade_elenco) && (
                   <section className="rounded-lg border px-4 py-3 mt-3">
                     <h2 className="text-sm font-semibold mb-2">Detalhes do Projeto</h2>
                     <div className="grid grid-cols-3 gap-3 text-[11px]">
@@ -444,8 +467,11 @@ export default function PdfView() {
                         <div className="border rounded-md p-2 bg-slate-50">
                           <div className="text-neutral-500 font-medium mb-1">Exclusividade de Elenco</div>
                           <div className="capitalize">
-                            {p.exclusividade_elenco === "orcado" ? "Orçado" : 
-                             p.exclusividade_elenco === "nao_orcado" ? "Não Orçado" : "Não se Aplica"}
+                            {p.exclusividade_elenco === "orcado"
+                              ? "Orçado"
+                              : p.exclusividade_elenco === "nao_orcado"
+                                ? "Não Orçado"
+                                : "Não se Aplica"}
                           </div>
                         </div>
                       )}
@@ -453,20 +479,18 @@ export default function PdfView() {
                   </section>
                 )}
 
-                {/* Cotações de FILME - Comparativo lado a lado */}
+                {/* Cotações de FILME */}
                 {isFilme && linhas.length > 0 && (
                   <section className="rounded-lg border px-4 py-3 mt-3">
                     <h2 className="text-sm font-semibold mb-3">Comparativo de Produtoras - Filme</h2>
-                    
                     <div className="space-y-2">
                       {linhas.map((q) => {
                         const valorLiquido = q.valor - (q.desconto || 0);
                         const isCheapest = cheapestFilm?.id === q.id && linhas.length > 1;
-                        
                         return (
-                          <div 
-                            key={q.id} 
-                            className={`border rounded-lg p-3 ${isCheapest ? 'bg-green-50 border-green-400 border-2' : 'bg-white'}`}
+                          <div
+                            key={q.id}
+                            className={`border rounded-lg p-3 ${isCheapest ? "bg-green-50 border-green-400 border-2" : "bg-white"}`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
@@ -479,14 +503,24 @@ export default function PdfView() {
                                   )}
                                 </div>
                                 <div className="text-[11px] text-neutral-600 space-y-0.5">
-                                  <div><span className="font-medium">Escopo:</span> {q.escopo}</div>
-                                  {q.diretor && <div><span className="font-medium">Diretor:</span> {q.diretor}</div>}
-                                  {q.tratamento && <div><span className="font-medium">Tratamento:</span> {q.tratamento}</div>}
+                                  <div>
+                                    <span className="font-medium">Escopo:</span> {fmt(q.escopo)}
+                                  </div>
+                                  {q.diretor && (
+                                    <div>
+                                      <span className="font-medium">Diretor:</span> {q.diretor}
+                                    </div>
+                                  )}
+                                  {q.tratamento && (
+                                    <div>
+                                      <span className="font-medium">Tratamento:</span> {q.tratamento}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="text-right ml-4">
                                 <div className="text-xl font-bold text-green-700">{BRL(valorLiquido)}</div>
-                                {q.desconto > 0 && (
+                                {q.desconto && q.desconto > 0 && (
                                   <div className="text-[10px] text-neutral-500">
                                     <span className="line-through">{BRL(q.valor)}</span> (-{BRL(q.desconto)})
                                   </div>
@@ -497,7 +531,6 @@ export default function PdfView() {
                         );
                       })}
                     </div>
-
                     {cheapestFilm && linhas.length > 1 && (
                       <div className="mt-3 p-3 bg-green-100 border border-green-400 rounded-lg">
                         <div className="flex justify-between items-center">
@@ -511,20 +544,18 @@ export default function PdfView() {
                   </section>
                 )}
 
-                {/* Cotações de ÁUDIO - Comparativo lado a lado */}
+                {/* Cotações de ÁUDIO */}
                 {isFilme && p.inclui_audio && linhasAudio.length > 0 && (
                   <section className="rounded-lg border border-blue-300 px-4 py-3 mt-3 bg-blue-50/30">
                     <h2 className="text-sm font-semibold mb-3 text-blue-800">Comparativo de Produtoras - Áudio</h2>
-                    
                     <div className="space-y-2">
                       {linhasAudio.map((q) => {
                         const valorLiquido = q.valor - (q.desconto || 0);
                         const isCheapest = cheapestAudio?.id === q.id && linhasAudio.length > 1;
-                        
                         return (
-                          <div 
-                            key={q.id} 
-                            className={`border rounded-lg p-3 ${isCheapest ? 'bg-blue-100 border-blue-500 border-2' : 'bg-white'}`}
+                          <div
+                            key={q.id}
+                            className={`border rounded-lg p-3 ${isCheapest ? "bg-blue-100 border-blue-500 border-2" : "bg-white"}`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
@@ -537,12 +568,12 @@ export default function PdfView() {
                                   )}
                                 </div>
                                 <div className="text-[11px] text-neutral-600">
-                                  <span className="font-medium">Descrição:</span> {q.descricao}
+                                  <span className="font-medium">Descrição:</span> {fmt(q.descricao)}
                                 </div>
                               </div>
                               <div className="text-right ml-4">
                                 <div className="text-xl font-bold text-blue-700">{BRL(valorLiquido)}</div>
-                                {q.desconto > 0 && (
+                                {q.desconto && q.desconto > 0 && (
                                   <div className="text-[10px] text-neutral-500">
                                     <span className="line-through">{BRL(q.valor)}</span> (-{BRL(q.desconto)})
                                   </div>
@@ -553,7 +584,6 @@ export default function PdfView() {
                         );
                       })}
                     </div>
-
                     {cheapestAudio && linhasAudio.length > 1 && (
                       <div className="mt-3 p-3 bg-blue-100 border border-blue-400 rounded-lg">
                         <div className="flex justify-between items-center">
@@ -583,14 +613,18 @@ export default function PdfView() {
                       <div className="flex justify-between pt-2 border-t-2 border-amber-300 font-bold text-base">
                         <span className="text-amber-900">TOTAL PRODUÇÃO:</span>
                         <span className="text-amber-700">
-                          {BRL((cheapestFilm.valor - (cheapestFilm.desconto || 0)) + (cheapestAudio.valor - (cheapestAudio.desconto || 0)))}
+                          {BRL(
+                            cheapestFilm.valor -
+                              (cheapestFilm.desconto || 0) +
+                              (cheapestAudio.valor - (cheapestAudio.desconto || 0)),
+                          )}
                         </span>
                       </div>
                     </div>
                   </section>
                 )}
 
-                {/* Cotações Áudio - quando tipo é áudio */}
+                {/* Cotações Áudio — quando o tipo do orçamento é áudio */}
                 {isAudio && linhas.length > 0 && (
                   <section className="rounded-lg border px-4 py-3 mt-3">
                     <h2 className="text-sm font-semibold mb-2">Cotações de Áudio</h2>
@@ -623,115 +657,60 @@ export default function PdfView() {
                   </section>
                 )}
 
-                {/* Cotações Outros tipos */}
-                {!isFilme && !isAudio && linhas.length > 0 && (
+                {/* Itens de Imagem/Vídeo */}
+                {view.type === "imagem" && p.assets && p.assets.length > 0 && (
                   <section className="rounded-lg border px-4 py-3 mt-3">
-                    <h2 className="text-sm font-semibold mb-2">Cotações</h2>
-                    <div className="w-full border rounded-md overflow-hidden">
-                      <div className="grid grid-cols-12 bg-neutral-100 text-[12px] font-medium px-3 py-2">
-                        <div className="col-span-3">Produtora</div>
-                        <div className="col-span-6">Escopo</div>
-                        <div className="col-span-3 text-right">Valor</div>
-                      </div>
-                      {linhas.map((q) => {
-                        const valorFinal = q.valor - (q.desconto || 0);
-                        return (
-                          <div key={q.id} className="grid grid-cols-12 px-3 py-2 text-[12px] border-t leading-snug">
-                            <div className="col-span-3 break-words">{fmt(q.produtora)}</div>
-                            <div className="col-span-6 whitespace-pre-wrap break-words">{fmt(q.escopo)}</div>
-                            <div className="col-span-3 text-right font-medium">{BRL(valorFinal)}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                )}
-
-                {/* Imagem de Referência */}
-                {p.referenciaImageUrl && (
-                  <section className="rounded-lg border px-4 py-3 mt-3">
-                    <h2 className="text-sm font-semibold mb-2">Imagem de Referência</h2>
-                    <div className="flex justify-center">
-                      <img 
-                        src={p.referenciaImageUrl} 
-                        alt="Imagem de referência"
-                        className="max-w-full max-h-64 object-contain rounded border"
-                      />
-                    </div>
-                  </section>
-                )}
-
-                {/* Assets (Imagens/Vídeos) - Estilo Shutterstock */}
-                {p.assets && p.assets.length > 0 && (
-                  <section className="rounded-lg border px-4 py-3 mt-3">
-                    <h2 className="text-sm font-semibold mb-3 border-b pb-2">
-                      Detalhes dos Itens ({p.assets.length})
-                    </h2>
+                    <h2 className="text-sm font-semibold mb-3">Detalhes dos Itens ({p.assets.length})</h2>
                     <div className="space-y-3">
                       {p.assets.map((asset, idx) => {
-                        const cleanTitle = asset.title 
-                          ? asset.title.replace(/https?:\/\/[^\s]+/g, '').trim() || "Sem descrição"
+                        const cleanTitle = asset.title
+                          ? asset.title.replace(/https?:\/\/[^\s]+/g, "").trim() || "Sem descrição"
                           : "Sem descrição";
-                        
                         return (
-                          <div 
-                            key={idx} 
-                            className="border-2 rounded-lg p-3 bg-slate-50/50"
-                          >
+                          <div key={idx} className="border-2 rounded-lg p-3 bg-slate-50/50">
                             <div className="flex gap-3">
-                              {/* Preview da imagem/vídeo */}
                               <div className="flex-shrink-0 w-20 h-20 bg-slate-200 rounded overflow-hidden flex items-center justify-center">
                                 {asset.thumbnail ? (
-                                  <img 
-                                    src={asset.thumbnail} 
-                                    alt={cleanTitle}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <img src={asset.thumbnail} alt={cleanTitle} className="w-full h-full object-cover" />
                                 ) : (
-                                  <div className="text-slate-400 text-[10px] text-center px-1">
-                                    Sem preview
-                                  </div>
+                                  <div className="text-slate-400 text-[10px] text-center px-1">Sem preview</div>
                                 )}
                               </div>
-
-                              {/* Detalhes */}
                               <div className="flex-1">
                                 <div className="flex justify-between items-start gap-2 mb-2">
                                   <div className="font-mono text-sm font-bold text-slate-800">
                                     ID: {asset.id || "—"}
                                   </div>
                                   {asset.price !== undefined && (
-                                    <div className="text-sm font-bold text-green-700">
-                                      {BRL(asset.price)}
-                                    </div>
+                                    <div className="text-sm font-bold text-green-700">{BRL(asset.price)}</div>
                                   )}
                                 </div>
-                                
                                 <div className="text-[10px] text-blue-600 font-medium mb-1">
-                                  {asset.chosenLicense || asset.recommendedLicense || 'Licença Padrão'}
+                                  {asset.chosenLicense || asset.recommendedLicense || "Licença Padrão"}
                                 </div>
-                                
                                 <div className="text-[10px] text-slate-700 leading-relaxed mb-2">
                                   {asset.customDescription || cleanTitle}
                                 </div>
-
                                 <div className="flex gap-3 text-[9px] text-slate-500 pt-1 border-t border-slate-200">
                                   <div>
                                     <span className="font-semibold">Tipo:</span> {asset.type}
                                   </div>
                                   {asset.resolution && (
                                     <div>
-                                      <span className="font-semibold">Res:</span> {asset.resolution.width}×{asset.resolution.height}
+                                      <span className="font-semibold">Res:</span> {asset.resolution.width}×
+                                      {asset.resolution.height}
                                     </div>
                                   )}
                                   {asset.durationSeconds && (
                                     <div>
-                                      <span className="font-semibold">Duração:</span> {Math.floor(asset.durationSeconds / 60)}:{String(Math.floor(asset.durationSeconds % 60)).padStart(2, "0")}
+                                      <span className="font-semibold">Duração:</span>{" "}
+                                      {Math.floor(asset.durationSeconds / 60)}:
+                                      {String(Math.floor(asset.durationSeconds % 60)).padStart(2, "0")}
                                     </div>
                                   )}
-                                  <a 
-                                    href={asset.pageUrl} 
-                                    target="_blank" 
+                                  <a
+                                    href={asset.pageUrl}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline font-medium print:hidden"
                                   >
@@ -744,26 +723,17 @@ export default function PdfView() {
                         );
                       })}
                     </div>
-
-                    {/* Total */}
                     <div className="mt-4 pt-3 border-t-2 border-slate-300 flex justify-between items-center">
                       <span className="text-sm font-bold text-slate-700">Total do orçamento:</span>
                       <span className="text-lg font-bold text-green-700">
                         {BRL(p.assets.reduce((sum, a) => sum + (a.price || 0), 0))}
                       </span>
                     </div>
-
-                    {/* Notas */}
-                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-[9px] text-slate-600 space-y-1">
-                      <p><strong>Notas:</strong></p>
-                      <p>1. Este orçamento será válido por trinta (30) dias a partir da data de criação. A Shutterstock não pode garantir os termos do orçamento após o fim da validade. Observe que o orçamento não é uma garantia de que o conteúdo continuará disponível para compra.</p>
-                      <p>2. Este orçamento não inclui impostos. Observe que as faturas finais estão sujeitas a IVA e outros impostos.</p>
-                    </div>
                   </section>
                 )}
               </div>
 
-              {/* DIREITA = 3/12 (observações) */}
+              {/* DIREITA = 3/12 */}
               <div className="col-span-12 md:col-span-3">
                 {/* Observações */}
                 <section className="rounded-lg border px-4 py-3 mt-3">
@@ -784,6 +754,25 @@ export default function PdfView() {
                     <li>Conforme mídias, território e período informados neste orçamento.</li>
                   </ul>
                 </section>
+
+                {/* Resumo financeiro */}
+                <section className="rounded-lg border px-4 py-3 mt-3">
+                  <h2 className="text-sm font-semibold mb-2">Resumo</h2>
+                  <div className="text-[12px] space-y-1">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-medium">{BRL(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Honorário ({p.honorario_perc || 0}%):</span>
+                      <span className="font-medium">{BRL(honorario)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t font-bold text-base">
+                      <span>Total Geral:</span>
+                      <span className="text-green-700">{BRL(totalGeral)}</span>
+                    </div>
+                  </div>
+                </section>
               </div>
             </div>
 
@@ -792,24 +781,25 @@ export default function PdfView() {
                 <div className="font-medium">WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</div>
                 <div className="opacity-90">Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030</div>
                 <div className="opacity-90">
-                  Orçamento #{view.displayId} • {new Date(view.createdAt).toLocaleDateString("pt-BR")} • Validade 7 dias •
-                  Confidencial
+                  Orçamento #{view.displayId} • v{view.versao} • {new Date(view.createdAt).toLocaleDateString("pt-BR")}{" "}
+                  • Validade 7 dias • Confidencial
                 </div>
               </div>
-
               {versions.length > 1 && (
                 <div className="mt-2 pt-2 border-t">
                   <div className="text-[9px] text-neutral-500 mb-1">Histórico de Versões</div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {versions.slice(0, 5).map((v, idx) => (
+                    {versions.slice(0, 8).map((v, idx) => (
                       <div key={v.id} className="flex items-center gap-1">
-                        <Badge variant={idx === 0 ? "default" : "outline"} className="text-[8px] px-1.5 py-0.5">
+                        <Badge
+                          variant={v.id === selectedVersionId ? "default" : "outline"}
+                          className="text-[8px] px-1.5 py-0.5"
+                        >
                           v{v.versao}
                         </Badge>
-                        {idx < Math.min(versions.length - 1, 4) && <span className="text-neutral-400">→</span>}
+                        {idx < Math.min(versions.length - 1, 7) && <span className="text-neutral-400">→</span>}
                       </div>
                     ))}
-                    {versions.length > 5 && <span className="text-[8px] text-neutral-400">+{versions.length - 5} mais</span>}
                   </div>
                 </div>
               )}
@@ -818,49 +808,18 @@ export default function PdfView() {
         </div>
       </div>
 
-      {/* Estilos: Impressão otimizada */}
+      {/* Estilos: Impressão otimizada (aproveitamento e evitar quebras feias) */}
       <style>{`
         @media print {
-          @page { 
-            margin: 8mm; 
-          }
-          body { 
-            -webkit-print-color-adjust: exact; 
-            print-color-adjust: exact; 
-          }
-
-          .no-print { 
-            display: none !important; 
-          }
-
-          /* Reduzir espaçamentos para melhor aproveitamento */
-          section { 
-            margin-top: 0.5rem !important; 
-          }
-          
-          .mt-3 { 
-            margin-top: 0.5rem !important; 
-          }
-          
-          .mt-4 { 
-            margin-top: 0.75rem !important; 
-          }
-          
-          .py-3 { 
-            padding-top: 0.5rem !important; 
-            padding-bottom: 0.5rem !important; 
-          }
-          
-          .py-4 { 
-            padding-top: 0.75rem !important; 
-            padding-bottom: 0.75rem !important; 
-          }
-
-          /* Evitar quebras de página */
-          * { 
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
+          @page { margin: 8mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+          section { margin-top: 0.5rem !important; }
+          .mt-3 { margin-top: 0.5rem !important; }
+          .mt-4 { margin-top: 0.75rem !important; }
+          .py-3 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+          .py-4 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+          * { page-break-inside: avoid !important; break-inside: avoid !important; }
         }
       `}</style>
     </div>
