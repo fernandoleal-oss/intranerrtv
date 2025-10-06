@@ -199,27 +199,27 @@ export default function BudgetPdf() {
 
         <div
           ref={contentRef}
-          className="bg-white p-6 rounded-2xl shadow-sm max-w-[210mm] mx-auto text-black"
-          style={{ minHeight: "297mm" }}
+          className="p-6 rounded-2xl shadow-sm max-w-[210mm] mx-auto"
+          style={{ minHeight: "297mm", backgroundColor: "#A5A5A5", color: "#000000" }}
         >
-          <div className="border-b-2 border-[#FF6A00] pb-2 mb-3">
-            <h1 className="text-2xl font-bold text-[#FF6A00] mb-1">ORÇAMENTO</h1>
-            <p className="text-base text-gray-600">{data.display_id}</p>
+          <div className="border-b-2 border-[#E6191E] pb-2 mb-3">
+            <h1 className="text-2xl font-bold mb-1" style={{ color: "#000000" }}>ORÇAMENTO</h1>
+            <p className="text-base" style={{ color: "#000000" }}>{data.display_id}</p>
           </div>
 
           <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
             <div>
-              <p className="text-gray-500 mb-0.5">Cliente</p>
-              <p className="font-semibold">{payload.cliente || "-"}</p>
+              <p className="mb-0.5" style={{ color: "#000000", opacity: 0.7 }}>Cliente</p>
+              <p className="font-semibold" style={{ color: "#000000" }}>{payload.cliente || "-"}</p>
             </div>
             <div>
-              <p className="text-gray-500 mb-0.5">Produto</p>
-              <p className="font-semibold">{payload.produto || "-"}</p>
+              <p className="mb-0.5" style={{ color: "#000000", opacity: 0.7 }}>Produto</p>
+              <p className="font-semibold" style={{ color: "#000000" }}>{payload.produto || "-"}</p>
             </div>
             {payload.job && (
               <div>
-                <p className="text-gray-500 mb-0.5">Job</p>
-                <p className="font-semibold">{payload.job}</p>
+                <p className="mb-0.5" style={{ color: "#000000", opacity: 0.7 }}>Job</p>
+                <p className="font-semibold" style={{ color: "#000000" }}>{payload.job}</p>
               </div>
             )}
           </div>
@@ -238,10 +238,10 @@ export default function BudgetPdf() {
 
             return (
               <div key={campIdx} className="mb-4">
-                <div className="bg-[#FF6A00]/10 border-l-4 border-[#FF6A00] px-3 py-2 mb-2">
+                <div className="border-l-4 px-3 py-2 mb-2" style={{ borderColor: "#E6191E", backgroundColor: "rgba(0,0,0,0.05)" }}>
                   <div className="flex justify-between items-center">
-                    <h2 className="text-base font-bold text-[#FF6A00]">{campanha.nome}</h2>
-                    <span className="text-sm font-bold text-[#FF6A00]">
+                    <h2 className="text-base font-bold" style={{ color: "#000000" }}>{campanha.nome}</h2>
+                    <span className="text-sm font-bold" style={{ color: "#000000" }}>
                       {formatCurrency(calcularTotalCampanha(campanha))}
                     </span>
                   </div>
@@ -253,18 +253,18 @@ export default function BudgetPdf() {
                     const subtotal = calcularSubtotal(cat);
 
                     return (
-                      <div key={idx} className="border-l-2 border-gray-300 pl-2 py-1">
+                      <div key={idx} className="pl-2 py-1" style={{ borderLeft: "2px solid rgba(0,0,0,0.2)" }}>
                         <div className="flex justify-between items-start mb-1">
-                          <h3 className="font-bold text-sm">{cat.nome}</h3>
-                          <span className="font-bold text-sm">{formatCurrency(subtotal)}</span>
+                          <h3 className="font-bold text-sm" style={{ color: "#000000" }}>{cat.nome}</h3>
+                          <span className="font-bold text-sm" style={{ color: "#000000" }}>{formatCurrency(subtotal)}</span>
                         </div>
 
                         {cat.observacao && (
-                          <p className="text-xs text-gray-600 mb-1 italic">{cat.observacao}</p>
+                          <p className="text-xs mb-1 italic" style={{ color: "#000000", opacity: 0.7 }}>{cat.observacao}</p>
                         )}
 
                         {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
-                          <div className="space-y-1 text-xs">
+                          <div className="space-y-2 text-xs">
                             {cat.fornecedores.map((f: any, fIdx: number) => {
                               const isMaisBarato = maisBarato === f || maisBarato?.id === f.id;
                               const valorFinal = (f.valor || 0) - (f.desconto || 0);
@@ -272,16 +272,34 @@ export default function BudgetPdf() {
                               return (
                                 <div
                                   key={fIdx}
-                                  className={`flex justify-between text-gray-700 py-0.5 ${
-                                    isMaisBarato ? "bg-green-50 border-l-2 border-green-500 pl-1 font-semibold" : ""
+                                  className={`rounded px-2 py-2 ${
+                                    isMaisBarato ? "border-l-3" : ""
                                   }`}
+                                  style={{
+                                    backgroundColor: isMaisBarato ? "rgba(34, 197, 94, 0.15)" : "rgba(255,255,255,0.3)",
+                                    borderLeft: isMaisBarato ? "3px solid #22c55e" : "none",
+                                  }}
                                 >
-                                  <span className="flex items-center gap-1">
-                                    {isMaisBarato && <Star className="h-3 w-3 fill-green-600 text-green-600" />}
-                                    • {f.nome}
-                                    {isMaisBarato && <span className="text-green-600 text-[10px]">(SUGESTÃO)</span>}
-                                  </span>
-                                  <span>{formatCurrency(valorFinal)}</span>
+                                  <div className="flex justify-between items-start mb-1">
+                                    <div className="flex items-start gap-1">
+                                      {isMaisBarato && <Star className="h-3 w-3 fill-green-600 text-green-600 mt-0.5" />}
+                                      <div>
+                                        <p className={`font-semibold ${isMaisBarato ? "text-[11px]" : "text-[10px]"}`} style={{ color: "#000000" }}>
+                                          {f.nome}
+                                          {isMaisBarato && <span className="text-green-600 ml-1">(SUGESTÃO)</span>}
+                                        </p>
+                                        {f.diretor && (
+                                          <p className="text-[9px]" style={{ color: "#000000", opacity: 0.7 }}>Dir: {f.diretor}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className={`font-bold ${isMaisBarato ? "text-[11px] text-green-600" : "text-[10px]"}`} style={!isMaisBarato ? { color: "#000000" } : {}}>
+                                      {formatCurrency(valorFinal)}
+                                    </span>
+                                  </div>
+                                  {f.escopo && (
+                                    <p className="text-[9px] mt-1" style={{ color: "#000000", opacity: 0.7 }}>{f.escopo}</p>
+                                  )}
                                 </div>
                               );
                             })}
@@ -295,28 +313,28 @@ export default function BudgetPdf() {
             );
           })}
 
-          <div className="border-t-2 border-[#FF6A00] pt-3 mt-4 space-y-1">
+          <div className="pt-3 mt-4 space-y-1" style={{ borderTop: "2px solid #E6191E" }}>
             {campanhas.length > 1 &&
               campanhas.map((camp: any, idx: number) => {
                 const total = calcularTotalCampanha(camp);
                 if (total === 0) return null;
                 return (
-                  <div key={idx} className="flex justify-between text-sm font-semibold">
+                  <div key={idx} className="flex justify-between text-sm font-semibold" style={{ color: "#000000" }}>
                     <span>{camp.nome}:</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
                 );
               })}
-            <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-lg font-bold">TOTAL GERAL SUGERIDO:</span>
-              <span className="text-2xl font-bold text-[#FF6A00]">{formatCurrency(totalGeral)}</span>
+            <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid rgba(0,0,0,0.2)" }}>
+              <span className="text-lg font-bold" style={{ color: "#000000" }}>TOTAL GERAL SUGERIDO:</span>
+              <span className="text-2xl font-bold" style={{ color: "#E6191E" }}>{formatCurrency(totalGeral)}</span>
             </div>
           </div>
 
           {payload.observacoes && (
-            <div className="mt-3 pt-2 border-t">
-              <p className="text-xs font-semibold mb-1">Observações:</p>
-              <p className="text-xs text-gray-700 whitespace-pre-wrap">{payload.observacoes}</p>
+            <div className="mt-3 pt-2" style={{ borderTop: "1px solid rgba(0,0,0,0.2)" }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: "#000000" }}>Observações:</p>
+              <p className="text-xs whitespace-pre-wrap" style={{ color: "#000000", opacity: 0.8 }}>{payload.observacoes}</p>
             </div>
           )}
         </div>

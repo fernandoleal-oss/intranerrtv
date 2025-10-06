@@ -234,24 +234,34 @@ export default function BudgetView() {
                                 return (
                                   <div
                                     key={fIdx}
-                                    className={`border rounded-xl p-3 space-y-2 ${
+                                    className={`border rounded-xl p-4 space-y-2 ${
                                       isMaisBarato
-                                        ? "border-success bg-success/5 ring-2 ring-success/20"
+                                        ? "border-[#22c55e] bg-[#22c55e]/10 ring-2 ring-[#22c55e]/30 scale-105"
                                         : "border-border"
                                     }`}
                                   >
                                     {isMaisBarato && (
-                                      <div className="flex items-center gap-2 text-xs font-semibold text-success mb-2">
-                                        <Star className="h-4 w-4 fill-current" />
+                                      <div className="flex items-center gap-2 text-sm font-bold text-[#22c55e] mb-2">
+                                        <Star className="h-5 w-5 fill-current" />
                                         SUGESTÃO - MAIS BARATO
                                       </div>
                                     )}
-                                    <div className="flex justify-between">
-                                      <span className="font-medium">{f.nome}</span>
-                                      <span className="font-semibold">{formatCurrency(valorFinal)}</span>
+                                    <div className="flex justify-between items-start">
+                                      <div className="space-y-1">
+                                        <p className={`font-bold ${isMaisBarato ? "text-lg" : "text-base"}`}>{f.nome}</p>
+                                        {f.diretor && (
+                                          <p className="text-sm text-muted-foreground">Diretor: {f.diretor}</p>
+                                        )}
+                                      </div>
+                                      <span className={`font-bold ${isMaisBarato ? "text-xl text-[#22c55e]" : "text-lg"}`}>
+                                        {formatCurrency(valorFinal)}
+                                      </span>
                                     </div>
-                                    {f.descricao && (
-                                      <p className="text-sm text-muted-foreground">{f.descricao}</p>
+                                    {f.escopo && (
+                                      <div className="pt-2 border-t">
+                                        <p className="text-sm font-medium mb-1">Escopo:</p>
+                                        <p className="text-sm text-muted-foreground">{f.escopo}</p>
+                                      </div>
                                     )}
                                   </div>
                                 );

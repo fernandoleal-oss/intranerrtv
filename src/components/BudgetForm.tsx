@@ -12,7 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface Fornecedor {
   id: string;
   nome: string;
-  descricao: string;
+  diretor?: string;
+  escopo: string;
   valor: number;
   desconto: number;
   link?: string;
