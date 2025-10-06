@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Copy, FileText, Plus, Trash2, GripVertical, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Save, Copy, FileText, Plus, Trash2, GripVertical, Eye, EyeOff, Printer } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -80,24 +80,20 @@ export default function OrcamentosNovo() {
   const [job, setJob] = useState("");
   const [observacoes, setObservacoes] = useState("");
 
-  // Campanhas (começa vazio; o wizard cria)
+  // Campanhas (wizard cria aqui)
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
 
-  /* ============================ Wizard state ============================ */
+  /* ============================ Wizard ============================ */
   const [wizardOpen, setWizardOpen] = useState(true);
-  const [wizardTotalStr, setWizardTotalStr] = useState<string>("");
   const [wizardStep, setWizardStep] = useState<"total" | "campanha">("total");
-
-  // campos da campanha atual no wizard
+  const [wizardTotalStr, setWizardTotalStr] = useState<string>("");
+  const [wizardTotal, setWizardTotal] = useState<number>(0);
+  const [wizardIndex, setWizardIndex] = useState<number>(0);
   const [wizNome, setWizNome] = useState<string>("Campanha 1");
   const [wizQtdFilme, setWizQtdFilme] = useState<string>("2");
   const [wizQtdAudio, setWizQtdAudio] = useState<string>("2");
 
-  const [wizardTotal, setWizardTotal] = useState<number>(0);
-  const [wizardIndex, setWizardIndex] = useState<number>(0);
-
   useEffect(() => {
-    // ao entrar, foca no wizard
     setWizardOpen(true);
     setWizardStep("total");
   }, []);
@@ -115,9 +111,9 @@ export default function OrcamentosNovo() {
     }
     setWizardTotal(total);
     setWizardIndex(0);
-    setWizNome(`Campanha 1`);
-    setWizQtdFilme(total > 1 ? "2" : "1"); // sugestão
-    setWizQtdAudio(total > 1 ? "2" : "1"); // sugestão
+    setWizNome("Campanha 1");
+    setWizQtdFilme(total > 1 ? "2" : "1");
+    setWizQtdAudio(total > 1 ? "2" : "1");
     setWizardStep("campanha");
   };
 
@@ -164,7 +160,6 @@ export default function OrcamentosNovo() {
     const qtdF = parseIntSafe(wizQtdFilme);
     const qtdA = parseIntSafe(wizQtdAudio);
     const nome = (wizNome || "").trim() || `Campanha ${wizardIndex + 1}`;
-
     addCampaignFromWizard(nome, qtdF, qtdA);
 
     const nextIndex = wizardIndex + 1;
@@ -172,17 +167,15 @@ export default function OrcamentosNovo() {
       setWizardOpen(false);
       return;
     }
-
     setWizardIndex(nextIndex);
     setWizNome(`Campanha ${nextIndex + 1}`);
     setWizQtdFilme("2");
     setWizQtdAudio("2");
   };
 
-  /* ============================ Mutators padrão ============================ */
-  const atualizarNomeCampanha = (id: string, nome: string) => {
+  /* ============================ Mutators ============================ */
+  const atualizarNomeCampanha = (id: string, nome: string) =>
     setCampanhas((prev) => prev.map((c) => (c.id === id ? { ...c, nome } : c)));
-  };
 
   const adicionarCampanha = () => {
     const nome = `Campanha ${campanhas.length + 1}`;
@@ -395,14 +388,14 @@ export default function OrcamentosNovo() {
   /* ============================ Cálculo / Combinações ============================ */
 
   const finalDe = (f: Fornecedor) => (Number(f.valor) || 0) - (Number(f.desconto) || 0);
+  const brl = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 
   const getCategoriaByName = (camp: Campanha, nome: string) =>
     camp.categorias.find((c) => c.nome.toLowerCase() === nome.toLowerCase()) || null;
 
   const cheapestFornecedor = (categoria: Categoria | null) => {
     if (!categoria || categoria.modoPreco !== "fechado" || categoria.fornecedores.length === 0) return null;
-    const f = categoria.fornecedores.reduce((min, cur) => (finalDe(cur) < finalDe(min) ? cur : min));
-    return f;
+    return categoria.fornecedores.reduce((min, cur) => (finalDe(cur) < finalDe(min) ? cur : min));
   };
 
   const bestFilmAudioCombo = (camp: Campanha) => {
@@ -410,9 +403,7 @@ export default function OrcamentosNovo() {
     const catAudio = getCategoriaByName(camp, "Áudio");
     const fFilm = cheapestFornecedor(catFilme);
     const fAudio = cheapestFornecedor(catAudio);
-    if (!fFilm || !fAudio) {
-      return { film: fFilm || null, audio: fAudio || null, sum: null as number | null };
-    }
+    if (!fFilm || !fAudio) return { film: fFilm || null, audio: fAudio || null, sum: null as number | null };
     return { film: fFilm, audio: fAudio, sum: finalDe(fFilm) + finalDe(fAudio) };
   };
 
@@ -443,13 +434,8 @@ export default function OrcamentosNovo() {
   const combosOrdenados = useMemo(() => {
     const combos = campanhas.map((camp) => {
       const combo = bestFilmAudioCombo(camp);
-      return {
-        campId: camp.id,
-        campNome: camp.nome,
-        combo,
-      };
+      return { campId: camp.id, campNome: camp.nome, combo };
     });
-    // Ordena por soma (nulos vão ao fim)
     return combos.sort((a, b) => {
       if (a.combo.sum == null && b.combo.sum == null) return 0;
       if (a.combo.sum == null) return 1;
@@ -458,19 +444,17 @@ export default function OrcamentosNovo() {
     });
   }, [campanhas]);
 
-  /* ============================ Save ============================ */
+  /* ============================ Salvar ============================ */
 
   const handleSalvar = async () => {
     if (!cliente || !produto) {
       toast({ title: "Preencha cliente e produto", variant: "destructive" });
       return;
     }
-
     if (campanhas.length === 0) {
       toast({ title: "Finalize o lançamento das campanhas no assistente", variant: "destructive" });
       return;
     }
-
     setSaving(true);
     try {
       const payload = {
@@ -496,7 +480,6 @@ export default function OrcamentosNovo() {
         .insert({ type: "filme", status: "rascunho" })
         .select()
         .single();
-
       if (budgetError) throw budgetError;
 
       const { error: versionError } = await supabase
@@ -504,7 +487,6 @@ export default function OrcamentosNovo() {
         .insert([{ budget_id: budgetData.id, versao: 1, payload: payload as any, total_geral: totalGeral }])
         .select()
         .single();
-
       if (versionError) throw versionError;
 
       toast({ title: "Orçamento salvo com sucesso!" });
@@ -516,88 +498,219 @@ export default function OrcamentosNovo() {
     }
   };
 
-  /* ============================ Helpers ============================ */
+  /* ============================ PDF (janela limpa + SNAPSHOT) ============================ */
 
-  const brl = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
+  const hojeBR = new Intl.DateTimeFormat("pt-BR").format(new Date());
+  const esc = (s?: string) =>
+    (s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  // 1) snapshot fiel do estado atual
+  const snapshot = () => ({
+    cliente,
+    produto,
+    job,
+    observacoes,
+    hojeBR,
+    campanhas: campanhas.map((camp) => ({
+      id: camp.id,
+      nome: camp.nome,
+      categorias: camp.categorias.map((c) => ({
+        id: c.id,
+        nome: c.nome,
+        visivel: c.visivel,
+        modoPreco: c.modoPreco,
+        observacao: c.observacao,
+        fornecedores: c.fornecedores.map((f) => ({
+          id: f.id,
+          nome: f.nome,
+          descricao: f.descricao,
+          valor: Number(f.valor) || 0,
+          desconto: Number(f.desconto) || 0,
+        })),
+        itens: c.itens.map((it) => ({
+          id: it.id,
+          unidade: it.unidade,
+          quantidade: Number(it.quantidade) || 0,
+          valorUnitario: Number(it.valorUnitario) || 0,
+          desconto: Number(it.desconto) || 0,
+          observacao: it.observacao,
+        })),
+      })),
+    })),
+  });
+
+  // 2) template do PDF que renderiza com base no snapshot
+  const templateHTML = (jsonData: string) => `
+<!doctype html><html>
+<head><meta charset="utf-8"/><title>Orçamento</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  html, body { padding:0; margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  body { font-size:10.5px; line-height:1.32; color:#111; }
+  .wrap { width: 794px; margin: 0 auto; transform-origin: top left; }
+  .muted { color:#666 } .bold { font-weight:600 }
+  .cab { border-bottom:1px solid #ddd; padding-bottom:8px; margin-bottom:8px; }
+  .cab .linha { display:flex; justify-content:space-between; align-items:flex-start; }
+  h1 { font-size:14px; margin:0 0 4px 0; } h3 { font-size:12.5px; margin:0; }
+  .linha { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .lista { margin-top:4px } .linha + .linha { margin-top:2px }
+  .bloco { margin: 16px 0 24px } .cat { margin-top:8px }
+  .total { padding-top:8px; border-top:1px solid #ddd; display:flex; justify-content:space-between; align-items:center }
+  .rod { margin-top:12px; padding-top:8px; border-top:1px solid #eee; color:#666; font-size:9.5px }
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  .tight p { margin: 2mm 0; } .small { font-size:9.5px }
+</style>
+</head>
+<body>
+  <div id="app" class="wrap"></div>
+  <script>
+    window.__DATA__ = ${jsonData};
+    (function(){
+      const data = window.__DATA__;
+      const brl = (n) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n||0);
+      const finalDe = (f) => (Number(f.valor)||0) - (Number(f.desconto)||0);
+      const cheapFornecedor = (cat) => {
+        if (!cat || cat.modoPreco!=="fechado" || !cat.fornecedores.length) return null;
+        return cat.fornecedores.reduce((m,c)=> finalDe(c)<finalDe(m)?c:m);
+      };
+      const subtotalCat = (c) => c.modoPreco==="fechado"
+        ? (cheapFornecedor(c) ? finalDe(cheapFornecedor(c)) : 0)
+        : (c.itens||[]).reduce((s,it)=> s + ((+it.quantidade||0)*(+it.valorUnitario||0) - (+it.desconto||0)),0);
+      const subtotalCamp = (camp) => (camp.categorias||[]).filter(c=>c.visivel).reduce((s,c)=> s+subtotalCat(c),0);
+      const total = (data.campanhas||[]).reduce((s,c)=> s+subtotalCamp(c),0);
+
+      const esc = (s) => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+      function renderFornecedores(cat){
+        const arr = [...(cat.fornecedores||[])].sort((a,b)=> finalDe(a)-finalDe(b)).slice(0,3);
+        const cheap = cheapFornecedor(cat);
+        if (!arr.length) return '<div class="muted">Sem cotações adicionadas.</div>';
+        return '<div class="lista js-lista-fornecedores">' + arr.map(f => (
+          '<div class="linha js-forn">' +
+            '<div><span class="bold">'+(esc(f.nome)||"Cotação")+'</span>' +
+              (f.descricao ? '<span class="muted js-escopo"> — '+esc(f.descricao)+'</span>' : '') +
+              (cheap && cheap.id===f.id ? ' <span>• ⭐</span>' : '') +
+            '</div>' +
+            '<div class="bold">'+brl(finalDe(f))+'</div>' +
+          '</div>'
+        )).join('') + ( (cat.fornecedores||[]).length>3 ? '<div class="muted">+'+((cat.fornecedores||[]).length-3)+' no orçamento online</div>' : '' ) + '</div>';
+      }
+
+      function renderItens(cat){
+        const arr = (cat.itens||[]).slice(0,5);
+        return '<div class="lista js-lista-itens">' + arr.map(it => {
+          const sub = (+it.quantidade||0)*(+it.valorUnitario||0) - (+it.desconto||0);
+          return '<div class="linha js-item">' +
+            '<div><span class="bold">'+(esc(it.unidade)||"Item")+'</span> <span class="muted"> '+(+it.quantidade||0)+' × '+brl(+it.valorUnitario||0)+(it.observacao?(' — '+esc(it.observacao)):'')+'</span></div>' +
+            '<div class="bold">'+brl(sub)+'</div>' +
+          '</div>';
+        }).join('') + ((cat.itens||[]).length>5 ? '<div class="muted">+'+((cat.itens||[]).length-5)+' no orçamento online</div>' : '') + '</div>';
+      }
+
+      function renderCampanhas(){
+        return (data.campanhas||[]).map(camp => {
+          const cats = (camp.categorias||[]).filter(c=>c.visivel);
+          return '<section class="bloco avoid-break">' +
+            '<div class="linha cab-camp"><h3>'+esc(camp.nome)+'</h3><div class="bold">'+brl(subtotalCamp(camp))+'</div></div>' +
+            cats.map(cat => (
+              '<div class="cat avoid-break">' +
+                '<div class="linha"><div class="bold">'+esc(cat.nome)+'</div><div>'+brl(subtotalCat(cat))+'</div></div>' +
+                (cat.observacao ? '<div class="muted js-tratamento">'+esc(cat.observacao)+'</div>' : '') +
+                (cat.modoPreco==="fechado" ? renderFornecedores(cat) : renderItens(cat)) +
+              '</div>'
+            )).join('') +
+          '</section>';
+        }).join('');
+      }
+
+      function layout(){
+        return '' +
+        '<header class="cab">' +
+          '<div class="linha">' +
+            '<h1>ORÇAMENTO • CONFIDENCIAL</h1>' +
+            '<div class="small"><div>Data: '+esc(data.hojeBR||"")+'</div><div>Validade: 7 dias</div></div>' +
+          '</div>' +
+          '<div class="small muted">' +
+            (data.cliente ? 'Cliente: <span class="bold">'+esc(data.cliente)+'</span> • ' : '') +
+            (data.produto ? 'Produto: <span class="bold">'+esc(data.produto)+'</span> • ' : '') +
+            (data.job ? 'Job: <span class="bold">'+esc(data.job)+'</span>' : '') +
+          '</div>' +
+        '</header>' +
+        '<main id="content">' +
+          renderCampanhas() +
+          (data.observacoes ? '<section class="bloco avoid-break"><div class="bold" style="margin-bottom:4px">Observações</div><div class="js-obs">'+esc(data.observacoes)+'</div></section>' : '') +
+          '<div class="total avoid-break"><div class="bold" style="font-size:12px">Total Geral</div><div class="bold" style="font-size:16px">'+brl(total)+'</div></div>' +
+        '</main>' +
+        '<footer class="rod">WF/MOTTA • CNPJ • p. 1/2*</footer>';
+      }
+
+      function collapseLongText(selectors, maxChars) {
+        selectors.forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => {
+            const t = (el.textContent||'').trim();
+            if (t.length > maxChars) el.textContent = t.slice(0, maxChars - 1) + '…';
+          });
+        });
+      }
+      function limitRows(selector, max) {
+        const nodes = Array.from(document.querySelectorAll(selector));
+        nodes.forEach((el, i) => { if (i >= max) el.style.display = 'none'; });
+      }
+      function fitToTwoPages() {
+        const root = document.querySelector('.wrap');
+        const PAGE = 1122; const LIMIT = 2 * PAGE;
+        const steps = [
+          () => collapseLongText(['.js-escopo','.js-tratamento','.js-obs'], 180),
+          () => limitRows('.js-lista-fornecedores > .js-forn', 3),
+          () => limitRows('.js-lista-itens > .js-item', 5),
+          () => root.classList.add('small'),
+        ];
+        let i = 0;
+        while (document.body.scrollHeight > LIMIT && i < steps.length) steps[i++]();
+        if (document.body.scrollHeight > LIMIT) {
+          const scale = Math.max(0.8, LIMIT / document.body.scrollHeight);
+          root.style.transform = 'scale('+scale+')';
+          root.style.width = (794/scale) + 'px';
+        }
+      }
+
+      document.getElementById('app').innerHTML = layout();
+      window.scrollTo(0,0);
+      fitToTwoPages();
+      setTimeout(()=>window.print(),0);
+      window.addEventListener('afterprint', ()=>window.close());
+    })();
+  </script>
+</body></html>
+`;
+
+  // 3) ação principal — usa snapshot atual (garante que o preenchimento vá para o PDF)
+  const gerarPDF = () => {
+    if (!cliente || !produto) {
+      toast({ title: "Preencha cliente e produto antes de gerar PDF", variant: "destructive" });
+      return;
+    }
+    const data = snapshot();
+    const json = JSON.stringify(data);
+    const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
+    if (!w) {
+      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para gerar o PDF.", variant: "destructive" });
+      return;
+    }
+    w.document.open();
+    w.document.write(templateHTML(json));
+    w.document.close();
+  };
 
   /* ============================ Render ============================ */
 
   return (
     <AppLayout>
-      {/* WIZARD OVERLAY */}
-      {wizardOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6">
-            {wizardStep === "total" && (
-              <>
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold">Lançar campanhas</h2>
-                  <p className="text-sm text-muted-foreground">Quantas campanhas você deseja lançar agora?</p>
-                </div>
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <Label>Quantidade de campanhas</Label>
-                    <Input
-                      inputMode="numeric"
-                      value={wizardTotalStr}
-                      onChange={(e) => setWizardTotalStr(e.target.value)}
-                      placeholder="Ex.: 2"
-                    />
-                  </div>
-                  <Button className="mt-6" onClick={startWizard}>
-                    Continuar
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {wizardStep === "campanha" && (
-              <>
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold">
-                    Campanha {wizardIndex + 1} de {wizardTotal}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Informe o nome e quantas produtoras deseja para <span className="font-medium">Filme</span> e{" "}
-                    <span className="font-medium">Áudio</span>. Abrirei os campos automaticamente.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label>Nome da campanha</Label>
-                    <Input value={wizNome} onChange={(e) => setWizNome(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>
-                        Produtoras de <strong>Filme</strong>
-                      </Label>
-                      <Input inputMode="numeric" value={wizQtdFilme} onChange={(e) => setWizQtdFilme(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label>
-                        Produtoras de <strong>Áudio</strong>
-                      </Label>
-                      <Input inputMode="numeric" value={wizQtdAudio} onChange={(e) => setWizQtdAudio(e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    Os campos aparecerão na tela de orçamento logo abaixo.
-                  </div>
-                  <Button onClick={nextCampaignInWizard}>
-                    {wizardIndex + 1 === wizardTotal ? "Concluir" : "Adicionar e continuar"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -608,26 +721,109 @@ export default function OrcamentosNovo() {
             <div>
               <h1 className="text-[28px] leading-8 font-semibold">Novo Orçamento</h1>
               <p className="text-muted-foreground">
-                Preencha os dados. Use o assistente para lançar campanhas e produtoras.
+                Preencha os dados. Use o assistente para lançar campanhas e produtoras, e gere o PDF (máx. 2 páginas
+                A4).
               </p>
             </div>
           </div>
 
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => toast({ title: "Em breve" })} className="gap-2">
-              <Copy className="h-4 w-4" />
-              Duplicar
+              <Copy className="h-4 w-4" /> Duplicar
             </Button>
             <Button variant="outline" onClick={() => navigate("/orcamentos/tabela")} className="gap-2">
-              <FileText className="h-4 w-4" />
-              Exportar p/ BYD
+              <FileText className="h-4 w-4" /> Exportar p/ BYD
+            </Button>
+            <Button variant="outline" onClick={gerarPDF} className="gap-2">
+              <Printer className="h-4 w-4" /> Gerar PDF (A4 • 2 págs)
             </Button>
             <Button onClick={handleSalvar} disabled={saving || campanhas.length === 0} className="gap-2">
-              <Save className="h-4 w-4" />
-              {saving ? "Salvando..." : "Salvar"}
+              <Save className="h-4 w-4" /> {saving ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </div>
+
+        {/* WIZARD */}
+        {wizardOpen && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+            <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6">
+              {wizardStep === "total" && (
+                <>
+                  <div className="mb-4">
+                    <h2 className="text-xl font-semibold">Lançar campanhas</h2>
+                    <p className="text-sm text-muted-foreground">Quantas campanhas você deseja lançar agora?</p>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <Label>Quantidade de campanhas</Label>
+                      <Input
+                        inputMode="numeric"
+                        value={wizardTotalStr}
+                        onChange={(e) => setWizardTotalStr(e.target.value)}
+                        placeholder="Ex.: 2"
+                      />
+                    </div>
+                    <Button className="mt-6" onClick={startWizard}>
+                      Continuar
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {wizardStep === "campanha" && (
+                <>
+                  <div className="mb-4">
+                    <h2 className="text-xl font-semibold">
+                      Campanha {wizardIndex + 1} de {wizardTotal}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Nome da campanha e quantas produtoras deseja para <b>Filme</b> e <b>Áudio</b>. Abrirei os campos
+                      automaticamente.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Nome da campanha</Label>
+                      <Input value={wizNome} onChange={(e) => setWizNome(e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>
+                          Produtoras de <strong>Filme</strong>
+                        </Label>
+                        <Input
+                          inputMode="numeric"
+                          value={wizQtdFilme}
+                          onChange={(e) => setWizQtdFilme(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label>
+                          Produtoras de <strong>Áudio</strong>
+                        </Label>
+                        <Input
+                          inputMode="numeric"
+                          value={wizQtdAudio}
+                          onChange={(e) => setWizQtdAudio(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-between">
+                    <div className="text-xs text-muted-foreground">
+                      Os campos aparecerão na tela de orçamento logo abaixo.
+                    </div>
+                    <Button onClick={nextCampaignInWizard}>
+                      {wizardIndex + 1 === wizardTotal ? "Concluir" : "Adicionar e continuar"}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Identificação */}
         <Card className="mb-6">
@@ -662,8 +858,7 @@ export default function OrcamentosNovo() {
               <div className="flex items-center justify-between">
                 <CardTitle>Campanhas</CardTitle>
                 <Button onClick={adicionarCampanha} size="sm" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Adicionar Campanha
+                  <Plus className="h-4 w-4" /> Adicionar Campanha
                 </Button>
               </div>
             </CardHeader>
@@ -702,7 +897,6 @@ export default function OrcamentosNovo() {
             {campanhas.map((campanha) => {
               const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
               const idCamp = campanha.id;
-
               const combo = bestFilmAudioCombo(campanha);
               const comboTexto =
                 combo.sum == null
@@ -711,7 +905,6 @@ export default function OrcamentosNovo() {
 
               return (
                 <div key={idCamp} className="space-y-4">
-                  {/* Cabeçalho da Campanha */}
                   <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border-2 border-primary/20">
                     <div>
                       <h2 className="text-xl font-semibold text-primary">{campanha.nome}</h2>
@@ -722,7 +915,6 @@ export default function OrcamentosNovo() {
                     <div className="text-sm text-muted-foreground">{brl(calcularSubtotalCampanha(campanha))}</div>
                   </div>
 
-                  {/* Gerenciador de Categorias */}
                   <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between">
@@ -757,9 +949,7 @@ export default function OrcamentosNovo() {
                         {campanha.categorias.map((cat) => (
                           <div
                             key={cat.id}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
-                              cat.visivel ? "bg-primary/10 border-primary/30" : "bg-muted border-border"
-                            }`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${cat.visivel ? "bg-primary/10 border-primary/30" : "bg-muted border-border"}`}
                             title={cat.visivel ? "Visível" : "Oculta"}
                           >
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -835,22 +1025,17 @@ export default function OrcamentosNovo() {
                                     variant="outline"
                                     onClick={() => adicionarFornecedor(idCamp, cat.id)}
                                   >
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Adicionar
+                                    <Plus className="h-4 w-4 mr-1" /> Adicionar
                                   </Button>
                                 </div>
-
                                 <div className="space-y-3">
                                   {cat.fornecedores.map((forn) => {
                                     const valorFinal = finalDe(forn);
                                     const isCheapest = idMaisBarata === forn.id;
-
                                     return (
                                       <div
                                         key={forn.id}
-                                        className={`border rounded-xl p-3 space-y-2 ${
-                                          isCheapest ? "border-green-500 bg-green-500/5" : "border-border"
-                                        }`}
+                                        className={`border rounded-xl p-3 space-y-2 ${isCheapest ? "border-green-500 bg-green-500/5" : "border-border"}`}
                                       >
                                         {isCheapest && (
                                           <div className="text-xs font-semibold text-green-600 mb-2">
@@ -918,21 +1103,17 @@ export default function OrcamentosNovo() {
                                 <div className="flex items-center justify-between">
                                   <Label>Itens</Label>
                                   <Button size="sm" variant="outline" onClick={() => adicionarItem(idCamp, cat.id)}>
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Adicionar
+                                    <Plus className="h-4 w-4 mr-1" /> Adicionar
                                   </Button>
                                 </div>
-
                                 <div className="text-xs text-muted-foreground">
                                   Total = Σ(Qtd × Valor unit.) − Descontos
                                 </div>
-
                                 <div className="space-y-3">
                                   {cat.itens.map((item) => {
                                     const subtotal =
                                       (Number(item.quantidade) || 0) * (Number(item.valorUnitario) || 0) -
                                       (Number(item.desconto) || 0);
-
                                     return (
                                       <div key={item.id} className="border rounded-xl p-3 space-y-2">
                                         <div className="grid grid-cols-5 gap-2">
@@ -981,9 +1162,7 @@ export default function OrcamentosNovo() {
                                           placeholder="Observação do item (opcional)"
                                           value={item.observacao || ""}
                                           onChange={(e) =>
-                                            atualizarItem(idCamp, cat.id, item.id, {
-                                              observacao: e.target.value,
-                                            })
+                                            atualizarItem(idCamp, cat.id, item.id, { observacao: e.target.value })
                                           }
                                           rows={2}
                                         />
@@ -1039,7 +1218,6 @@ export default function OrcamentosNovo() {
                     const categoriasVisiveis = campanha.categorias.filter((c) => c.visivel);
                     const subtotalCampanha = calcularSubtotalCampanha(campanha);
                     const combo = bestFilmAudioCombo(campanha);
-
                     return (
                       <div key={campanha.id} className="space-y-2">
                         <div className="font-semibold text-primary pb-2 border-b">{campanha.nome}</div>
@@ -1049,8 +1227,6 @@ export default function OrcamentosNovo() {
                             <span className="font-medium">{brl(calcularSubtotalCategoria(cat))}</span>
                           </div>
                         ))}
-
-                        {/* Melhor combinação Filme + Áudio */}
                         <div className="text-xs mt-1">
                           <span className="font-medium">Melhor Combinação: </span>
                           {combo.sum == null ? (
@@ -1062,7 +1238,6 @@ export default function OrcamentosNovo() {
                             </span>
                           )}
                         </div>
-
                         <div className="flex justify-between text-sm font-semibold pt-1 border-t">
                           <span>Subtotal {campanha.nome}</span>
                           <span className="text-primary">{brl(subtotalCampanha)}</span>
@@ -1070,7 +1245,6 @@ export default function OrcamentosNovo() {
                       </div>
                     );
                   })}
-
                   <div className="pt-4 border-t">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold">Total Geral</span>
@@ -1091,9 +1265,7 @@ export default function OrcamentosNovo() {
                   {combosOrdenados.map(({ campId, campNome, combo }, idx) => (
                     <div
                       key={campId}
-                      className={`flex justify-between items-center text-sm px-2 py-1.5 rounded ${
-                        idx === 0 && combo.sum != null ? "bg-green-500/10" : "bg-muted/40"
-                      }`}
+                      className={`flex justify-between items-center text-sm px-2 py-1.5 rounded ${idx === 0 && combo.sum != null ? "bg-green-500/10" : "bg-muted/40"}`}
                       title={
                         combo.sum == null
                           ? "Complete as cotações de Filme e Áudio para calcular"
