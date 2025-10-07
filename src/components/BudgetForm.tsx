@@ -234,7 +234,7 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
                       ...c,
                       fornecedores: [
                         ...c.fornecedores,
-                        { id: crypto.randomUUID(), nome: "", descricao: "", valor: 0, desconto: 0 },
+                        { id: crypto.randomUUID(), nome: "", diretor: "", escopo: "", valor: 0, desconto: 0 },
                       ],
                     }
                   : c
@@ -596,11 +596,11 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
                                       />
                                     </div>
                                     <Textarea
-                                      placeholder="Descrição/Escopo"
-                                      value={forn.descricao}
+                                      placeholder="Escopo"
+                                      value={forn.escopo}
                                       onChange={(e) =>
                                         atualizarFornecedor(campanha.id, cat.id, forn.id, {
-                                          descricao: e.target.value,
+                                          escopo: e.target.value,
                                         })
                                       }
                                       rows={2}

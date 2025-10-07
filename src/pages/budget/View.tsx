@@ -260,7 +260,26 @@ export default function BudgetView() {
                                     {f.escopo && (
                                       <div className="pt-2 border-t">
                                         <p className="text-sm font-medium mb-1">Escopo:</p>
-                                        <p className="text-sm text-muted-foreground">{f.escopo}</p>
+                                        <div className="text-sm text-muted-foreground">
+                                          {(() => {
+                                            const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
+                                            if (elencoMatch) {
+                                              const elenco = elencoMatch[1].trim();
+                                              const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
+                                              return (
+                                                <>
+                                                  {resto && <p className="mb-2">{resto}</p>}
+                                                  <div className="bg-primary/5 border-l-2 border-primary px-3 py-2 rounded">
+                                                    <p className="font-semibold text-foreground">
+                                                      <span className="text-primary">Elenco:</span> {elenco}
+                                                    </p>
+                                                  </div>
+                                                </>
+                                              );
+                                            }
+                                            return <p>{f.escopo}</p>;
+                                          })()}
+                                        </div>
                                       </div>
                                     )}
                                   </div>

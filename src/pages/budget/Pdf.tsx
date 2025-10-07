@@ -281,9 +281,9 @@ export default function BudgetPdf() {
                                   }}
                                 >
                                   <div className="flex justify-between items-start mb-1">
-                                    <div className="flex items-start gap-1">
-                                      {isMaisBarato && <Star className="h-3 w-3 fill-green-600 text-green-600 mt-0.5" />}
-                                      <div>
+                                    <div className="flex items-start gap-1 flex-1">
+                                      {isMaisBarato && <Star className="h-3 w-3 fill-green-600 text-green-600 mt-0.5 flex-shrink-0" />}
+                                      <div className="flex-1">
                                         <p className={`font-semibold ${isMaisBarato ? "text-[11px]" : "text-[10px]"}`} style={{ color: "#000000" }}>
                                           {f.nome}
                                           {isMaisBarato && <span className="text-green-600 ml-1">(SUGESTÃO)</span>}
@@ -291,15 +291,32 @@ export default function BudgetPdf() {
                                         {f.diretor && (
                                           <p className="text-[9px]" style={{ color: "#000000", opacity: 0.7 }}>Dir: {f.diretor}</p>
                                         )}
+                                        {f.escopo && (
+                                          <div className="text-[9px] mt-1" style={{ color: "#000000", opacity: 0.7 }}>
+                                            {(() => {
+                                              const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
+                                              if (elencoMatch) {
+                                                const elenco = elencoMatch[1].trim();
+                                                const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
+                                                return (
+                                                  <>
+                                                    {resto && <p className="mb-0.5">{resto}</p>}
+                                                    <p className="font-semibold italic" style={{ color: "#000000", opacity: 0.85 }}>
+                                                      Elenco: {elenco}
+                                                    </p>
+                                                  </>
+                                                );
+                                              }
+                                              return <p>{f.escopo}</p>;
+                                            })()}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
-                                    <span className={`font-bold ${isMaisBarato ? "text-[11px] text-green-600" : "text-[10px]"}`} style={!isMaisBarato ? { color: "#000000" } : {}}>
+                                    <span className={`font-bold ${isMaisBarato ? "text-[11px] text-green-600" : "text-[10px]"} ml-2 flex-shrink-0`} style={!isMaisBarato ? { color: "#000000" } : {}}>
                                       {formatCurrency(valorFinal)}
                                     </span>
                                   </div>
-                                  {f.escopo && (
-                                    <p className="text-[9px] mt-1" style={{ color: "#000000", opacity: 0.7 }}>{f.escopo}</p>
-                                  )}
                                 </div>
                               );
                             })}
