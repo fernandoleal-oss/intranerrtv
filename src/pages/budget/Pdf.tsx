@@ -207,10 +207,9 @@ export default function BudgetPdf() {
             <div className="flex-1">
               <img src="/src/assets/Logo_WE.png" alt="Logo WE" className="h-14 mb-3" />
               <div className="text-[9px] leading-relaxed" style={{ color: "#666666" }}>
-                <p className="font-bold text-[10px]" style={{ color: "#000000" }}>AGÊNCIA WE COMUNICAÇÃO LTDA</p>
-                <p>CNPJ: 00.000.000/0001-00</p>
-                <p>Rua Exemplo, 123 - São Paulo/SP - CEP 00000-000</p>
-                <p>Tel: (11) 0000-0000 | contato@agenciawe.com.br</p>
+                <p className="font-bold text-[10px]" style={{ color: "#000000" }}>WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</p>
+                <p>CNPJ: 05.265.118/0001-65</p>
+                <p>Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030</p>
               </div>
             </div>
             <div className="text-right">
