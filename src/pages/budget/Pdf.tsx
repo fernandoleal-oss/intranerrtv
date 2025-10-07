@@ -202,26 +202,41 @@ export default function BudgetPdf() {
           className="p-6 rounded-2xl shadow-sm max-w-[210mm] mx-auto"
           style={{ minHeight: "297mm", backgroundColor: "#A5A5A5", color: "#000000" }}
         >
-          <div className="border-b-2 border-[#E6191E] pb-2 mb-3">
-            <h1 className="text-2xl font-bold mb-1" style={{ color: "#000000" }}>ORÇAMENTO</h1>
-            <p className="text-base" style={{ color: "#000000" }}>{data.display_id}</p>
+          {/* Cabeçalho com Logo e Dados da Empresa */}
+          <div className="flex items-start justify-between mb-4 pb-3" style={{ borderBottom: "3px solid #E6191E" }}>
+            <div className="flex-1">
+              <img src="/src/assets/Logo_WE.png" alt="Logo WE" className="h-12 mb-2" />
+              <div className="text-[9px] leading-tight" style={{ color: "#000000" }}>
+                <p className="font-bold">AGÊNCIA WE COMUNICAÇÃO LTDA</p>
+                <p>CNPJ: 00.000.000/0001-00</p>
+                <p>Rua Exemplo, 123 - São Paulo/SP - CEP 00000-000</p>
+                <p>Tel: (11) 0000-0000 | contato@agenciawe.com.br</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <h1 className="text-xl font-bold mb-1" style={{ color: "#E6191E" }}>ORÇAMENTO</h1>
+              <p className="text-sm font-semibold" style={{ color: "#000000" }}>{data.display_id}</p>
+            </div>
           </div>
 
-          <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
-            <div>
-              <p className="mb-0.5" style={{ color: "#000000", opacity: 0.7 }}>Cliente</p>
-              <p className="font-semibold" style={{ color: "#000000" }}>{payload.cliente || "-"}</p>
-            </div>
-            <div>
-              <p className="mb-0.5" style={{ color: "#000000", opacity: 0.7 }}>Produto</p>
-              <p className="font-semibold" style={{ color: "#000000" }}>{payload.produto || "-"}</p>
-            </div>
-            {payload.job && (
+          {/* Informações do Cliente */}
+          <div className="mb-4 p-3 rounded" style={{ backgroundColor: "rgba(0,0,0,0.05)" }}>
+            <div className="grid grid-cols-3 gap-3 text-xs">
               <div>
-                <p className="mb-0.5" style={{ color: "#000000", opacity: 0.7 }}>Job</p>
-                <p className="font-semibold" style={{ color: "#000000" }}>{payload.job}</p>
+                <p className="mb-0.5 font-semibold" style={{ color: "#000000", opacity: 0.7 }}>Cliente</p>
+                <p className="font-bold" style={{ color: "#000000" }}>{payload.cliente || "-"}</p>
               </div>
-            )}
+              <div>
+                <p className="mb-0.5 font-semibold" style={{ color: "#000000", opacity: 0.7 }}>Produto</p>
+                <p className="font-bold" style={{ color: "#000000" }}>{payload.produto || "-"}</p>
+              </div>
+              {payload.job && (
+                <div>
+                  <p className="mb-0.5 font-semibold" style={{ color: "#000000", opacity: 0.7 }}>Job</p>
+                  <p className="font-bold" style={{ color: "#000000" }}>{payload.job}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {campanhas.map((campanha: any, campIdx: number) => {
@@ -270,54 +285,56 @@ export default function BudgetPdf() {
                               const valorFinal = (f.valor || 0) - (f.desconto || 0);
 
                               return (
-                                <div
-                                  key={fIdx}
-                                  className={`rounded px-2 py-2 ${
-                                    isMaisBarato ? "border-l-3" : ""
-                                  }`}
-                                  style={{
-                                    backgroundColor: isMaisBarato ? "rgba(34, 197, 94, 0.15)" : "rgba(255,255,255,0.3)",
-                                    borderLeft: isMaisBarato ? "3px solid #22c55e" : "none",
-                                  }}
-                                >
-                                  <div className="flex justify-between items-start mb-1">
-                                    <div className="flex items-start gap-1 flex-1">
-                                      {isMaisBarato && <Star className="h-3 w-3 fill-green-600 text-green-600 mt-0.5 flex-shrink-0" />}
-                                      <div className="flex-1">
-                                        <p className={`font-semibold ${isMaisBarato ? "text-[11px]" : "text-[10px]"}`} style={{ color: "#000000" }}>
-                                          {f.nome}
-                                          {isMaisBarato && <span className="text-green-600 ml-1">(SUGESTÃO)</span>}
-                                        </p>
-                                        {f.diretor && (
-                                          <p className="text-[9px]" style={{ color: "#000000", opacity: 0.7 }}>Dir: {f.diretor}</p>
-                                        )}
-                                        {f.escopo && (
-                                          <div className="text-[9px] mt-1" style={{ color: "#000000", opacity: 0.7 }}>
-                                            {(() => {
-                                              const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
-                                              if (elencoMatch) {
-                                                const elenco = elencoMatch[1].trim();
-                                                const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
-                                                return (
-                                                  <>
-                                                    {resto && <p className="mb-0.5">{resto}</p>}
-                                                    <p className="font-semibold italic" style={{ color: "#000000", opacity: 0.85 }}>
-                                                      Elenco: {elenco}
-                                                    </p>
-                                                  </>
-                                                );
-                                              }
-                                              return <p>{f.escopo}</p>;
-                                            })()}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <span className={`font-bold ${isMaisBarato ? "text-[11px] text-green-600" : "text-[10px]"} ml-2 flex-shrink-0`} style={!isMaisBarato ? { color: "#000000" } : {}}>
-                                      {formatCurrency(valorFinal)}
-                                    </span>
-                                  </div>
-                                </div>
+                                 <div
+                                   key={fIdx}
+                                   className={`rounded px-2 py-2 ${
+                                     isMaisBarato ? "border-l-3" : ""
+                                   }`}
+                                   style={{
+                                     backgroundColor: isMaisBarato ? "rgba(72, 187, 120, 0.12)" : "rgba(255,255,255,0.3)",
+                                     borderLeft: isMaisBarato ? "3px solid #48bb78" : "none",
+                                   }}
+                                 >
+                                   {isMaisBarato && (
+                                     <div className="flex items-center gap-1 mb-1">
+                                       <Star className="h-3 w-3 fill-green-500 text-green-500" />
+                                       <span className="text-[9px] font-bold" style={{ color: "#48bb78" }}>OPÇÃO MAIS BARATA</span>
+                                     </div>
+                                   )}
+                                   <div className="flex justify-between items-start mb-1">
+                                     <div className="flex-1">
+                                       <p className={`font-semibold ${isMaisBarato ? "text-[11px]" : "text-[10px]"}`} style={{ color: "#000000" }}>
+                                         {f.nome}
+                                       </p>
+                                       {f.diretor && (
+                                         <p className="text-[9px]" style={{ color: "#000000", opacity: 0.7 }}>Diretor: {f.diretor}</p>
+                                       )}
+                                       {f.escopo && (
+                                         <div className="text-[9px] mt-1" style={{ color: "#000000", opacity: 0.7 }}>
+                                           {(() => {
+                                             const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
+                                             if (elencoMatch) {
+                                               const elenco = elencoMatch[1].trim();
+                                               const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
+                                               return (
+                                                 <>
+                                                   {resto && <p className="mb-0.5">{resto}</p>}
+                                                   <p className="font-semibold italic" style={{ color: "#000000", opacity: 0.85 }}>
+                                                     Elenco: {elenco}
+                                                   </p>
+                                                 </>
+                                               );
+                                             }
+                                             return <p>{f.escopo}</p>;
+                                           })()}
+                                         </div>
+                                       )}
+                                     </div>
+                                     <span className={`font-bold ${isMaisBarato ? "text-[11px]" : "text-[10px]"} ml-2 flex-shrink-0`} style={{ color: isMaisBarato ? "#48bb78" : "#000000" }}>
+                                       {formatCurrency(valorFinal)}
+                                     </span>
+                                   </div>
+                                 </div>
                               );
                             })}
                           </div>
@@ -354,6 +371,15 @@ export default function BudgetPdf() {
               <p className="text-xs whitespace-pre-wrap" style={{ color: "#000000", opacity: 0.8 }}>{payload.observacoes}</p>
             </div>
           )}
+
+          {/* Rodapé LGPD */}
+          <div className="mt-4 pt-3" style={{ borderTop: "2px solid #E6191E" }}>
+            <p className="text-[8px] text-center leading-tight" style={{ color: "#000000", opacity: 0.6 }}>
+              Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. 
+              Conforme a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018), 
+              todas as informações contidas neste documento são tratadas com segurança e privacidade.
+            </p>
+          </div>
         </div>
       </div>
     </AppLayout>
