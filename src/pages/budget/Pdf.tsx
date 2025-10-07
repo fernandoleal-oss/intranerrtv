@@ -17,6 +17,7 @@ interface BudgetData {
   status: string;
   payload: any;
   version_id: string;
+  budget_number: string;
 }
 
 export default function BudgetPdf() {
@@ -43,7 +44,8 @@ export default function BudgetPdf() {
               id,
               display_id,
               type,
-              status
+              status,
+              budget_number
             )
           `,
           )
@@ -62,6 +64,7 @@ export default function BudgetPdf() {
           status: row.budgets!.status,
           payload: row.payload || {},
           version_id: row.id,
+          budget_number: row.budgets!.budget_number || "000",
         });
       } catch (err: any) {
         toast({
@@ -154,7 +157,20 @@ export default function BudgetPdf() {
         pageIndex += 1;
       }
 
-      pdf.save(`orcamento-${data.display_id}.pdf`);
+      // Nome do arquivo: cliente_produto_numero.pdf
+      const cliente = payload.cliente || "cliente";
+      const produto = payload.produto || "produto";
+      const numero = data.budget_number || "000";
+      
+      const cleanText = (text: string) => text
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .toLowerCase();
+      
+      const fileName = `${cleanText(cliente)}_${cleanText(produto)}_${numero}.pdf`;
+      
+      pdf.save(fileName);
       toast({ title: "PDF gerado com sucesso!" });
     } catch (err: any) {
       toast({
@@ -225,24 +241,41 @@ export default function BudgetPdf() {
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         @media print {
-          @page { size: A4 portrait; margin: 10mm; }
-          html, body { width: 210mm; background: #FFFFFF !important; }
+          @page { 
+            size: A4 portrait; 
+            margin: 15mm 20mm; 
+          }
+          html, body { 
+            width: 210mm; 
+            background: #FFFFFF !important; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           .no-print { display: none !important; }
-          .print-content, .print-content * { box-shadow: none !important; }
+          .print-content, .print-content * { 
+            box-shadow: none !important; 
+          }
+          .avoid-break {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
         }
 
         .print-content {
           width: 210mm;
           min-height: 297mm;
-          padding: 15mm 20mm;
+          padding: 20mm 20mm;
           margin: 0 auto;
           background: #FFFFFF;
           color: #000000;
           box-shadow: 0 0 10px rgba(0,0,0,0.1);
-          box-sizing: border-box; /* evita overflow do padding */
+          box-sizing: border-box;
         }
 
-        .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+        .avoid-break { 
+          break-inside: avoid !important; 
+          page-break-inside: avoid !important;
+        }
       `}</style>
 
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
@@ -271,7 +304,7 @@ export default function BudgetPdf() {
             minHeight: "297mm",
             backgroundColor: "#FFFFFF",
             color: "#000000",
-            padding: "15mm 20mm",
+            padding: "20mm 20mm",
             margin: "0 auto",
             boxSizing: "border-box",
           }}
@@ -293,9 +326,10 @@ export default function BudgetPdf() {
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>ORÇAMENTO</h1>
-              <p style={{ fontSize: "16px", fontWeight: "600", color: "#000000", marginBottom: "4px" }}>
-                {data.display_id}
+              <p style={{ fontSize: "18px", fontWeight: "700", color: "#000000", marginBottom: "4px" }}>
+                Nº {data.budget_number}
               </p>
+              <p style={{ fontSize: "11px", color: "#666666", marginBottom: "2px" }}>{data.display_id}</p>
               <p style={{ fontSize: "12px", color: "#666666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
             </div>
           </div>
