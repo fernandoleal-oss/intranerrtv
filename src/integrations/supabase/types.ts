@@ -106,6 +106,7 @@ export type Database = {
       }
       budgets: {
         Row: {
+          budget_number: string | null
           campaign_id: string | null
           client_id: string | null
           created_at: string | null
@@ -118,6 +119,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          budget_number?: string | null
           campaign_id?: string | null
           client_id?: string | null
           created_at?: string | null
@@ -130,6 +132,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          budget_number?: string | null
           campaign_id?: string | null
           client_id?: string | null
           created_at?: string | null
@@ -856,6 +859,10 @@ export type Database = {
             }
           | { p_tipo: string }
         Returns: Json
+      }
+      generate_budget_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_budget_view_rpc: {
         Args: { p_budget_id: string }
