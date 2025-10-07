@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import logoWE from "@/assets/LOGO-WE-2.png";
 
 interface BudgetData {
   id: string;
@@ -199,13 +200,18 @@ export default function BudgetPdf() {
 
         <div
           ref={contentRef}
-          className="p-8 max-w-[210mm] mx-auto"
-          style={{ minHeight: "297mm", backgroundColor: "#FFFFFF", color: "#000000" }}
+          className="max-w-[210mm] mx-auto"
+          style={{ 
+            minHeight: "297mm", 
+            backgroundColor: "#FFFFFF", 
+            color: "#000000",
+            padding: "20mm 15mm 20mm 15mm"
+          }}
         >
           {/* Cabeçalho com Logo e Dados da Empresa */}
           <div className="flex items-start justify-between mb-6 pb-4" style={{ borderBottom: "3px solid #E6191E" }}>
             <div className="flex-1">
-              <img src="/src/assets/Logo_WE.png" alt="Logo WE" className="h-14 mb-3" />
+              <img src={logoWE} alt="Logo WE" className="h-14 mb-3" />
               <div className="text-[9px] leading-relaxed" style={{ color: "#666666" }}>
                 <p className="font-bold text-[10px]" style={{ color: "#000000" }}>WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</p>
                 <p>CNPJ: 05.265.118/0001-65</p>
@@ -223,7 +229,7 @@ export default function BudgetPdf() {
 
           {/* Informações do Cliente */}
           <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: "#F5F5F5", border: "1px solid #E0E0E0" }}>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Cliente</p>
                 <p className="font-bold" style={{ color: "#000000" }}>{payload.cliente || "-"}</p>
@@ -236,6 +242,12 @@ export default function BudgetPdf() {
                 <div>
                   <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Job</p>
                   <p className="font-bold" style={{ color: "#000000" }}>{payload.job}</p>
+                </div>
+              )}
+              {campanhas.length > 0 && campanhas[0].nome && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Campanha</p>
+                  <p className="font-bold" style={{ color: "#000000" }}>{campanhas[0].nome}</p>
                 </div>
               )}
             </div>
