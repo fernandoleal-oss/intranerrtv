@@ -24,22 +24,25 @@ interface Table {
 export default function BydProntaEntrega() {
   const navigate = useNavigate();
   const printRef = useRef<HTMLDivElement>(null);
-  
+
   const [titulo, setTitulo] = useState("Tabela de Orçamento BYD");
   const [observacao, setObservacao] = useState("");
   const [notaRodape, setNotaRodape] = useState("");
   const [tables, setTables] = useState<Table[]>([
     {
       id: crypto.randomUUID(),
-      lines: [{ id: crypto.randomUUID(), descricao: "", valor: 0 }]
-    }
+      lines: [{ id: crypto.randomUUID(), descricao: "", valor: 0 }],
+    },
   ]);
 
   const addTable = () => {
-    setTables([...tables, {
-      id: crypto.randomUUID(),
-      lines: [{ id: crypto.randomUUID(), descricao: "", valor: 0 }]
-    }]);
+    setTables([
+      ...tables,
+      {
+        id: crypto.randomUUID(),
+        lines: [{ id: crypto.randomUUID(), descricao: "", valor: 0 }],
+      },
+    ]);
   };
 
   const removeTable = (tableId: string) => {
@@ -47,51 +50,48 @@ export default function BydProntaEntrega() {
       toast({ title: "É necessário ter pelo menos uma tabela", variant: "destructive" });
       return;
     }
-    setTables(tables.filter(t => t.id !== tableId));
+    setTables(tables.filter((t) => t.id !== tableId));
   };
 
   const addLine = (tableId: string) => {
-    setTables(tables.map(t => 
-      t.id === tableId 
-        ? { ...t, lines: [...t.lines, { id: crypto.randomUUID(), descricao: "", valor: 0 }] }
-        : t
-    ));
+    setTables(
+      tables.map((t) =>
+        t.id === tableId ? { ...t, lines: [...t.lines, { id: crypto.randomUUID(), descricao: "", valor: 0 }] } : t,
+      ),
+    );
   };
 
   const removeLine = (tableId: string, lineId: string) => {
-    const table = tables.find(t => t.id === tableId);
+    const table = tables.find((t) => t.id === tableId);
     if (table && table.lines.length === 1) {
       toast({ title: "É necessário ter pelo menos uma linha por tabela", variant: "destructive" });
       return;
     }
-    setTables(tables.map(t => 
-      t.id === tableId 
-        ? { ...t, lines: t.lines.filter(l => l.id !== lineId) }
-        : t
-    ));
+    setTables(tables.map((t) => (t.id === tableId ? { ...t, lines: t.lines.filter((l) => l.id !== lineId) } : t)));
   };
 
   const updateLine = (tableId: string, lineId: string, field: keyof LineItem, value: any) => {
-    setTables(tables.map(t => 
-      t.id === tableId 
-        ? {
-            ...t,
-            lines: t.lines.map(l => 
-              l.id === lineId ? { ...l, [field]: value } : l
-            )
-          }
-        : t
-    ));
+    setTables(
+      tables.map((t) =>
+        t.id === tableId
+          ? {
+              ...t,
+              lines: t.lines.map((l) => (l.id === lineId ? { ...l, [field]: value } : l)),
+            }
+          : t,
+      ),
+    );
   };
 
-  const totalGeral = tables.reduce((sum, table) => 
-    sum + table.lines.reduce((lineSum, line) => lineSum + (line.valor || 0), 0), 0
+  const totalGeral = tables.reduce(
+    (sum, table) => sum + table.lines.reduce((lineSum, line) => lineSum + (line.valor || 0), 0),
+    0,
   );
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
-      currency: "BRL"
+      currency: "BRL",
     }).format(value);
   };
 
@@ -99,43 +99,111 @@ export default function BydProntaEntrega() {
     toast({ title: "Salvo com sucesso!" });
   };
 
+  // ===== Exportar PDF sem cortes/linhas entre páginas =====
   const handleExportPDF = async () => {
     if (!printRef.current) return;
-    
+
+    // Remover sombra do preview durante a captura (sombra costuma virar “linha”)
+    const el = printRef.current;
+    const prevBoxShadow = el.style.boxShadow;
+    el.style.boxShadow = "none";
+
     try {
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff"
+      const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+      const canvas = await html2canvas(el, {
+        scale,
+        useCORS: true,
+        backgroundColor: "#FFFFFF",
+        logging: false,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight,
       });
-      
-      const imgData = canvas.toDataURL("image/png");
+
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: "a4"
+        format: "a4",
       });
-      
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+
+      // Dimensões da página em mm
+      const pageWmm = pdf.internal.pageSize.getWidth(); // 210
+      const pageHmm = pdf.internal.pageSize.getHeight(); // 297
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+
+      // Conversão px/mm baseada na LARGURA (mantém proporção 1:1 largura)
+      const pxPerMm = cw / pageWmm;
+      // Altura da página em px — ceil para garantir cobertura (evita gap)
+      const pageHPx = Math.ceil(pageHmm * pxPerMm);
+
+      // Sobreposição pequena entre páginas para eliminar emenda visível
+      const overlapPx = 4;
+
+      let y = 0;
+      let pageIndex = 0;
+
+      while (y < ch) {
+        const isLast = y + pageHPx >= ch;
+        const sliceHeight = isLast ? ch - y : pageHPx + overlapPx;
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = cw;
+        pageCanvas.height = sliceHeight;
+
+        const ctx = pageCanvas.getContext("2d")!;
+        ctx.imageSmoothingEnabled = true;
+        // @ts-ignore
+        ctx.imageSmoothingQuality = "high";
+
+        ctx.drawImage(
+          canvas,
+          0,
+          y,
+          cw,
+          sliceHeight, // origem
+          0,
+          0,
+          cw,
+          sliceHeight, // destino
+        );
+
+        const imgData = pageCanvas.toDataURL("image/png");
+
+        if (pageIndex > 0) pdf.addPage();
+
+        // Fundo branco para garantir que nada “vaze” no viewer
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pageWmm, pageHmm, "F");
+
+        // Nas páginas “cheias”, força 100% da altura da página
+        const targetHeightMm = isLast ? sliceHeight / pxPerMm : pageHmm;
+        pdf.addImage(imgData, "PNG", 0, 0, pageWmm, targetHeightMm);
+
+        // Avança ignorando a sobreposição (ela fica por baixo da próxima)
+        y += isLast ? sliceHeight : pageHPx;
+        pageIndex += 1;
+      }
+
       pdf.save(`${titulo}-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`);
-      
       toast({ title: "PDF gerado com sucesso!" });
     } catch (error) {
       toast({ title: "Erro ao gerar PDF", variant: "destructive" });
+    } finally {
+      // Restaura sombra do preview
+      if (el) el.style.boxShadow = prevBoxShadow;
     }
   };
 
   const handleExportImage = async () => {
     if (!printRef.current) return;
-    
+
     try {
       const canvas = await html2canvas(printRef.current, {
         scale: 2,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
       });
-      
+
       canvas.toBlob((blob) => {
         if (!blob) return;
         const url = URL.createObjectURL(blob);
@@ -145,7 +213,7 @@ export default function BydProntaEntrega() {
         a.click();
         URL.revokeObjectURL(url);
       });
-      
+
       toast({ title: "Imagem gerada com sucesso!" });
     } catch (error) {
       toast({ title: "Erro ao gerar imagem", variant: "destructive" });
@@ -154,6 +222,15 @@ export default function BydProntaEntrega() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* CSS opcional para impressão no navegador (não interfere no PDF) */}
+      <style>{`
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @media print {
+          @page { size: A4 portrait; margin: 10mm; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
       <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -163,9 +240,7 @@ export default function BydProntaEntrega() {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold">Tabela de Orçamento BYD</h1>
-                <p className="text-sm text-muted-foreground">
-                  {new Date().toLocaleDateString("pt-BR")}
-                </p>
+                <p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("pt-BR")}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -191,15 +266,11 @@ export default function BydProntaEntrega() {
           {/* Editor */}
           <Card className="p-6 h-fit sticky top-24">
             <h2 className="text-lg font-semibold mb-4">Configurações</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Título do Documento</label>
-                <Input
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Título do documento"
-                />
+                <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título do documento" />
               </div>
 
               <div>
@@ -236,11 +307,7 @@ export default function BydProntaEntrega() {
                       <div className="flex items-center justify-between">
                         <span className="font-medium">Tabela {tableIdx + 1}</span>
                         {tables.length > 1 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeTable(table.id)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => removeTable(table.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
@@ -248,7 +315,10 @@ export default function BydProntaEntrega() {
 
                       <div className="space-y-2">
                         {table.lines.map((line, lineIdx) => (
-                          <div key={line.id} className="text-xs bg-muted/30 p-2 rounded flex items-center justify-between">
+                          <div
+                            key={line.id}
+                            className="text-xs bg-muted/30 p-2 rounded flex items-center justify-between"
+                          >
                             <span className="flex-1 truncate">
                               {line.descricao || `Linha ${lineIdx + 1}`} - {formatCurrency(line.valor)}
                             </span>
@@ -266,12 +336,7 @@ export default function BydProntaEntrega() {
                         ))}
                       </div>
 
-                      <Button 
-                        onClick={() => addLine(table.id)} 
-                        size="sm" 
-                        variant="outline" 
-                        className="w-full gap-2"
-                      >
+                      <Button onClick={() => addLine(table.id)} size="sm" variant="outline" className="w-full gap-2">
                         <Plus className="h-3 w-3" />
                         Adicionar Linha
                       </Button>
@@ -302,13 +367,11 @@ export default function BydProntaEntrega() {
               {/* Múltiplas Tabelas */}
               {tables.map((table, tableIdx) => {
                 const subtotal = table.lines.reduce((sum, line) => sum + (line.valor || 0), 0);
-                
+
                 return (
                   <div key={table.id} className={tableIdx > 0 ? "mt-8" : ""}>
-                    {tables.length > 1 && (
-                      <h3 className="font-bold mb-2">Tabela {tableIdx + 1}</h3>
-                    )}
-                    
+                    {tables.length > 1 && <h3 className="font-bold mb-2">Tabela {tableIdx + 1}</h3>}
+
                     <table className="w-full border-collapse mb-4">
                       <tbody>
                         {table.lines.map((line) => (
@@ -325,7 +388,9 @@ export default function BydProntaEntrega() {
                               <Input
                                 type="number"
                                 value={line.valor || ""}
-                                onChange={(e) => updateLine(table.id, line.id, "valor", parseFloat(e.target.value) || 0)}
+                                onChange={(e) =>
+                                  updateLine(table.id, line.id, "valor", parseFloat(e.target.value) || 0)
+                                }
                                 className="border-0 p-0 h-auto text-right font-semibold bg-transparent"
                                 step="0.01"
                               />
@@ -340,13 +405,11 @@ export default function BydProntaEntrega() {
                             </td>
                           </tr>
                         ))}
-                        
+
                         {/* Subtotal (se múltiplas tabelas) */}
                         {tables.length > 1 && (
                           <tr className="bg-gray-100">
-                            <td className="py-2 px-3 border border-gray-800 font-bold">
-                              Subtotal
-                            </td>
+                            <td className="py-2 px-3 border border-gray-800 font-bold">Subtotal</td>
                             <td className="py-2 px-3 border border-gray-800 text-right font-bold whitespace-nowrap">
                               {formatCurrency(subtotal)}
                             </td>
@@ -363,9 +426,7 @@ export default function BydProntaEntrega() {
               <table className="w-full border-collapse">
                 <tbody>
                   <tr className="bg-[#4A90E2]/10">
-                    <td className="py-3 px-3 border-2 border-gray-800 font-bold text-lg">
-                      TOTAL GERAL
-                    </td>
+                    <td className="py-3 px-3 border-2 border-gray-800 font-bold text-lg">TOTAL GERAL</td>
                     <td className="py-3 px-3 border-2 border-gray-800 text-right font-bold text-lg whitespace-nowrap">
                       {formatCurrency(totalGeral)}
                     </td>
