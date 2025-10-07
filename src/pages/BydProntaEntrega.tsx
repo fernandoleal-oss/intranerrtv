@@ -99,14 +99,15 @@ export default function BydProntaEntrega() {
     toast({ title: "Salvo com sucesso!" });
   };
 
-  // ===== Exportar PDF sem cortes/linhas entre páginas =====
   const handleExportPDF = async () => {
     if (!printRef.current) return;
 
-    // Remover sombra do preview durante a captura (sombra costuma virar “linha”)
+    // Remover sombra/fundo durante a captura (sombra vira “linha”)
     const el = printRef.current;
     const prevBoxShadow = el.style.boxShadow;
+    const prevBg = el.style.backgroundColor;
     el.style.boxShadow = "none";
+    el.style.backgroundColor = "#FFFFFF";
 
     try {
       const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
@@ -119,33 +120,30 @@ export default function BydProntaEntrega() {
         windowHeight: el.scrollHeight,
       });
 
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-      // Dimensões da página em mm
-      const pageWmm = pdf.internal.pageSize.getWidth(); // 210
-      const pageHmm = pdf.internal.pageSize.getHeight(); // 297
+      // Dimensões da página em mm (duas casas para reduzir artefatos)
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const pageWmm = round2(pdf.internal.pageSize.getWidth()); // ~210
+      const pageHmm = round2(pdf.internal.pageSize.getHeight()); // ~297
 
       const cw = canvas.width;
       const ch = canvas.height;
 
-      // Conversão px/mm baseada na LARGURA (mantém proporção 1:1 largura)
+      // px/mm (com base na largura para manter proporção)
       const pxPerMm = cw / pageWmm;
-      // Altura da página em px — ceil para garantir cobertura (evita gap)
-      const pageHPx = Math.ceil(pageHmm * pxPerMm);
+      const pageHPx = Math.ceil(pageHmm * pxPerMm); // altura da página em px (ceil)
 
-      // Sobreposição pequena entre páginas para eliminar emenda visível
-      const overlapPx = 4;
+      // Ajustes para esconder a emenda
+      const OVERLAP_PX = 4; // recorta um pouquinho a mais
+      const BLEED_MM = 0.6; // desenha um pouquinho MAIOR que a página
 
       let y = 0;
       let pageIndex = 0;
 
       while (y < ch) {
         const isLast = y + pageHPx >= ch;
-        const sliceHeight = isLast ? ch - y : pageHPx + overlapPx;
+        const sliceHeight = isLast ? ch - y : pageHPx + OVERLAP_PX;
 
         const pageCanvas = document.createElement("canvas");
         pageCanvas.width = cw;
@@ -155,43 +153,33 @@ export default function BydProntaEntrega() {
         ctx.imageSmoothingEnabled = true;
         // @ts-ignore
         ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(canvas, 0, y, cw, sliceHeight, 0, 0, cw, sliceHeight);
 
-        ctx.drawImage(
-          canvas,
-          0,
-          y,
-          cw,
-          sliceHeight, // origem
-          0,
-          0,
-          cw,
-          sliceHeight, // destino
-        );
-
-        const imgData = pageCanvas.toDataURL("image/png");
+        // JPEG evita bordas com alpha/transparência
+        const imgData = pageCanvas.toDataURL("image/jpeg", 1.0);
 
         if (pageIndex > 0) pdf.addPage();
 
-        // Fundo branco para garantir que nada “vaze” no viewer
+        // Fundo branco para não sobrar nada do viewer
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pageWmm, pageHmm, "F");
 
-        // Nas páginas “cheias”, força 100% da altura da página
-        const targetHeightMm = isLast ? sliceHeight / pxPerMm : pageHmm;
-        pdf.addImage(imgData, "PNG", 0, 0, pageWmm, targetHeightMm);
+        // Páginas cheias: ocupa 100% + BLEED; última respeita o restante
+        const targetH = isLast ? sliceHeight / pxPerMm : pageHmm + BLEED_MM;
+        pdf.addImage(imgData, "JPEG", 0, 0, pageWmm, targetH);
 
-        // Avança ignorando a sobreposição (ela fica por baixo da próxima)
-        y += isLast ? sliceHeight : pageHPx;
+        y += isLast ? sliceHeight : pageHPx; // avança ignorando o overlap
         pageIndex += 1;
       }
 
       pdf.save(`${titulo}-${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.pdf`);
       toast({ title: "PDF gerado com sucesso!" });
-    } catch (error) {
+    } catch {
       toast({ title: "Erro ao gerar PDF", variant: "destructive" });
     } finally {
-      // Restaura sombra do preview
-      if (el) el.style.boxShadow = prevBoxShadow;
+      // Restaurar estilos do preview
+      el.style.boxShadow = prevBoxShadow;
+      el.style.backgroundColor = prevBg;
     }
   };
 
@@ -222,15 +210,6 @@ export default function BydProntaEntrega() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* CSS opcional para impressão no navegador (não interfere no PDF) */}
-      <style>{`
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        @media print {
-          @page { size: A4 portrait; margin: 10mm; }
-          .no-print { display: none !important; }
-        }
-      `}</style>
-
       <header className="border-b bg-card sticky top-0 z-10 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
