@@ -78,67 +78,73 @@ export default function BudgetPdf() {
     fetchBudget();
   }, [id, navigate]);
 
-  // NOVO: lógica que fatia o canvas por página, evitando cortes
+  // Geração de PDF sem cortes (paginando o canvas com sobreposição)
   const handleGeneratePdf = async () => {
     if (!contentRef.current || !data) return;
-
     setGenerating(true);
+
     try {
       const element = contentRef.current;
 
+      const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
       const canvas = await html2canvas(element, {
-        scale: window.devicePixelRatio > 1 ? 2 : 1.5,
+        scale,
         useCORS: true,
         backgroundColor: "#FFFFFF",
         logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
 
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth(); // 210 mm
       const pageHeight = pdf.internal.pageSize.getHeight(); // 297 mm
 
-      const canvasWidth = canvas.width;
-      const canvasHeight = canvas.height;
+      const cw = canvas.width;
+      const ch = canvas.height;
 
-      // px por mm baseado na largura (mantém proporção correta)
-      const pxPerMm = canvasWidth / pageWidth;
-      const pageHeightPx = pageHeight * pxPerMm;
+      // px/mm com base na largura para manter proporção
+      const pxPerMm = cw / pageWidth;
+      const pageHeightPx = Math.floor(pageHeight * pxPerMm);
+
+      // sobreposição para eliminar a linha de emenda
+      const overlapPx = 4;
 
       let y = 0;
       let pageIndex = 0;
 
-      while (y < canvasHeight) {
-        const sliceHeight = Math.min(pageHeightPx, canvasHeight - y);
+      while (y < ch) {
+        const isLast = y + pageHeightPx >= ch;
+        const srcHeight = isLast ? ch - y : pageHeightPx + overlapPx;
 
         const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = canvasWidth;
-        pageCanvas.height = Math.ceil(sliceHeight);
+        pageCanvas.width = cw;
+        pageCanvas.height = srcHeight;
 
         const ctx = pageCanvas.getContext("2d")!;
+        ctx.imageSmoothingEnabled = true;
+        // @ts-ignore - nem toda tipagem expõe quality
+        ctx.imageSmoothingQuality = "high";
+
         ctx.drawImage(
           canvas,
           0,
-          y,
-          canvasWidth,
-          sliceHeight, // origem
+          Math.round(y),
+          cw,
+          srcHeight, // recorte da origem
           0,
           0,
-          canvasWidth,
-          sliceHeight, // destino
+          cw,
+          srcHeight, // destino
         );
 
         const imgData = pageCanvas.toDataURL("image/png");
-        const imgHeightMm = (sliceHeight * pageWidth) / canvasWidth;
+        const imgHeightMm = (srcHeight * pageWidth) / cw;
 
         if (pageIndex > 0) pdf.addPage();
         pdf.addImage(imgData, "PNG", 0, 0, pageWidth, imgHeightMm);
 
-        y += sliceHeight;
+        y += isLast ? srcHeight : pageHeightPx; // avança sem contar a sobreposição
         pageIndex += 1;
       }
 
@@ -212,17 +218,20 @@ export default function BudgetPdf() {
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         @media print {
-          @page { size: A4 portrait; margin: 10mm 10mm 12mm 10mm; }
+          @page { size: A4 portrait; margin: 10mm; }
           html, body { width: 210mm; }
           .no-print { display: none !important; }
-          .print-content { box-shadow: none; }
+          .print-content, .print-content * { box-shadow: none !important; }
         }
 
         .print-content {
-          background: white;
-          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          width: 210mm;
+          min-height: 297mm;
+          padding: 15mm 20mm;
           margin: 0 auto;
-          /* ESSENCIAL: impede overflow ao somar padding com largura fixa */
+          background: #FFFFFF;
+          color: #000000;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
           box-sizing: border-box;
         }
 
@@ -257,10 +266,10 @@ export default function BudgetPdf() {
             color: "#000000",
             padding: "15mm 20mm",
             margin: "0 auto",
-            boxSizing: "border-box", // NOVO: evita corte horizontal
+            boxSizing: "border-box",
           }}
         >
-          {/* Cabeçalho com Logo e Dados da Empresa */}
+          {/* Cabeçalho */}
           <div
             className="avoid-break flex items-start justify-between mb-8 pb-6"
             style={{ borderBottom: "3px solid #E6191E" }}
