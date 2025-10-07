@@ -180,8 +180,34 @@ export default function BudgetPdf() {
 
   return (
     <AppLayout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-6">
+      <style>{`
+        @media print {
+          body {
+            margin: 0;
+            padding: 0;
+          }
+          .print-content {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0;
+            padding: 15mm 20mm;
+            background: white;
+            box-shadow: none;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+        
+        .print-content {
+          background: white;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          margin: 0 auto;
+        }
+      `}</style>
+      
+      <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
+        <div className="flex items-center justify-between mb-6 no-print">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate(`/budget/${id}`)}>
               <ArrowLeft className="h-5 w-5" />
@@ -200,54 +226,81 @@ export default function BudgetPdf() {
 
         <div
           ref={contentRef}
-          className="max-w-[210mm] mx-auto"
+          className="print-content"
           style={{ 
+            width: "210mm",
             minHeight: "297mm", 
             backgroundColor: "#FFFFFF", 
             color: "#000000",
-            padding: "20mm 15mm 20mm 15mm"
+            padding: "15mm 20mm",
+            margin: "0 auto"
           }}
         >
           {/* Cabeçalho com Logo e Dados da Empresa */}
-          <div className="flex items-start justify-between mb-6 pb-4" style={{ borderBottom: "3px solid #E6191E" }}>
+          <div className="flex items-start justify-between mb-8 pb-6" style={{ borderBottom: "3px solid #E6191E" }}>
             <div className="flex-1">
-              <img src={logoWE} alt="Logo WE" className="h-14 mb-3" />
-              <div className="text-[9px] leading-relaxed" style={{ color: "#666666" }}>
-                <p className="font-bold text-[10px]" style={{ color: "#000000" }}>WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</p>
-                <p>CNPJ: 05.265.118/0001-65</p>
+              <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
+              <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666666" }}>
+                <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000000", marginBottom: "4px" }}>
+                  WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
+                </p>
+                <p style={{ marginBottom: "2px" }}>CNPJ: 05.265.118/0001-65</p>
                 <p>Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030</p>
               </div>
             </div>
-            <div className="text-right">
-              <h1 className="text-2xl font-bold mb-1" style={{ color: "#E6191E" }}>ORÇAMENTO</h1>
-              <p className="text-base font-semibold" style={{ color: "#000000" }}>{data.display_id}</p>
-              <p className="text-xs mt-1" style={{ color: "#666666" }}>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>
+                ORÇAMENTO
+              </h1>
+              <p style={{ fontSize: "16px", fontWeight: "600", color: "#000000", marginBottom: "4px" }}>
+                {data.display_id}
+              </p>
+              <p style={{ fontSize: "12px", color: "#666666" }}>
                 {new Date().toLocaleDateString("pt-BR")}
               </p>
             </div>
           </div>
 
           {/* Informações do Cliente */}
-          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: "#F5F5F5", border: "1px solid #E0E0E0" }}>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+          <div style={{ 
+            marginBottom: "24px", 
+            padding: "16px", 
+            borderRadius: "8px",
+            backgroundColor: "#F5F5F5", 
+            border: "1px solid #E0E0E0" 
+          }}>
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(2, 1fr)", 
+              gap: "16px",
+              fontSize: "13px"
+            }}>
               <div>
-                <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Cliente</p>
-                <p className="font-bold" style={{ color: "#000000" }}>{payload.cliente || "-"}</p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
+                  Cliente
+                </p>
+                <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
               </div>
               <div>
-                <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Produto</p>
-                <p className="font-bold" style={{ color: "#000000" }}>{payload.produto || "-"}</p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
+                  Produto
+                </p>
+                <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.produto || "-"}</p>
               </div>
               {payload.job && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Job</p>
-                  <p className="font-bold" style={{ color: "#000000" }}>{payload.job}</p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
+                    Job
+                  </p>
+                  <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.job}</p>
                 </div>
               )}
               {campanhas.length > 0 && campanhas[0].nome && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Campanha</p>
-                  <p className="font-bold" style={{ color: "#000000" }}>{campanhas[0].nome}</p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
+                    Campanha
+                  </p>
+                  <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhas[0].nome}</p>
                 </div>
               )}
             </div>
@@ -266,30 +319,65 @@ export default function BudgetPdf() {
             if (categoriasVisiveis.length === 0) return null;
 
             return (
-              <div key={campIdx} className="mb-6">
-                <div className="border-l-4 px-4 py-3 mb-3 rounded-r-lg" style={{ borderColor: "#E6191E", backgroundColor: "#F9F9F9" }}>
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-bold" style={{ color: "#000000" }}>{campanha.nome}</h2>
-                    <span className="text-base font-bold" style={{ color: "#E6191E" }}>
+              <div key={campIdx} style={{ marginBottom: "24px", pageBreakInside: "avoid" }}>
+                <div style={{ 
+                  borderLeft: "4px solid #E6191E",
+                  padding: "12px 16px",
+                  marginBottom: "12px",
+                  borderRadius: "0 8px 8px 0",
+                  backgroundColor: "#F9F9F9"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>
+                      {campanha.nome}
+                    </h2>
+                    <span style={{ fontSize: "16px", fontWeight: "bold", color: "#E6191E" }}>
                       {formatCurrency(calcularTotalCampanha(campanha))}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {categoriasVisiveis.map((cat: any, idx: number) => {
                     const maisBarato = getMaisBarato(cat);
                     const subtotal = calcularSubtotal(cat);
 
                     return (
-                      <div key={idx} className="pl-4 py-2 rounded-lg" style={{ backgroundColor: "#FAFAFA", borderLeft: "3px solid #D0D0D0" }}>
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-bold text-base" style={{ color: "#000000" }}>{cat.nome}</h3>
-                          <span className="font-bold text-base" style={{ color: "#000000" }}>{formatCurrency(subtotal)}</span>
+                      <div key={idx} style={{ 
+                        paddingLeft: "16px",
+                        paddingTop: "8px",
+                        paddingBottom: "8px",
+                        borderRadius: "8px",
+                        backgroundColor: "#FAFAFA",
+                        borderLeft: "3px solid #D0D0D0",
+                        pageBreakInside: "avoid"
+                      }}>
+                        <div style={{ 
+                          display: "flex", 
+                          justifyContent: "space-between", 
+                          alignItems: "flex-start",
+                          marginBottom: "8px"
+                        }}>
+                          <h3 style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>
+                            {cat.nome}
+                          </h3>
+                          <span style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>
+                            {formatCurrency(subtotal)}
+                          </span>
                         </div>
 
                         {cat.observacao && (
-                          <p className="text-xs mb-2 italic px-2 py-1 rounded" style={{ color: "#555555", backgroundColor: "#F0F0F0" }}>{cat.observacao}</p>
+                          <p style={{ 
+                            fontSize: "11px",
+                            marginBottom: "8px",
+                            fontStyle: "italic",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            color: "#555555",
+                            backgroundColor: "#F0F0F0"
+                          }}>
+                            {cat.observacao}
+                          </p>
                         )}
 
                         {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
@@ -369,35 +457,83 @@ export default function BudgetPdf() {
           })}
 
           {/* Totalizadores */}
-          <div className="pt-4 mt-6 space-y-2 rounded-lg p-4" style={{ backgroundColor: "#F5F5F5", borderTop: "3px solid #E6191E" }}>
+          <div style={{ 
+            paddingTop: "16px",
+            marginTop: "24px",
+            borderRadius: "8px",
+            padding: "16px",
+            backgroundColor: "#F5F5F5",
+            borderTop: "3px solid #E6191E",
+            pageBreakInside: "avoid"
+          }}>
             {campanhas.length > 1 &&
               campanhas.map((camp: any, idx: number) => {
                 const total = calcularTotalCampanha(camp);
                 if (total === 0) return null;
                 return (
-                  <div key={idx} className="flex justify-between text-sm font-semibold py-1" style={{ color: "#000000" }}>
+                  <div key={idx} style={{ 
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    paddingTop: "4px",
+                    paddingBottom: "4px",
+                    color: "#000000"
+                  }}>
                     <span>{camp.nome}:</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
                 );
               })}
-            <div className="flex justify-between items-center pt-3 mt-2" style={{ borderTop: "2px solid #D0D0D0" }}>
-              <span className="text-lg font-bold" style={{ color: "#000000" }}>TOTAL GERAL SUGERIDO:</span>
-              <span className="text-2xl font-bold" style={{ color: "#E6191E" }}>{formatCurrency(totalGeral)}</span>
+            <div style={{ 
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingTop: "12px",
+              marginTop: "8px",
+              borderTop: "2px solid #D0D0D0"
+            }}>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>
+                TOTAL GERAL SUGERIDO:
+              </span>
+              <span style={{ fontSize: "24px", fontWeight: "bold", color: "#E6191E" }}>
+                {formatCurrency(totalGeral)}
+              </span>
             </div>
           </div>
 
           {/* Observações */}
           {payload.observacoes && (
-            <div className="mt-5 p-4 rounded-lg" style={{ backgroundColor: "#FAFAFA", border: "1px solid #E0E0E0" }}>
-              <p className="text-sm font-bold mb-2" style={{ color: "#000000" }}>Observações:</p>
-              <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: "#555555" }}>{payload.observacoes}</p>
+            <div style={{ 
+              marginTop: "20px",
+              padding: "16px",
+              borderRadius: "8px",
+              backgroundColor: "#FAFAFA",
+              border: "1px solid #E0E0E0",
+              pageBreakInside: "avoid"
+            }}>
+              <p style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#000000" }}>
+                Observações:
+              </p>
+              <p style={{ 
+                fontSize: "11px",
+                lineHeight: "1.6",
+                whiteSpace: "pre-wrap",
+                color: "#555555"
+              }}>
+                {payload.observacoes}
+              </p>
             </div>
           )}
 
           {/* Rodapé LGPD */}
-          <div className="mt-6 pt-4" style={{ borderTop: "2px solid #E6191E" }}>
-            <p className="text-[9px] text-center leading-relaxed" style={{ color: "#888888" }}>
+          <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}>
+            <p style={{ 
+              fontSize: "9px",
+              textAlign: "center",
+              lineHeight: "1.6",
+              color: "#888888"
+            }}>
               Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. 
               Conforme a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018), 
               todas as informações contidas neste documento são tratadas com segurança e privacidade.
