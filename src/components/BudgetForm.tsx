@@ -324,7 +324,7 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
 
   const totalGeral = campanhas.reduce((sum, camp) => sum + calcularTotalCampanha(camp), 0);
 
-  const handleSalvar = async () => {
+  const handleSalvar = useCallback(async () => {
     if (!cliente || !produto) {
       toast({ title: "Preencha cliente e produto", variant: "destructive" });
       return;
@@ -384,7 +384,23 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
     } finally {
       setSaving(false);
     }
-  };
+  }, [cliente, produto, job, observacoes, numCampanhas, campanhas, budgetId, versionId, totalGeral, onSaveSuccess]);
+
+  // Listen for save event from Edit page
+  useEffect(() => {
+    const handleSaveEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { budgetId: eventBudgetId, versionId: eventVersionId } = customEvent.detail || {};
+      
+      // Only save if the event is for this budget
+      if (budgetId && eventBudgetId === budgetId && versionId === eventVersionId) {
+        handleSalvar();
+      }
+    };
+
+    window.addEventListener("budget:save", handleSaveEvent);
+    return () => window.removeEventListener("budget:save", handleSaveEvent);
+  }, [budgetId, versionId, handleSalvar]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
