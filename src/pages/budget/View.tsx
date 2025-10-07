@@ -232,57 +232,59 @@ export default function BudgetView() {
                                 const valorFinal = (f.valor || 0) - (f.desconto || 0);
 
                                 return (
-                                  <div
-                                    key={fIdx}
-                                    className={`border rounded-xl p-4 space-y-2 ${
-                                      isMaisBarato
-                                        ? "border-[#22c55e] bg-[#22c55e]/10 ring-2 ring-[#22c55e]/30 scale-105"
-                                        : "border-border"
-                                    }`}
-                                  >
-                                    {isMaisBarato && (
-                                      <div className="flex items-center gap-2 text-sm font-bold text-[#22c55e] mb-2">
-                                        <Star className="h-5 w-5 fill-current" />
-                                        SUGESTÃO - MAIS BARATO
-                                      </div>
-                                    )}
-                                    <div className="flex justify-between items-start">
-                                      <div className="space-y-1">
-                                        <p className={`font-bold ${isMaisBarato ? "text-lg" : "text-base"}`}>{f.nome}</p>
-                                        {f.diretor && (
-                                          <p className="text-sm text-muted-foreground">Diretor: {f.diretor}</p>
-                                        )}
-                                      </div>
-                                      <span className={`font-bold ${isMaisBarato ? "text-xl text-[#22c55e]" : "text-lg"}`}>
-                                        {formatCurrency(valorFinal)}
-                                      </span>
-                                    </div>
-                                    {f.escopo && (
-                                      <div className="pt-2 border-t">
-                                        <p className="text-sm font-medium mb-1">Escopo:</p>
-                                        <div className="text-sm text-muted-foreground">
-                                          {(() => {
-                                            const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
-                                            if (elencoMatch) {
-                                              const elenco = elencoMatch[1].trim();
-                                              const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
-                                              return (
-                                                <>
-                                                  {resto && <p className="mb-2">{resto}</p>}
-                                                  <div className="bg-primary/5 border-l-2 border-primary px-3 py-2 rounded">
-                                                    <p className="font-semibold text-foreground">
-                                                      <span className="text-primary">Elenco:</span> {elenco}
-                                                    </p>
-                                                  </div>
-                                                </>
-                                              );
-                                            }
-                                            return <p>{f.escopo}</p>;
-                                          })()}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                   <div
+                                     key={fIdx}
+                                     className={`border rounded-xl p-4 space-y-3 ${
+                                       isMaisBarato
+                                         ? "border-[#48bb78] bg-[#48bb78]/5 ring-2 ring-[#48bb78]/20"
+                                         : "border-border bg-card"
+                                     }`}
+                                   >
+                                     {isMaisBarato && (
+                                       <div className="flex items-center gap-2 text-sm font-bold text-[#48bb78]">
+                                         <Star className="h-5 w-5 fill-current" />
+                                         ★ OPÇÃO MAIS BARATA
+                                       </div>
+                                     )}
+                                     <div className="flex justify-between items-start">
+                                       <div className="space-y-1 flex-1 pr-4">
+                                         <p className={`font-bold ${isMaisBarato ? "text-lg" : "text-base"}`}>{f.nome}</p>
+                                         {f.diretor && (
+                                           <p className="text-sm text-muted-foreground">
+                                             <span className="font-semibold">Diretor:</span> {f.diretor}
+                                           </p>
+                                         )}
+                                       </div>
+                                       <span className={`font-bold ${isMaisBarato ? "text-xl text-[#48bb78]" : "text-lg"} flex-shrink-0`}>
+                                         {formatCurrency(valorFinal)}
+                                       </span>
+                                     </div>
+                                     {f.escopo && (
+                                       <div className="pt-3 border-t">
+                                         <p className="text-sm font-semibold mb-2 text-foreground">Escopo:</p>
+                                         <div className="text-sm text-muted-foreground leading-relaxed">
+                                           {(() => {
+                                             const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
+                                             if (elencoMatch) {
+                                               const elenco = elencoMatch[1].trim();
+                                               const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
+                                               return (
+                                                 <>
+                                                   {resto && <p className="mb-2">{resto}</p>}
+                                                   <div className="bg-muted border-l-2 border-muted-foreground px-3 py-2 rounded">
+                                                     <p className="font-semibold text-foreground italic">
+                                                       <span className="text-primary">Elenco:</span> {elenco}
+                                                     </p>
+                                                   </div>
+                                                 </>
+                                               );
+                                             }
+                                             return <p>{f.escopo}</p>;
+                                           })()}
+                                         </div>
+                                       </div>
+                                     )}
+                                   </div>
                                 );
                               })}
                             </div>

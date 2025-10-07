@@ -199,40 +199,43 @@ export default function BudgetPdf() {
 
         <div
           ref={contentRef}
-          className="p-6 rounded-2xl shadow-sm max-w-[210mm] mx-auto"
-          style={{ minHeight: "297mm", backgroundColor: "#A5A5A5", color: "#000000" }}
+          className="p-8 max-w-[210mm] mx-auto"
+          style={{ minHeight: "297mm", backgroundColor: "#FFFFFF", color: "#000000" }}
         >
           {/* Cabeçalho com Logo e Dados da Empresa */}
-          <div className="flex items-start justify-between mb-4 pb-3" style={{ borderBottom: "3px solid #E6191E" }}>
+          <div className="flex items-start justify-between mb-6 pb-4" style={{ borderBottom: "3px solid #E6191E" }}>
             <div className="flex-1">
-              <img src="/src/assets/Logo_WE.png" alt="Logo WE" className="h-12 mb-2" />
-              <div className="text-[9px] leading-tight" style={{ color: "#000000" }}>
-                <p className="font-bold">AGÊNCIA WE COMUNICAÇÃO LTDA</p>
+              <img src="/src/assets/Logo_WE.png" alt="Logo WE" className="h-14 mb-3" />
+              <div className="text-[9px] leading-relaxed" style={{ color: "#666666" }}>
+                <p className="font-bold text-[10px]" style={{ color: "#000000" }}>AGÊNCIA WE COMUNICAÇÃO LTDA</p>
                 <p>CNPJ: 00.000.000/0001-00</p>
                 <p>Rua Exemplo, 123 - São Paulo/SP - CEP 00000-000</p>
                 <p>Tel: (11) 0000-0000 | contato@agenciawe.com.br</p>
               </div>
             </div>
             <div className="text-right">
-              <h1 className="text-xl font-bold mb-1" style={{ color: "#E6191E" }}>ORÇAMENTO</h1>
-              <p className="text-sm font-semibold" style={{ color: "#000000" }}>{data.display_id}</p>
+              <h1 className="text-2xl font-bold mb-1" style={{ color: "#E6191E" }}>ORÇAMENTO</h1>
+              <p className="text-base font-semibold" style={{ color: "#000000" }}>{data.display_id}</p>
+              <p className="text-xs mt-1" style={{ color: "#666666" }}>
+                {new Date().toLocaleDateString("pt-BR")}
+              </p>
             </div>
           </div>
 
           {/* Informações do Cliente */}
-          <div className="mb-4 p-3 rounded" style={{ backgroundColor: "rgba(0,0,0,0.05)" }}>
-            <div className="grid grid-cols-3 gap-3 text-xs">
+          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: "#F5F5F5", border: "1px solid #E0E0E0" }}>
+            <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="mb-0.5 font-semibold" style={{ color: "#000000", opacity: 0.7 }}>Cliente</p>
+                <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Cliente</p>
                 <p className="font-bold" style={{ color: "#000000" }}>{payload.cliente || "-"}</p>
               </div>
               <div>
-                <p className="mb-0.5 font-semibold" style={{ color: "#000000", opacity: 0.7 }}>Produto</p>
+                <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Produto</p>
                 <p className="font-bold" style={{ color: "#000000" }}>{payload.produto || "-"}</p>
               </div>
               {payload.job && (
                 <div>
-                  <p className="mb-0.5 font-semibold" style={{ color: "#000000", opacity: 0.7 }}>Job</p>
+                  <p className="mb-1 text-xs font-semibold" style={{ color: "#666666" }}>Job</p>
                   <p className="font-bold" style={{ color: "#000000" }}>{payload.job}</p>
                 </div>
               )}
@@ -252,34 +255,34 @@ export default function BudgetPdf() {
             if (categoriasVisiveis.length === 0) return null;
 
             return (
-              <div key={campIdx} className="mb-4">
-                <div className="border-l-4 px-3 py-2 mb-2" style={{ borderColor: "#E6191E", backgroundColor: "rgba(0,0,0,0.05)" }}>
+              <div key={campIdx} className="mb-6">
+                <div className="border-l-4 px-4 py-3 mb-3 rounded-r-lg" style={{ borderColor: "#E6191E", backgroundColor: "#F9F9F9" }}>
                   <div className="flex justify-between items-center">
-                    <h2 className="text-base font-bold" style={{ color: "#000000" }}>{campanha.nome}</h2>
-                    <span className="text-sm font-bold" style={{ color: "#000000" }}>
+                    <h2 className="text-lg font-bold" style={{ color: "#000000" }}>{campanha.nome}</h2>
+                    <span className="text-base font-bold" style={{ color: "#E6191E" }}>
                       {formatCurrency(calcularTotalCampanha(campanha))}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {categoriasVisiveis.map((cat: any, idx: number) => {
                     const maisBarato = getMaisBarato(cat);
                     const subtotal = calcularSubtotal(cat);
 
                     return (
-                      <div key={idx} className="pl-2 py-1" style={{ borderLeft: "2px solid rgba(0,0,0,0.2)" }}>
-                        <div className="flex justify-between items-start mb-1">
-                          <h3 className="font-bold text-sm" style={{ color: "#000000" }}>{cat.nome}</h3>
-                          <span className="font-bold text-sm" style={{ color: "#000000" }}>{formatCurrency(subtotal)}</span>
+                      <div key={idx} className="pl-4 py-2 rounded-lg" style={{ backgroundColor: "#FAFAFA", borderLeft: "3px solid #D0D0D0" }}>
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-bold text-base" style={{ color: "#000000" }}>{cat.nome}</h3>
+                          <span className="font-bold text-base" style={{ color: "#000000" }}>{formatCurrency(subtotal)}</span>
                         </div>
 
                         {cat.observacao && (
-                          <p className="text-xs mb-1 italic" style={{ color: "#000000", opacity: 0.7 }}>{cat.observacao}</p>
+                          <p className="text-xs mb-2 italic px-2 py-1 rounded" style={{ color: "#555555", backgroundColor: "#F0F0F0" }}>{cat.observacao}</p>
                         )}
 
                         {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
-                          <div className="space-y-2 text-xs">
+                          <div className="space-y-3 mt-3">
                             {cat.fornecedores.map((f: any, fIdx: number) => {
                               const isMaisBarato = maisBarato === f || maisBarato?.id === f.id;
                               const valorFinal = (f.valor || 0) - (f.desconto || 0);
@@ -287,30 +290,33 @@ export default function BudgetPdf() {
                               return (
                                  <div
                                    key={fIdx}
-                                   className={`rounded px-2 py-2 ${
-                                     isMaisBarato ? "border-l-3" : ""
-                                   }`}
+                                   className="rounded-lg px-3 py-3"
                                    style={{
-                                     backgroundColor: isMaisBarato ? "rgba(72, 187, 120, 0.12)" : "rgba(255,255,255,0.3)",
-                                     borderLeft: isMaisBarato ? "3px solid #48bb78" : "none",
+                                     backgroundColor: isMaisBarato ? "#F0FAF4" : "#FFFFFF",
+                                     border: isMaisBarato ? "2px solid #48bb78" : "1px solid #E5E5E5",
+                                     boxShadow: isMaisBarato ? "0 2px 8px rgba(72, 187, 120, 0.15)" : "0 1px 3px rgba(0,0,0,0.08)",
                                    }}
                                  >
-                                   {isMaisBarato && (
-                                     <div className="flex items-center gap-1 mb-1">
-                                       <Star className="h-3 w-3 fill-green-500 text-green-500" />
-                                       <span className="text-[9px] font-bold" style={{ color: "#48bb78" }}>OPÇÃO MAIS BARATA</span>
-                                     </div>
-                                   )}
-                                   <div className="flex justify-between items-start mb-1">
-                                     <div className="flex-1">
-                                       <p className={`font-semibold ${isMaisBarato ? "text-[11px]" : "text-[10px]"}`} style={{ color: "#000000" }}>
-                                         {f.nome}
-                                       </p>
+                                   <div className="flex justify-between items-start mb-2">
+                                     <div className="flex-1 pr-3">
+                                       <div className="flex items-center gap-2 mb-1">
+                                         {isMaisBarato && (
+                                           <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
+                                         )}
+                                         <p className={`font-bold ${isMaisBarato ? "text-sm" : "text-xs"}`} style={{ color: "#000000" }}>
+                                           {f.nome}
+                                         </p>
+                                       </div>
+                                       {isMaisBarato && (
+                                         <p className="text-[10px] font-semibold mb-1" style={{ color: "#48bb78" }}>★ OPÇÃO MAIS BARATA</p>
+                                       )}
                                        {f.diretor && (
-                                         <p className="text-[9px]" style={{ color: "#000000", opacity: 0.7 }}>Diretor: {f.diretor}</p>
+                                         <p className="text-[10px] mb-1" style={{ color: "#666666" }}>
+                                           <span className="font-semibold">Diretor:</span> {f.diretor}
+                                         </p>
                                        )}
                                        {f.escopo && (
-                                         <div className="text-[9px] mt-1" style={{ color: "#000000", opacity: 0.7 }}>
+                                         <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444444" }}>
                                            {(() => {
                                              const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
                                              if (elencoMatch) {
@@ -318,10 +324,12 @@ export default function BudgetPdf() {
                                                const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, '').trim();
                                                return (
                                                  <>
-                                                   {resto && <p className="mb-0.5">{resto}</p>}
-                                                   <p className="font-semibold italic" style={{ color: "#000000", opacity: 0.85 }}>
-                                                     Elenco: {elenco}
-                                                   </p>
+                                                   {resto && <p className="mb-1.5">{resto}</p>}
+                                                   <div className="bg-gray-50 border-l-2 border-gray-400 pl-2 py-1 mt-1">
+                                                     <p className="font-semibold italic">
+                                                       <span style={{ color: "#666666" }}>Elenco:</span> {elenco}
+                                                     </p>
+                                                   </div>
                                                  </>
                                                );
                                              }
@@ -330,9 +338,11 @@ export default function BudgetPdf() {
                                          </div>
                                        )}
                                      </div>
-                                     <span className={`font-bold ${isMaisBarato ? "text-[11px]" : "text-[10px]"} ml-2 flex-shrink-0`} style={{ color: isMaisBarato ? "#48bb78" : "#000000" }}>
-                                       {formatCurrency(valorFinal)}
-                                     </span>
+                                     <div className="text-right flex-shrink-0">
+                                       <span className={`font-bold ${isMaisBarato ? "text-base" : "text-sm"}`} style={{ color: isMaisBarato ? "#48bb78" : "#000000" }}>
+                                         {formatCurrency(valorFinal)}
+                                       </span>
+                                     </div>
                                    </div>
                                  </div>
                               );
@@ -347,34 +357,36 @@ export default function BudgetPdf() {
             );
           })}
 
-          <div className="pt-3 mt-4 space-y-1" style={{ borderTop: "2px solid #E6191E" }}>
+          {/* Totalizadores */}
+          <div className="pt-4 mt-6 space-y-2 rounded-lg p-4" style={{ backgroundColor: "#F5F5F5", borderTop: "3px solid #E6191E" }}>
             {campanhas.length > 1 &&
               campanhas.map((camp: any, idx: number) => {
                 const total = calcularTotalCampanha(camp);
                 if (total === 0) return null;
                 return (
-                  <div key={idx} className="flex justify-between text-sm font-semibold" style={{ color: "#000000" }}>
+                  <div key={idx} className="flex justify-between text-sm font-semibold py-1" style={{ color: "#000000" }}>
                     <span>{camp.nome}:</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
                 );
               })}
-            <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid rgba(0,0,0,0.2)" }}>
+            <div className="flex justify-between items-center pt-3 mt-2" style={{ borderTop: "2px solid #D0D0D0" }}>
               <span className="text-lg font-bold" style={{ color: "#000000" }}>TOTAL GERAL SUGERIDO:</span>
               <span className="text-2xl font-bold" style={{ color: "#E6191E" }}>{formatCurrency(totalGeral)}</span>
             </div>
           </div>
 
+          {/* Observações */}
           {payload.observacoes && (
-            <div className="mt-3 pt-2" style={{ borderTop: "1px solid rgba(0,0,0,0.2)" }}>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#000000" }}>Observações:</p>
-              <p className="text-xs whitespace-pre-wrap" style={{ color: "#000000", opacity: 0.8 }}>{payload.observacoes}</p>
+            <div className="mt-5 p-4 rounded-lg" style={{ backgroundColor: "#FAFAFA", border: "1px solid #E0E0E0" }}>
+              <p className="text-sm font-bold mb-2" style={{ color: "#000000" }}>Observações:</p>
+              <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: "#555555" }}>{payload.observacoes}</p>
             </div>
           )}
 
           {/* Rodapé LGPD */}
-          <div className="mt-4 pt-3" style={{ borderTop: "2px solid #E6191E" }}>
-            <p className="text-[8px] text-center leading-tight" style={{ color: "#000000", opacity: 0.6 }}>
+          <div className="mt-6 pt-4" style={{ borderTop: "2px solid #E6191E" }}>
+            <p className="text-[9px] text-center leading-relaxed" style={{ color: "#888888" }}>
               Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. 
               Conforme a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018), 
               todas as informações contidas neste documento são tratadas com segurança e privacidade.
