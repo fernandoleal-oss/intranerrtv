@@ -34,7 +34,8 @@ export default function BudgetPdf() {
       try {
         const { data: row, error } = await supabase
           .from("versions")
-          .select(`
+          .select(
+            `
             id,
             payload,
             versao,
@@ -44,7 +45,8 @@ export default function BudgetPdf() {
               type,
               status
             )
-          `)
+          `,
+          )
           .eq("budget_id", id)
           .order("versao", { ascending: false })
           .limit(1)
@@ -76,7 +78,7 @@ export default function BudgetPdf() {
     fetchBudget();
   }, [id, navigate]);
 
-  // ====== NOVO: Geração de PDF sem "risco" entre páginas ======
+  // ====== Geração de PDF sem "risco" entre páginas ======
   const handleGeneratePdf = async () => {
     if (!contentRef.current || !data) return;
     setGenerating(true);
@@ -90,28 +92,26 @@ export default function BudgetPdf() {
         useCORS: true,
         backgroundColor: "#FFFFFF",
         logging: false,
-        // Garante render do conteúdo todo (não só viewport)
         windowWidth: element.scrollWidth,
         windowHeight: element.scrollHeight,
       });
 
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-      const pageWmm = pdf.internal.pageSize.getWidth();   // 210mm
-      const pageHmm = pdf.internal.pageSize.getHeight();  // 297mm
+      const pageWmm = pdf.internal.pageSize.getWidth(); // 210mm
+      const pageHmm = pdf.internal.pageSize.getHeight(); // 297mm
 
       const cw = canvas.width;
       const ch = canvas.height;
 
-      // Conversão precisa px↔mm com base na largura
+      // px↔mm com base na LARGURA (mantém proporção perfeita)
       const pxPerMm = cw / pageWmm;
-      const pageHPx = Math.round(pageHmm * pxPerMm); // altura exata da página em px
+      const pageHPx = Math.ceil(pageHmm * pxPerMm); // altura exata da página em px (arredonda pra cima)
 
       let y = 0;
       let pageIndex = 0;
 
       while (y < ch) {
-        // fatia sempre com a altura EXATA da página (última pode ser menor)
         const srcHeight = Math.min(pageHPx, ch - y);
 
         const pageCanvas = document.createElement("canvas");
@@ -125,22 +125,27 @@ export default function BudgetPdf() {
 
         ctx.drawImage(
           canvas,
-          0, y, cw, srcHeight,  // origem
-          0, 0, cw, srcHeight   // destino
+          0,
+          y,
+          cw,
+          srcHeight, // origem
+          0,
+          0,
+          cw,
+          srcHeight, // destino
         );
 
         const img = pageCanvas.toDataURL("image/png");
 
         if (pageIndex > 0) pdf.addPage();
 
-        // pinta fundo branco para garantir que qualquer "sobra" não apareça escura
+        // Fundo branco na página
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pageWmm, pageHmm, "F");
 
-        // Para páginas completas: força ocupar 100% da altura da página
-        // (elimina gaps por arredondamento). Na última, respeita a altura real.
         const isLast = y + srcHeight >= ch;
-        const targetHeightMm = isLast ? (srcHeight / pxPerMm) : pageHmm;
+        // Para páginas cheias, ocupa 100% da altura; na última respeita altura real
+        const targetHeightMm = isLast ? srcHeight / pxPerMm : pageHmm;
         const targetWidthMm = pageWmm;
 
         pdf.addImage(img, "PNG", 0, 0, targetWidthMm, targetHeightMm);
@@ -161,7 +166,7 @@ export default function BudgetPdf() {
       setGenerating(false);
     }
   };
-  // ====== FIM GERAÇÃO PDF ======
+  // ====== FIM ======
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -195,9 +200,8 @@ export default function BudgetPdf() {
       return (maisBarato.valor || 0) - (maisBarato.desconto || 0);
     }
     return (cat.itens || []).reduce(
-      (sum: number, item: any) =>
-        sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
-      0
+      (sum: number, item: any) => sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
+      0,
     );
   };
 
@@ -213,10 +217,7 @@ export default function BudgetPdf() {
       .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
   };
 
-  const totalGeral = campanhas.reduce(
-    (sum: number, camp: any) => sum + calcularTotalCampanha(camp),
-    0
-  );
+  const totalGeral = campanhas.reduce((sum: number, camp: any) => sum + calcularTotalCampanha(camp), 0);
 
   return (
     <AppLayout>
@@ -227,7 +228,6 @@ export default function BudgetPdf() {
           @page { size: A4 portrait; margin: 10mm; }
           html, body { width: 210mm; background: #FFFFFF !important; }
           .no-print { display: none !important; }
-          /* sombras podem aparecer como linhas na emenda; desativa em print */
           .print-content, .print-content * { box-shadow: none !important; }
         }
 
@@ -239,12 +239,12 @@ export default function BudgetPdf() {
           background: #FFFFFF;
           color: #000000;
           box-shadow: 0 0 10px rgba(0,0,0,0.1);
-          box-sizing: border-box; /* evita overflow por padding */
+          box-sizing: border-box; /* evita overflow do padding */
         }
 
         .avoid-break { break-inside: avoid; page-break-inside: avoid; }
       `}</style>
-      
+
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
         <div className="flex items-center justify-between mb-6 no-print">
           <div className="flex items-center gap-4">
@@ -266,18 +266,21 @@ export default function BudgetPdf() {
         <div
           ref={contentRef}
           className="print-content"
-          style={{ 
+          style={{
             width: "210mm",
-            minHeight: "297mm", 
-            backgroundColor: "#FFFFFF", 
+            minHeight: "297mm",
+            backgroundColor: "#FFFFFF",
             color: "#000000",
             padding: "15mm 20mm",
             margin: "0 auto",
-            boxSizing: "border-box"
+            boxSizing: "border-box",
           }}
         >
           {/* Cabeçalho */}
-          <div className="avoid-break flex items-start justify-between mb-8 pb-6" style={{ borderBottom: "3px solid #E6191E" }}>
+          <div
+            className="avoid-break flex items-start justify-between mb-8 pb-6"
+            style={{ borderBottom: "3px solid #E6191E" }}
+          >
             <div className="flex-1">
               <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
               <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666666" }}>
@@ -289,57 +292,50 @@ export default function BudgetPdf() {
               </div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>
-                ORÇAMENTO
-              </h1>
+              <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>ORÇAMENTO</h1>
               <p style={{ fontSize: "16px", fontWeight: "600", color: "#000000", marginBottom: "4px" }}>
                 {data.display_id}
               </p>
-              <p style={{ fontSize: "12px", color: "#666666" }}>
-                {new Date().toLocaleDateString("pt-BR")}
-              </p>
+              <p style={{ fontSize: "12px", color: "#666666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
             </div>
           </div>
 
           {/* Informações do Cliente */}
-          <div className="avoid-break" style={{ 
-            marginBottom: "24px", 
-            padding: "16px", 
-            borderRadius: "8px",
-            backgroundColor: "#F5F5F5", 
-            border: "1px solid #E0E0E0" 
-          }}>
-            <div style={{ 
-              display: "grid", 
-              gridTemplateColumns: "repeat(2, 1fr)", 
-              gap: "16px",
-              fontSize: "13px"
-            }}>
+          <div
+            className="avoid-break"
+            style={{
+              marginBottom: "24px",
+              padding: "16px",
+              borderRadius: "8px",
+              backgroundColor: "#F5F5F5",
+              border: "1px solid #E0E0E0",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px",
+                fontSize: "13px",
+              }}
+            >
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
-                  Cliente
-                </p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Cliente</p>
                 <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
               </div>
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
-                  Produto
-                </p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Produto</p>
                 <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.produto || "-"}</p>
               </div>
               {payload.job && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
-                    Job
-                  </p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Job</p>
                   <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.job}</p>
                 </div>
               )}
               {campanhas.length > 0 && campanhas[0].nome && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
-                    Campanha
-                  </p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Campanha</p>
                   <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhas[0].nome}</p>
                 </div>
               )}
@@ -360,17 +356,17 @@ export default function BudgetPdf() {
 
             return (
               <div key={campIdx} className="avoid-break" style={{ marginBottom: "24px", pageBreakInside: "avoid" }}>
-                <div style={{ 
-                  borderLeft: "4px solid #E6191E",
-                  padding: "12px 16px",
-                  marginBottom: "12px",
-                  borderRadius: "0 8px 8px 0",
-                  backgroundColor: "#F9F9F9"
-                }}>
+                <div
+                  style={{
+                    borderLeft: "4px solid #E6191E",
+                    padding: "12px 16px",
+                    marginBottom: "12px",
+                    borderRadius: "0 8px 8px 0",
+                    backgroundColor: "#F9F9F9",
+                  }}
+                >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>
-                      {campanha.nome}
-                    </h2>
+                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>{campanha.nome}</h2>
                     <span style={{ fontSize: "16px", fontWeight: "bold", color: "#E6191E" }}>
                       {formatCurrency(calcularTotalCampanha(campanha))}
                     </span>
@@ -383,39 +379,45 @@ export default function BudgetPdf() {
                     const subtotal = calcularSubtotal(cat);
 
                     return (
-                      <div key={idx} className="avoid-break" style={{ 
-                        paddingLeft: "16px",
-                        paddingTop: "8px",
-                        paddingBottom: "8px",
-                        borderRadius: "8px",
-                        backgroundColor: "#FAFAFA",
-                        borderLeft: "3px solid #D0D0D0",
-                        pageBreakInside: "avoid"
-                      }}>
-                        <div style={{ 
-                          display: "flex", 
-                          justifyContent: "space-between", 
-                          alignItems: "flex-start",
-                          marginBottom: "8px"
-                        }}>
-                          <h3 style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>
-                            {cat.nome}
-                          </h3>
+                      <div
+                        key={idx}
+                        className="avoid-break"
+                        style={{
+                          paddingLeft: "16px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          borderRadius: "8px",
+                          backgroundColor: "#FAFAFA",
+                          borderLeft: "3px solid #D0D0D0",
+                          pageBreakInside: "avoid",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <h3 style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>{cat.nome}</h3>
                           <span style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>
                             {formatCurrency(subtotal)}
                           </span>
                         </div>
 
                         {cat.observacao && (
-                          <p style={{ 
-                            fontSize: "11px",
-                            marginBottom: "8px",
-                            fontStyle: "italic",
-                            padding: "4px 8px",
-                            borderRadius: "4px",
-                            color: "#555555",
-                            backgroundColor: "#F0F0F0"
-                          }}>
+                          <p
+                            style={{
+                              fontSize: "11px",
+                              marginBottom: "8px",
+                              fontStyle: "italic",
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              color: "#555555",
+                              backgroundColor: "#F0F0F0",
+                            }}
+                          >
                             {cat.observacao}
                           </p>
                         )}
@@ -433,7 +435,9 @@ export default function BudgetPdf() {
                                   style={{
                                     backgroundColor: isMaisBarato ? "#F0FAF4" : "#FFFFFF",
                                     border: isMaisBarato ? "2px solid #48bb78" : "1px solid #E5E5E5",
-                                    boxShadow: isMaisBarato ? "0 2px 8px rgba(72, 187, 120, 0.15)" : "0 1px 3px rgba(0,0,0,0.08)",
+                                    boxShadow: isMaisBarato
+                                      ? "0 2px 8px rgba(72, 187, 120, 0.15)"
+                                      : "0 1px 3px rgba(0,0,0,0.08)",
                                   }}
                                 >
                                   <div className="flex justify-between items-start mb-2">
@@ -442,19 +446,24 @@ export default function BudgetPdf() {
                                         {isMaisBarato && (
                                           <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
                                         )}
-                                        <p className={`font-bold ${isMaisBarato ? "text-sm" : "text-xs"}`} style={{ color: "#000000" }}>
+                                        <p
+                                          className={`font-bold ${isMaisBarato ? "text-sm" : "text-xs"}`}
+                                          style={{ color: "#000000" }}
+                                        >
                                           {f.nome}
                                         </p>
                                       </div>
                                       {isMaisBarato && (
-                                        <p className="text-[10px] font-semibold mb-1" style={{ color: "#48bb78" }}>★ OPÇÃO MAIS BARATA</p>
+                                        <p className="text-[10px] font-semibold mb-1" style={{ color: "#48bb78" }}>
+                                          ★ OPÇÃO MAIS BARATA
+                                        </p>
                                       )}
                                       {f.diretor && (
                                         <p className="text-[10px] mb-1" style={{ color: "#666666" }}>
                                           <span className="font-semibold">Diretor:</span> {f.diretor}
                                         </p>
                                       )}
-                                      {f.escopo e && (
+                                      {f.escopo && (
                                         <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444444" }}>
                                           {(() => {
                                             const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
@@ -478,7 +487,10 @@ export default function BudgetPdf() {
                                       )}
                                     </div>
                                     <div className="text-right flex-shrink-0">
-                                      <span className={`font-bold ${isMaisBarato ? "text-base" : "text-sm"}`} style={{ color: isMaisBarato ? "#48bb78" : "#000000" }}>
+                                      <span
+                                        className={`font-bold ${isMaisBarato ? "text-base" : "text-sm"}`}
+                                        style={{ color: isMaisBarato ? "#48bb78" : "#000000" }}
+                                      >
                                         {formatCurrency(valorFinal)}
                                       </span>
                                     </div>
@@ -497,45 +509,51 @@ export default function BudgetPdf() {
           })}
 
           {/* Totalizadores */}
-          <div className="avoid-break" style={{ 
-            paddingTop: "16px",
-            marginTop: "24px",
-            borderRadius: "8px",
-            padding: "16px",
-            backgroundColor: "#F5F5F5",
-            borderTop: "3px solid #E6191E",
-            pageBreakInside: "avoid"
-          }}>
+          <div
+            className="avoid-break"
+            style={{
+              paddingTop: "16px",
+              marginTop: "24px",
+              borderRadius: "8px",
+              padding: "16px",
+              backgroundColor: "#F5F5F5",
+              borderTop: "3px solid #E6191E",
+              pageBreakInside: "avoid",
+            }}
+          >
             {campanhas.length > 1 &&
               campanhas.map((camp: any, idx: number) => {
                 const total = calcularTotalCampanha(camp);
                 if (total === 0) return null;
                 return (
-                  <div key={idx} style={{ 
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    paddingTop: "4px",
-                    paddingBottom: "4px",
-                    color: "#000000"
-                  }}>
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      paddingTop: "4px",
+                      paddingBottom: "4px",
+                      color: "#000000",
+                    }}
+                  >
                     <span>{camp.nome}:</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
                 );
               })}
-            <div style={{ 
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              paddingTop: "12px",
-              marginTop: "8px",
-              borderTop: "2px solid #D0D0D0"
-            }}>
-              <span style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>
-                TOTAL GERAL SUGERIDO:
-              </span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingTop: "12px",
+                marginTop: "8px",
+                borderTop: "2px solid #D0D0D0",
+              }}
+            >
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>TOTAL GERAL SUGERIDO:</span>
               <span style={{ fontSize: "24px", fontWeight: "bold", color: "#E6191E" }}>
                 {formatCurrency(totalGeral)}
               </span>
@@ -544,39 +562,49 @@ export default function BudgetPdf() {
 
           {/* Observações */}
           {payload.observacoes && (
-            <div className="avoid-break" style={{ 
-              marginTop: "20px",
-              padding: "16px",
-              borderRadius: "8px",
-              backgroundColor: "#FAFAFA",
-              border: "1px solid #E0E0E0",
-              pageBreakInside: "avoid"
-            }}>
+            <div
+              className="avoid-break"
+              style={{
+                marginTop: "20px",
+                padding: "16px",
+                borderRadius: "8px",
+                backgroundColor: "#FAFAFA",
+                border: "1px solid #E0E0E0",
+                pageBreakInside: "avoid",
+              }}
+            >
               <p style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#000000" }}>
                 Observações:
               </p>
-              <p style={{ 
-                fontSize: "11px",
-                lineHeight: "1.6",
-                whiteSpace: "pre-wrap",
-                color: "#555555"
-              }}>
+              <p
+                style={{
+                  fontSize: "11px",
+                  lineHeight: "1.6",
+                  whiteSpace: "pre-wrap",
+                  color: "#555555",
+                }}
+              >
                 {payload.observacoes}
               </p>
             </div>
           )}
 
           {/* Rodapé LGPD */}
-          <div className="avoid-break" style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}>
-            <p style={{ 
-              fontSize: "9px",
-              textAlign: "center",
-              lineHeight: "1.6",
-              color: "#888888"
-            }}>
-              Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. 
-              Conforme a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018), 
-              todas as informações contidas neste documento são tratadas com segurança e privacidade.
+          <div
+            className="avoid-break"
+            style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}
+          >
+            <p
+              style={{
+                fontSize: "9px",
+                textAlign: "center",
+                lineHeight: "1.6",
+                color: "#888888",
+              }}
+            >
+              Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. Conforme a Lei Geral de
+              Proteção de Dados (LGPD - Lei nº 13.709/2018), todas as informações contidas neste documento são tratadas
+              com segurança e privacidade.
             </p>
           </div>
         </div>
