@@ -32,6 +32,7 @@ const Ancine        = lazy(() => import('@/pages/Ancine'))
 const Claquete      = lazy(() => import('@/pages/Claquete'))
 const BydProntaEntrega = lazy(() => import('@/pages/BydProntaEntrega'))
 const OrcamentoZero = lazy(() => import('@/pages/OrcamentoZero'))
+const HonorariosConfig = lazy(() => import('@/pages/HonorariosConfig'))
 
 const queryClient = new QueryClient()
 
@@ -298,6 +299,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <BydProntaEntrega />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/honorarios"
+                element={
+                  <ProtectedRoute>
+                    <HonorariosConfig />
                   </ProtectedRoute>
                 }
               />

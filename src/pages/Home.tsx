@@ -53,6 +53,13 @@ export default function Home() {
       path: "/financeiro",
     },
     {
+      title: "Configurar Honorários",
+      description: "Gerenciar honorários por cliente (Admin)",
+      icon: Settings,
+      gradient: "gradient-blue",
+      path: "/honorarios",
+    },
+    {
       title: "Consulta ANCINE",
       description: "Claquetes & registros oficiais",
       icon: Clapperboard,

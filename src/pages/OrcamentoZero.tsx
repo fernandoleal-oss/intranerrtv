@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Plus, Trash2, Save, Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { ZeroWelcomeDialog } from "@/components/budget/ZeroWelcomeDialog";
+import { HonorarioWarningDialog } from "@/components/budget/HonorarioWarningDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignModeDialog } from "@/components/budget/CampaignModeDialog";
 
@@ -43,11 +44,13 @@ export default function OrcamentoZero() {
   const navigate = useNavigate();
   const [showWelcome, setShowWelcome] = useState(true);
   const [showCampaignModeDialog, setShowCampaignModeDialog] = useState(false);
+  const [showHonorarioWarning, setShowHonorarioWarning] = useState(false);
   const [combinarModo, setCombinarModo] = useState<"somar" | "separado">("separado");
   
   // Dados básicos
   const [briefText, setBriefText] = useState("");
   const [cliente, setCliente] = useState("");
+  const [clienteHonorario, setClienteHonorario] = useState<number>(0);
   const [produto, setProduto] = useState("");
   const [job, setJob] = useState("");
   const [midias, setMidias] = useState("");
@@ -56,11 +59,11 @@ export default function OrcamentoZero() {
   const [entregaveis, setEntregaveis] = useState("");
   const [adaptacoes, setAdaptacoes] = useState("");
   const [exclusividadeElenco, setExclusividadeElenco] = useState<"orcado" | "nao_orcado" | "nao_aplica">("nao_aplica");
-  const [honorarioPerc, setHonorarioPerc] = useState<number>(20);
   const [pendenteFaturamento, setPendenteFaturamento] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [produtor, setProdutor] = useState("");
   const [email, setEmail] = useState("");
+  const [clientesComHonorario, setClientesComHonorario] = useState<Record<string, number>>({});
 
   // Campanhas
   const [campanhas, setCampanhas] = useState<Campanha[]>([
@@ -72,12 +75,48 @@ export default function OrcamentoZero() {
     }
   ]);
 
+  // Carregar clientes com honorário
+  useEffect(() => {
+    const loadClientesHonorario = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("client_honorarios")
+          .select("client_name, honorario_percent");
+
+        if (error) throw error;
+
+        const honorarios: Record<string, number> = {};
+        data?.forEach((item) => {
+          honorarios[item.client_name.toLowerCase()] = item.honorario_percent;
+        });
+        setClientesComHonorario(honorarios);
+      } catch (err) {
+        console.error("Erro ao carregar honorários:", err);
+      }
+    };
+
+    loadClientesHonorario();
+  }, []);
+
   // Verifica se há 2+ campanhas para mostrar o dialog
   useEffect(() => {
     if (campanhas.length >= 2 && !combinarModo) {
       setShowCampaignModeDialog(true);
     }
   }, [campanhas.length]);
+
+  // Verifica se cliente tem honorário
+  useEffect(() => {
+    const clienteLower = cliente.toLowerCase().trim();
+    const honorario = clientesComHonorario[clienteLower];
+    
+    if (honorario && honorario > 0) {
+      setClienteHonorario(honorario);
+      setShowHonorarioWarning(true);
+    } else {
+      setClienteHonorario(0);
+    }
+  }, [cliente, clientesComHonorario]);
 
   const handleWelcomeConfirm = () => {
     setShowWelcome(false);
@@ -217,15 +256,20 @@ export default function OrcamentoZero() {
       });
     });
 
-    if (combinarModo === "somar") {
-      // Honorário aplicado uma única vez no consolidado
-      const honorario = subtotalGeral * ((honorarioPerc || 0) / 100);
-      return subtotalGeral + honorario;
-    } else {
-      // Honorário por campanha (simplificado aqui - calcular por campanha seria mais complexo)
-      const honorario = subtotalGeral * ((honorarioPerc || 0) / 100);
-      return subtotalGeral + honorario;
+    // Apenas aplica honorário se cliente tiver honorário configurado
+    if (clienteHonorario > 0) {
+      if (combinarModo === "somar") {
+        // Honorário aplicado uma única vez no consolidado
+        const honorario = subtotalGeral * (clienteHonorario / 100);
+        return subtotalGeral + honorario;
+      } else {
+        // Modo separado: não mostra total geral, apenas subtotais
+        return subtotalGeral;
+      }
     }
+
+    // Sem honorário, retorna apenas o subtotal
+    return subtotalGeral;
   };
 
   const handleSalvar = async () => {
@@ -250,7 +294,7 @@ export default function OrcamentoZero() {
         exclusividade_elenco: exclusividadeElenco,
         brief_text: briefText,
         combinarModo,
-        honorario_perc: honorarioPerc,
+        honorario_perc: clienteHonorario,
         pendente_faturamento: pendenteFaturamento,
         observacoes,
         campanhas: campanhas.map(c => ({
@@ -609,14 +653,14 @@ export default function OrcamentoZero() {
             <CardTitle>Honorário e Observações</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label>Honorário (%)</Label>
-              <Input
-                type="number"
-                value={honorarioPerc}
-                onChange={(e) => setHonorarioPerc(Number(e.target.value))}
-              />
-            </div>
+            {clienteHonorario > 0 && (
+              <div className="p-4 border border-primary/50 bg-primary/5 rounded-lg">
+                <Label className="text-sm font-semibold">Honorário Automático</Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Cliente com honorário de <strong>{clienteHonorario}%</strong> configurado
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Switch
                 checked={pendenteFaturamento}
@@ -636,16 +680,29 @@ export default function OrcamentoZero() {
         </Card>
 
         {/* Total */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Geral</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-primary">
-              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(calcularTotal())}
-            </div>
-          </CardContent>
-        </Card>
+        {(combinarModo === "somar" || clienteHonorario > 0) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {combinarModo === "somar" && clienteHonorario > 0
+                  ? "Total Geral (com honorário)"
+                  : combinarModo === "somar"
+                  ? "Total Consolidado"
+                  : "Subtotal das Campanhas"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-primary">
+                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(calcularTotal())}
+              </div>
+              {clienteHonorario > 0 && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Honorário de {clienteHonorario}% {combinarModo === "somar" ? "aplicado no consolidado" : "será aplicado"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <CampaignModeDialog
@@ -653,6 +710,13 @@ export default function OrcamentoZero() {
         onOpenChange={setShowCampaignModeDialog}
         onConfirm={(mode) => setCombinarModo(mode)}
         currentMode={combinarModo}
+      />
+
+      <HonorarioWarningDialog
+        open={showHonorarioWarning}
+        onOpenChange={setShowHonorarioWarning}
+        clientName={cliente}
+        honorarioPercent={clienteHonorario}
       />
     </AppLayout>
   );

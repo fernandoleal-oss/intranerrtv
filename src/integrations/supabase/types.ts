@@ -888,6 +888,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_display_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_budget_view_rpc: {
         Args: { p_budget_id: string }
         Returns: {
