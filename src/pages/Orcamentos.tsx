@@ -19,6 +19,7 @@ interface Budget {
   status: string;
   cliente?: string;
   produto?: string;
+  produtor?: string;
   total?: number;
   created_at: string;
 }
@@ -53,13 +54,15 @@ export default function Orcamentos() {
 
       const formatted: Budget[] = (data || []).map((b: any) => {
         const latestVersion = b.versions?.[0];
+        const produtor = latestVersion?.payload?.produtor || "—";
         return {
           id: b.id,
-          display_id: b.display_id,
+          display_id: b.display_id || "—",
           type: b.type,
           status: b.status || "rascunho",
           cliente: latestVersion?.payload?.cliente,
           produto: latestVersion?.payload?.produto,
+          produtor,
           total: latestVersion?.total_geral,
           created_at: b.created_at,
         };
@@ -123,10 +126,16 @@ export default function Orcamentos() {
         subtitle="Gerenciar e criar novos orçamentos"
         backTo="/"
         actions={
-          <Button onClick={() => navigate("/orcamentos/novo")} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Orçamento
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate("/orcamentos/novo/zero")} variant="outline" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Orçamento do Zero
+            </Button>
+            <Button onClick={() => navigate("/orcamentos/novo")} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Orçamento
+            </Button>
+          </div>
         }
       />
 
@@ -195,7 +204,12 @@ export default function Orcamentos() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
                         {getTypeIcon(b.type)}
-                        <CardTitle className="text-base">{b.display_id}</CardTitle>
+                        <div>
+                          <CardTitle className="text-base">{b.display_id}</CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Prod.: {b.produtor || "—"}
+                          </p>
+                        </div>
                       </div>
                       <Badge variant={getStatusBadge(b.status) as any}>
                         {b.status}
