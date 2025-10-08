@@ -199,6 +199,8 @@ export default function BudgetPdf() {
 
   const payload = data.payload;
   const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
+  const combinarModo = payload.combinarModo || "separado";
+  const honorarioPerc = payload.honorarioPerc || 15;
 
   const getMaisBarato = (cat: any) => {
     if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
@@ -233,7 +235,22 @@ export default function BudgetPdf() {
       .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
   };
 
-  const totalGeral = campanhas.reduce((sum: number, camp: any) => sum + calcularTotalCampanha(camp), 0);
+  const totalGeralCampanhas = campanhas.reduce((sum: number, camp: any) => sum + calcularTotalCampanha(camp), 0);
+  
+  // Calcular total com honorário baseado no modo
+  let totalGeral = 0;
+  if (combinarModo === "somar") {
+    // Modo somar: honorário aplicado no consolidado
+    const honorarioValor = totalGeralCampanhas * (honorarioPerc / 100);
+    totalGeral = totalGeralCampanhas + honorarioValor;
+  } else {
+    // Modo separado: honorário aplicado por campanha
+    totalGeral = campanhas.reduce((sum: number, camp: any) => {
+      const subtotal = calcularTotalCampanha(camp);
+      const honorario = subtotal * (honorarioPerc / 100);
+      return sum + subtotal + honorario;
+    }, 0);
+  }
 
   return (
     <AppLayout>
@@ -555,28 +572,157 @@ export default function BudgetPdf() {
               pageBreakInside: "avoid",
             }}
           >
-            {campanhas.length > 1 &&
-              campanhas.map((camp: any, idx: number) => {
-                const total = calcularTotalCampanha(camp);
-                if (total === 0) return null;
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      paddingTop: "4px",
-                      paddingBottom: "4px",
-                      color: "#000000",
-                    }}
-                  >
-                    <span>{camp.nome}:</span>
-                    <span>{formatCurrency(total)}</span>
-                  </div>
-                );
-              })}
+            {/* Modo "somar": mostrar subtotais por campanha, subtotal consolidado, honorário e total */}
+            {combinarModo === "somar" && campanhas.length > 1 && (
+              <>
+                {campanhas.map((camp: any, idx: number) => {
+                  const subtotal = calcularTotalCampanha(camp);
+                  if (subtotal === 0) return null;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        paddingTop: "3px",
+                        paddingBottom: "3px",
+                        color: "#555555",
+                      }}
+                    >
+                      <span>• {camp.nome}</span>
+                      <span>{formatCurrency(subtotal)}</span>
+                    </div>
+                  );
+                })}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    paddingTop: "8px",
+                    paddingBottom: "4px",
+                    marginTop: "6px",
+                    borderTop: "1px solid #D0D0D0",
+                    color: "#000000",
+                  }}
+                >
+                  <span>Subtotal Consolidado:</span>
+                  <span>{formatCurrency(totalGeralCampanhas)}</span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    paddingTop: "4px",
+                    paddingBottom: "4px",
+                    color: "#000000",
+                  }}
+                >
+                  <span>Honorário ({honorarioPerc}%):</span>
+                  <span>{formatCurrency(totalGeralCampanhas * (honorarioPerc / 100))}</span>
+                </div>
+              </>
+            )}
+
+            {/* Modo "separado": mostrar total por campanha com honorário */}
+            {combinarModo === "separado" && campanhas.length > 1 && (
+              <>
+                {campanhas.map((camp: any, idx: number) => {
+                  const subtotal = calcularTotalCampanha(camp);
+                  const honorario = subtotal * (honorarioPerc / 100);
+                  const total = subtotal + honorario;
+                  if (total === 0) return null;
+                  return (
+                    <div key={idx} style={{ marginBottom: "8px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          paddingTop: "3px",
+                          paddingBottom: "3px",
+                          color: "#555555",
+                        }}
+                      >
+                        <span>• {camp.nome} (subtotal)</span>
+                        <span>{formatCurrency(subtotal)}</span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "11px",
+                          fontWeight: "400",
+                          paddingLeft: "12px",
+                          paddingTop: "2px",
+                          paddingBottom: "2px",
+                          color: "#666666",
+                        }}
+                      >
+                        <span>Honorário ({honorarioPerc}%)</span>
+                        <span>{formatCurrency(honorario)}</span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          paddingLeft: "12px",
+                          paddingTop: "2px",
+                          paddingBottom: "4px",
+                          color: "#000000",
+                        }}
+                      >
+                        <span>Total {camp.nome}</span>
+                        <span>{formatCurrency(total)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Campanha única ou já calculado no modo */}
+            {campanhas.length === 1 && (
+              <>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    paddingTop: "4px",
+                    paddingBottom: "4px",
+                    color: "#000000",
+                  }}
+                >
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(totalGeralCampanhas)}</span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    paddingTop: "4px",
+                    paddingBottom: "4px",
+                    color: "#000000",
+                  }}
+                >
+                  <span>Honorário ({honorarioPerc}%):</span>
+                  <span>{formatCurrency(totalGeralCampanhas * (honorarioPerc / 100))}</span>
+                </div>
+              </>
+            )}
+
             <div
               style={{
                 display: "flex",

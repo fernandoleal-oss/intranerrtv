@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, GripVertical, Eye, EyeOff, Star } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { CampaignModeDialog } from "@/components/budget/CampaignModeDialog";
 
 interface Fornecedor {
   id: string;
@@ -77,6 +78,8 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
   const [job, setJob] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [numCampanhas, setNumCampanhas] = useState(1);
+  const [combinarModo, setCombinarModo] = useState<"somar" | "separado">("separado");
+  const [showCampaignModeDialog, setShowCampaignModeDialog] = useState(false);
   const [campanhas, setCampanhas] = useState<Campanha[]>([
     {
       id: crypto.randomUUID(),
@@ -103,6 +106,7 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
       setJob(payload.job || "");
       setObservacoes(payload.observacoes || "");
       setNumCampanhas(payload.numCampanhas || 1);
+      setCombinarModo(payload.combinarModo || "separado");
 
       if (payload.campanhas && Array.isArray(payload.campanhas)) {
         setCampanhas(
@@ -155,6 +159,11 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
       setCampanhas(newCampanhas);
     } else if (numCampanhas < currentCount) {
       setCampanhas(campanhas.slice(0, numCampanhas));
+    }
+    
+    // Show dialog when user selects 2+ campaigns
+    if (numCampanhas >= 2 && currentCount < 2) {
+      setShowCampaignModeDialog(true);
     }
   }, [numCampanhas]);
 
@@ -338,6 +347,7 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
         job,
         observacoes,
         numCampanhas,
+        combinarModo,
         campanhas: campanhas.map((camp) => ({
           nome: camp.nome,
           categorias: camp.categorias.map((c) => ({
@@ -384,7 +394,7 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
     } finally {
       setSaving(false);
     }
-  }, [cliente, produto, job, observacoes, numCampanhas, campanhas, budgetId, versionId, totalGeral, onSaveSuccess]);
+  }, [cliente, produto, job, observacoes, numCampanhas, combinarModo, campanhas, budgetId, versionId, totalGeral, onSaveSuccess]);
 
   // Listen for save event from Edit page
   useEffect(() => {
@@ -407,6 +417,12 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
 
   return (
     <div className="space-y-6">
+      <CampaignModeDialog
+        open={showCampaignModeDialog}
+        onOpenChange={setShowCampaignModeDialog}
+        onConfirm={(mode) => setCombinarModo(mode)}
+        currentMode={combinarModo}
+      />
       {/* Cliente & Produto */}
       <Card>
         <CardHeader>

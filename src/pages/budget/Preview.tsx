@@ -113,29 +113,54 @@ export default function BudgetPreview() {
     );
   }
 
-  const filmSubtotal = (data.quotes_film || []).reduce((s: number, q: any) => s + (q.valor - (q.desconto || 0)), 0);
-  const audioSubtotal = data.inclui_audio 
-    ? (data.quotes_audio || []).reduce((s: number, q: any) => s + (q.valor - (q.desconto || 0)), 0)
-    : 0;
-  const subtotal = filmSubtotal + audioSubtotal;
-  const honorario = subtotal * ((data.honorario_perc || 0) / 100);
-  const total = subtotal + honorario;
+  // Suporte a múltiplas campanhas
+  const campanhas = data.campanhas || [{ nome: "Campanha Única", categorias: [] }];
+  const combinarModo = data.combinarModo || "separado";
+  const honorarioPerc = data.honorarioPerc || 15;
 
-  const cheapestFilm = data.quotes_film?.length 
-    ? data.quotes_film.reduce((min: any, q: any) => {
-        const qVal = q.valor - (q.desconto || 0);
-        const minVal = min.valor - (min.desconto || 0);
-        return qVal < minVal ? q : min;
-      })
-    : null;
+  const getMaisBarato = (cat: any) => {
+    if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
+    return cat.fornecedores.reduce((min: any, f: any) => {
+      const valor = (f.valor || 0) - (f.desconto || 0);
+      const minValor = (min.valor || 0) - (min.desconto || 0);
+      return valor < minValor ? f : min;
+    });
+  };
 
-  const cheapestAudio = data.inclui_audio && data.quotes_audio?.length
-    ? data.quotes_audio.reduce((min: any, q: any) => {
-        const qVal = q.valor - (q.desconto || 0);
-        const minVal = min.valor - (min.desconto || 0);
-        return qVal < minVal ? q : min;
-      })
-    : null;
+  const calcularSubtotal = (cat: any) => {
+    if (cat.modoPreco === "fechado") {
+      const maisBarato = getMaisBarato(cat);
+      if (!maisBarato) return 0;
+      return (maisBarato.valor || 0) - (maisBarato.desconto || 0);
+    }
+    return (cat.itens || []).reduce(
+      (sum: number, item: any) => sum + (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0),
+      0,
+    );
+  };
+
+  const calcularTotalCampanha = (campanha: any) => {
+    return (campanha.categorias || [])
+      .filter((c: any) => c.visivel !== false)
+      .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
+  };
+
+  const totalGeralCampanhas = campanhas.reduce((sum: number, camp: any) => sum + calcularTotalCampanha(camp), 0);
+
+  // Modo "somar": honorário aplicado no consolidado
+  // Modo "separado": honorário aplicado por campanha
+  let totalComHonorario = 0;
+  if (combinarModo === "somar") {
+    const honorarioValor = totalGeralCampanhas * (honorarioPerc / 100);
+    totalComHonorario = totalGeralCampanhas + honorarioValor;
+  } else {
+    // "separado"
+    totalComHonorario = campanhas.reduce((sum: number, camp: any) => {
+      const subtotal = calcularTotalCampanha(camp);
+      const honorario = subtotal * (honorarioPerc / 100);
+      return sum + subtotal + honorario;
+    }, 0);
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -190,195 +215,181 @@ export default function BudgetPreview() {
                   <p className="font-medium">{data.job}</p>
                 </div>
               )}
-              {data.midias && (
+              {campanhas.length > 1 && (
                 <div>
-                  <span className="text-sm text-muted-foreground">Mídias:</span>
-                  <p className="font-medium">{data.midias}</p>
-                </div>
-              )}
-              {data.territorio && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Território:</span>
-                  <p className="font-medium">{data.territorio}</p>
-                </div>
-              )}
-              {data.periodo && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Período:</span>
-                  <p className="font-medium">{data.periodo}</p>
+                  <span className="text-sm text-muted-foreground">Modo de Apresentação:</span>
+                  <p className="font-medium">
+                    {combinarModo === "somar" ? "Consolidado (Somado)" : "Separado (Individual)"}
+                  </p>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Detalhes do Projeto */}
-        {(data.entregaveis || data.adaptacoes || data.exclusividade_elenco !== "nao_aplica") && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Detalhes do Projeto</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                {data.entregaveis && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">Entregáveis:</span>
-                    <p className="font-medium">{data.entregaveis}</p>
-                  </div>
-                )}
-                {data.adaptacoes && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">Adaptações:</span>
-                    <p className="font-medium">{data.adaptacoes}</p>
-                  </div>
-                )}
-                {data.exclusividade_elenco && data.exclusividade_elenco !== "nao_aplica" && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">Exclusividade de Elenco:</span>
-                    <p className="font-medium">
-                      {data.exclusividade_elenco === "orcado" ? "Orçado" : "Não Orçado"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Campanhas */}
+        {campanhas.map((campanha: any, campIdx: number) => {
+          const categoriasVisiveis = (campanha.categorias || []).filter((c: any) => c.visivel !== false);
+          const subtotalCampanha = calcularTotalCampanha(campanha);
+          const honorarioCampanha = subtotalCampanha * (honorarioPerc / 100);
+          const totalCampanha = subtotalCampanha + honorarioCampanha;
 
-        {/* Comparativo de Produtoras - Filme */}
-        {data.quotes_film?.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Comparativo de Produtoras - Filme</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.quotes_film.map((q: any) => {
-                  const valorFinal = q.valor - (q.desconto || 0);
-                  const isCheapest = cheapestFilm?.id === q.id;
-                  
+          return (
+            <Card key={campIdx} className="mb-6 border-2 border-primary/20">
+              <CardHeader className="bg-primary/5">
+                <CardTitle className="flex items-center justify-between">
+                  <span>{campanha.nome}</span>
+                  {combinarModo === "separado" && campanhas.length > 1 && (
+                    <span className="text-lg font-bold">{BRL(totalCampanha)}</span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {categoriasVisiveis.map((cat: any, catIdx: number) => {
+                  const maisBarato = getMaisBarato(cat);
+                  const subtotal = calcularSubtotal(cat);
+
+                  if (cat.modoPreco === "fechado" && (!cat.fornecedores || cat.fornecedores.length === 0)) {
+                    return null;
+                  }
+
                   return (
-                    <div 
-                      key={q.id} 
-                      className={`p-4 rounded-lg border ${
-                        isCheapest ? 'border-green-500 bg-green-50/50' : 'border-border bg-secondary/20'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h4 className="font-semibold">{q.produtora}</h4>
-                          <p className="text-sm text-muted-foreground">{q.escopo}</p>
+                    <div key={catIdx} className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3 border-b pb-2">{cat.nome}</h3>
+
+                      {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
+                        <div className="space-y-3">
+                          {cat.fornecedores.map((f: any, fIdx: number) => {
+                            const valorFinal = (f.valor || 0) - (f.desconto || 0);
+                            const isCheapest = maisBarato?.id === f.id;
+
+                            return (
+                              <div
+                                key={fIdx}
+                                className={`p-4 rounded-lg border ${
+                                  isCheapest ? "border-green-500 bg-green-50/50" : "border-border bg-secondary/20"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <h4 className="font-semibold">{f.nome}</h4>
+                                    {f.escopo && <p className="text-sm text-muted-foreground">{f.escopo}</p>}
+                                  </div>
+                                  {isCheapest && (
+                                    <Badge variant="default" className="bg-green-600">
+                                      Mais barato
+                                    </Badge>
+                                  )}
+                                </div>
+                                {f.diretor && <p className="text-sm text-muted-foreground">Diretor: {f.diretor}</p>}
+                                <div className="mt-2 flex justify-between items-center">
+                                  <div className="text-sm">
+                                    <span className="text-muted-foreground">Valor: {BRL(f.valor || 0)}</span>
+                                    {(f.desconto || 0) > 0 && (
+                                      <span className="text-muted-foreground ml-2">| Desconto: {BRL(f.desconto)}</span>
+                                    )}
+                                  </div>
+                                  <span className="font-bold text-lg">{BRL(valorFinal)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg font-semibold">
+                            <span>Subtotal {cat.nome}</span>
+                            <span>{BRL(subtotal)}</span>
+                          </div>
                         </div>
-                        {isCheapest && (
-                          <Badge variant="default" className="bg-green-600">
-                            Mais barato
-                          </Badge>
-                        )}
-                      </div>
-                      {q.diretor && (
-                        <p className="text-sm text-muted-foreground">Diretor: {q.diretor}</p>
                       )}
-                      {q.tratamento && (
-                        <p className="text-sm text-muted-foreground">Tratamento: {q.tratamento}</p>
-                      )}
-                      <div className="mt-2 flex justify-between items-center">
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Valor: {BRL(q.valor)}</span>
-                          {q.desconto > 0 && (
-                            <span className="text-muted-foreground ml-2">| Desconto: {BRL(q.desconto)}</span>
-                          )}
+
+                      {cat.modoPreco === "itens" && cat.itens?.length > 0 && (
+                        <div className="space-y-2">
+                          {cat.itens.map((item: any, iIdx: number) => {
+                            const itemSubtotal = (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0);
+                            return (
+                              <div key={iIdx} className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
+                                <div>
+                                  <span className="font-medium">{item.unidade}</span>
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    {item.quantidade} x {BRL(item.valorUnitario)}
+                                  </span>
+                                  {item.observacao && (
+                                    <p className="text-xs text-muted-foreground">{item.observacao}</p>
+                                  )}
+                                </div>
+                                <span className="font-semibold">{BRL(itemSubtotal)}</span>
+                              </div>
+                            );
+                          })}
+                          <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg font-semibold">
+                            <span>Subtotal {cat.nome}</span>
+                            <span>{BRL(subtotal)}</span>
+                          </div>
                         </div>
-                        <span className="font-bold text-lg">{BRL(valorFinal)}</span>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Comparativo de Produtoras - Áudio */}
-        {data.inclui_audio && data.quotes_audio?.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Comparativo de Produtoras - Áudio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.quotes_audio.map((q: any) => {
-                  const valorFinal = q.valor - (q.desconto || 0);
-                  const isCheapest = cheapestAudio?.id === q.id;
-                  
-                  return (
-                    <div 
-                      key={q.id} 
-                      className={`p-4 rounded-lg border ${
-                        isCheapest ? 'border-blue-500 bg-blue-50/50' : 'border-border bg-secondary/20'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h4 className="font-semibold">{q.produtora}</h4>
-                          <p className="text-sm text-muted-foreground">{q.descricao}</p>
-                        </div>
-                        {isCheapest && (
-                          <Badge variant="default" className="bg-blue-600">
-                            Mais barato
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="mt-2 flex justify-between items-center">
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Valor: {BRL(q.valor)}</span>
-                          {q.desconto > 0 && (
-                            <span className="text-muted-foreground ml-2">| Desconto: {BRL(q.desconto)}</span>
-                          )}
-                        </div>
-                        <span className="font-bold text-lg">{BRL(valorFinal)}</span>
-                      </div>
+                {/* Subtotais da campanha */}
+                {combinarModo === "separado" && campanhas.length > 1 && (
+                  <div className="mt-6 space-y-2 border-t pt-4">
+                    <div className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
+                      <span className="font-medium">Subtotal {campanha.nome}</span>
+                      <span className="font-bold">{BRL(subtotalCampanha)}</span>
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Melhor Combinação */}
-        {cheapestFilm && (
-          <Card className="mb-6 border-primary">
-            <CardHeader>
-              <CardTitle>Melhor Combinação Total</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                  <span className="font-medium">Filme - {cheapestFilm.produtora}</span>
-                  <span className="font-bold">{BRL(cheapestFilm.valor - (cheapestFilm.desconto || 0))}</span>
-                </div>
-                {cheapestAudio && (
-                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                    <span className="font-medium">Áudio - {cheapestAudio.produtora}</span>
-                    <span className="font-bold">{BRL(cheapestAudio.valor - (cheapestAudio.desconto || 0))}</span>
+                    <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                      <span className="font-medium">Honorário ({honorarioPerc}%)</span>
+                      <span className="font-bold">{BRL(honorarioCampanha)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
+                      <span className="font-bold text-lg">Total {campanha.nome}</span>
+                      <span className="font-bold text-2xl text-primary">{BRL(totalCampanha)}</span>
+                    </div>
                   </div>
                 )}
-                <div className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
-                  <span className="font-medium">Honorário ({data.honorario_perc || 0}%)</span>
-                  <span className="font-bold">{BRL(honorario)}</span>
-                </div>
-                <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
-                  <span className="font-bold text-lg">Total Geral</span>
-                  <span className="font-bold text-2xl text-primary">{BRL(total)}</span>
-                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {/* Total Geral */}
+        <Card className="border-2 border-primary">
+          <CardHeader>
+            <CardTitle>
+              {combinarModo === "somar" && campanhas.length > 1 ? "Consolidado Final" : "Total Geral"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {combinarModo === "somar" && campanhas.length > 1 && (
+                <>
+                  {campanhas.map((camp: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
+                      <span className="font-medium">{camp.nome}</span>
+                      <span className="font-bold">{BRL(calcularTotalCampanha(camp))}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                    <span className="font-medium">Subtotal Consolidado</span>
+                    <span className="font-bold">{BRL(totalGeralCampanhas)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-secondary/40 rounded-lg">
+                    <span className="font-medium">Honorário ({honorarioPerc}%)</span>
+                    <span className="font-bold">{BRL(totalGeralCampanhas * (honorarioPerc / 100))}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
+                <span className="font-bold text-lg">Total Geral</span>
+                <span className="font-bold text-2xl text-primary">{BRL(totalComHonorario)}</span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Observações */}
         {data.observacoes && (
-          <Card>
+          <Card className="mt-6">
             <CardHeader>
               <CardTitle>Observações</CardTitle>
             </CardHeader>
