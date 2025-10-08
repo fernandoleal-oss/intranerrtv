@@ -161,11 +161,18 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
       setCampanhas(campanhas.slice(0, numCampanhas));
     }
     
-    // Show dialog when user selects 2+ campaigns
-    if (numCampanhas >= 2 && currentCount < 2) {
+    // Show dialog when user selects 2+ campaigns and mode is not set
+    if (numCampanhas >= 2 && currentCount < 2 && !combinarModo) {
       setShowCampaignModeDialog(true);
     }
   }, [numCampanhas]);
+
+  // Auto-open dialog when loading existing budget with 2+ campaigns and no mode
+  useEffect(() => {
+    if (campanhas.length >= 2 && !combinarModo && initialPayload) {
+      setShowCampaignModeDialog(true);
+    }
+  }, [campanhas.length, combinarModo, initialPayload]);
 
   const adicionarCategoria = (campanhaId: string, nome: string) => {
     setCampanhas(
@@ -759,6 +766,13 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
           />
         </CardContent>
       </Card>
+
+      <CampaignModeDialog
+        open={showCampaignModeDialog}
+        onOpenChange={setShowCampaignModeDialog}
+        onConfirm={(mode) => setCombinarModo(mode)}
+        currentMode={combinarModo}
+      />
     </div>
   );
 }

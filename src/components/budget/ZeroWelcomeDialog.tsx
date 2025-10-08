@@ -20,11 +20,6 @@ export function ZeroWelcomeDialog({
   onOpenChange,
   onConfirm,
 }: ZeroWelcomeDialogProps) {
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
-  };
-
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -36,8 +31,18 @@ export function ZeroWelcomeDialog({
         </AlertDialogHeader>
 
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm}>Começar</AlertDialogAction>
+          <AlertDialogCancel onClick={(e) => {
+            e.preventDefault();
+            onOpenChange(false);
+          }}>
+            Cancelar
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={(e) => {
+            e.preventDefault();
+            onConfirm();
+          }}>
+            Começar
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

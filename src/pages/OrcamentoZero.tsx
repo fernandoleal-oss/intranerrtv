@@ -14,6 +14,7 @@ import { ZeroWelcomeDialog } from "@/components/budget/ZeroWelcomeDialog";
 import { HonorarioWarningDialog } from "@/components/budget/HonorarioWarningDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignModeDialog } from "@/components/budget/CampaignModeDialog";
+import { templateBase } from "@/utils/orcamentoZeroTemplate";
 
 interface Item {
   id: string;
@@ -123,6 +124,7 @@ export default function OrcamentoZero() {
   };
 
   const handleWelcomeCancel = () => {
+    setShowWelcome(false);
     navigate("/orcamentos");
   };
 
@@ -341,18 +343,17 @@ export default function OrcamentoZero() {
 
   if (showWelcome) {
     return (
-      <>
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <ZeroWelcomeDialog
           open={showWelcome}
           onOpenChange={(open) => {
-            if (!open) handleWelcomeCancel();
+            if (!open) {
+              handleWelcomeCancel();
+            }
           }}
           onConfirm={handleWelcomeConfirm}
         />
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </>
+      </div>
     );
   }
 
@@ -372,6 +373,28 @@ export default function OrcamentoZero() {
           </div>
 
           <div className="flex gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => {
+                // Carregar template base
+                const t = templateBase;
+                setBriefText(t.brief_text);
+                setCliente(t.cliente);
+                setProduto(t.produto);
+                setJob(t.job);
+                setMidias(t.midias);
+                setTerritorio(t.territorio);
+                setPeriodo(t.periodo);
+                setEntregaveis(t.entregaveis);
+                setAdaptacoes(t.adaptacoes);
+                setExclusividadeElenco(t.exclusividade_elenco);
+                setCampanhas(t.campanhas as any);
+                toast({ title: "Modelo carregado!", description: "Template de exemplo aplicado" });
+              }}
+            >
+              🎯 Carregar Modelo Exemplo
+            </Button>
             <Button variant="outline" onClick={handleSalvar} className="gap-2">
               <Save className="h-4 w-4" />
               Salvar
