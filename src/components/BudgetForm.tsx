@@ -461,6 +461,45 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
         </CardContent>
       </Card>
 
+      {/* Modo de Combinação (visível quando 2+ campanhas) */}
+      {numCampanhas >= 2 && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Como apresentar as campanhas?</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCampaignModeDialog(true)}
+              >
+                Alterar Modo
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${combinarModo === "somar" ? "bg-primary" : "bg-muted"}`} />
+                <span className={combinarModo === "somar" ? "font-semibold" : "text-muted-foreground"}>
+                  Somar (consolidado)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${combinarModo === "separado" ? "bg-primary" : "bg-muted"}`} />
+                <span className={combinarModo === "separado" ? "font-semibold" : "text-muted-foreground"}>
+                  Separado (individual)
+                </span>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-3">
+              {combinarModo === "somar"
+                ? "Subtotais por campanha + honorário aplicado no consolidado"
+                : "Cada campanha com seu total individual + honorário por campanha"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Campanhas */}
       {campanhas.map((campanha, campIdx) => (
         <Card key={campanha.id} className="border-2 border-primary/20">
