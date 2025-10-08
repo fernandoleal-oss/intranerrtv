@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
@@ -17,6 +17,9 @@ interface ClientHonorario {
   honorario_percent: number;
 }
 
+/** Toggle rápido para ativar/desativar o módulo de Honorários */
+const HONORARIOS_ENABLED = false;
+
 export default function HonorariosConfig() {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -26,8 +29,18 @@ export default function HonorariosConfig() {
   const [newHonorarioPercent, setNewHonorarioPercent] = useState<number>(20);
 
   useEffect(() => {
+    // Se desativado, não faz nada (nem checagem de admin, nem chamada ao banco)
+    if (!HONORARIOS_ENABLED) {
+      setLoading(false);
+      return;
+    }
+
     if (profile?.role !== "admin") {
-      toast({ title: "Acesso negado", description: "Apenas administradores podem acessar esta página", variant: "destructive" });
+      toast({
+        title: "Acesso negado",
+        description: "Apenas administradores podem acessar esta página",
+        variant: "destructive",
+      });
       navigate("/");
       return;
     }
@@ -36,10 +49,7 @@ export default function HonorariosConfig() {
 
   const loadHonorarios = async () => {
     try {
-      const { data, error } = await supabase
-        .from("client_honorarios")
-        .select("*")
-        .order("client_name");
+      const { data, error } = await supabase.from("client_honorarios").select("*").order("client_name");
 
       if (error) throw error;
       setHonorarios(data || []);
@@ -52,21 +62,17 @@ export default function HonorariosConfig() {
   };
 
   const handleAdd = async () => {
+    if (!HONORARIOS_ENABLED) return; // hard block
     if (!newClientName.trim()) {
       toast({ title: "Nome do cliente obrigatório", variant: "destructive" });
       return;
     }
-
     try {
-      const { error } = await supabase
-        .from("client_honorarios")
-        .insert({
-          client_name: newClientName.trim(),
-          honorario_percent: newHonorarioPercent
-        });
-
+      const { error } = await supabase.from("client_honorarios").insert({
+        client_name: newClientName.trim(),
+        honorario_percent: newHonorarioPercent,
+      });
       if (error) throw error;
-
       toast({ title: "Honorário adicionado com sucesso" });
       setNewClientName("");
       setNewHonorarioPercent(20);
@@ -82,14 +88,10 @@ export default function HonorariosConfig() {
   };
 
   const handleUpdate = async (id: string, honorario_percent: number) => {
+    if (!HONORARIOS_ENABLED) return; // hard block
     try {
-      const { error } = await supabase
-        .from("client_honorarios")
-        .update({ honorario_percent })
-        .eq("id", id);
-
+      const { error } = await supabase.from("client_honorarios").update({ honorario_percent }).eq("id", id);
       if (error) throw error;
-
       toast({ title: "Honorário atualizado" });
       loadHonorarios();
     } catch (err) {
@@ -99,16 +101,11 @@ export default function HonorariosConfig() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!HONORARIOS_ENABLED) return; // hard block
     if (!confirm("Tem certeza que deseja remover este honorário?")) return;
-
     try {
-      const { error } = await supabase
-        .from("client_honorarios")
-        .delete()
-        .eq("id", id);
-
+      const { error } = await supabase.from("client_honorarios").delete().eq("id", id);
       if (error) throw error;
-
       toast({ title: "Honorário removido" });
       loadHonorarios();
     } catch (err) {
@@ -116,6 +113,39 @@ export default function HonorariosConfig() {
       toast({ title: "Erro ao remover", variant: "destructive" });
     }
   };
+
+  if (!HONORARIOS_ENABLED) {
+    return (
+      <AppLayout>
+        <div className="p-8">
+          <div className="flex items-center gap-4 mb-6">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-[28px] leading-8 font-semibold">Configuração de Honorários</h1>
+              <p className="text-muted-foreground">Este módulo está desativado no momento.</p>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Honorários desativados</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                A funcionalidade de cadastro e edição de honorários foi temporariamente desativada. Caso precise
+                reativar, altere a flag <code>HONORARIOS_ENABLED</code> para <code>true</code>.
+              </p>
+              <div className="mt-4">
+                <Button onClick={() => navigate("/")}>Voltar ao início</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (loading) {
     return (
@@ -184,9 +214,7 @@ export default function HonorariosConfig() {
           </CardHeader>
           <CardContent>
             {honorarios.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">
-                Nenhum cliente cadastrado ainda
-              </p>
+              <p className="text-center py-8 text-muted-foreground">Nenhum cliente cadastrado ainda</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -206,9 +234,9 @@ export default function HonorariosConfig() {
                           value={h.honorario_percent}
                           onChange={(e) => {
                             const newValue = Number(e.target.value);
-                            setHonorarios(honorarios.map(item =>
-                              item.id === h.id ? { ...item, honorario_percent: newValue } : item
-                            ));
+                            setHonorarios((prev) =>
+                              prev.map((item) => (item.id === h.id ? { ...item, honorario_percent: newValue } : item)),
+                            );
                           }}
                           onBlur={() => handleUpdate(h.id, h.honorario_percent)}
                           className="w-24"
@@ -217,11 +245,7 @@ export default function HonorariosConfig() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(h.id)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => handleDelete(h.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
