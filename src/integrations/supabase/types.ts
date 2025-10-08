@@ -236,6 +236,30 @@ export type Database = {
           },
         ]
       }
+      client_honorarios: {
+        Row: {
+          client_name: string
+          created_at: string | null
+          honorario_percent: number
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          client_name: string
+          created_at?: string | null
+          honorario_percent?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          client_name?: string
+          created_at?: string | null
+          honorario_percent?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           created_at: string
