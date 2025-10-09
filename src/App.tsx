@@ -25,14 +25,12 @@ const Finance       = lazy(() => import('@/pages/Finance'))
 const FinanceClient = lazy(() => import('@/pages/FinanceClient'))
 const Direitos      = lazy(() => import('@/pages/Direitos'))
 const Orcamentos    = lazy(() => import('@/pages/Orcamentos'))
-const OrcamentosNovo = lazy(() => import('@/pages/OrcamentosNovo'))
 const OrcamentoNovo = lazy(() => import('@/pages/OrcamentoNovo'))
 const ComparadorBYD = lazy(() => import('@/pages/ComparadorBYD'))
 const Ancine        = lazy(() => import('@/pages/Ancine'))
 const Claquete      = lazy(() => import('@/pages/Claquete'))
 const BydProntaEntrega = lazy(() => import('@/pages/BydProntaEntrega'))
 const OrcamentoZero = lazy(() => import('@/pages/OrcamentoZero'))
-const HonorariosConfig = lazy(() => import('@/pages/HonorariosConfig'))
 
 const queryClient = new QueryClient()
 
@@ -226,7 +224,7 @@ const App = () => (
                 path="/orcamentos/novo"
                 element={
                   <ProtectedRoute>
-                    <OrcamentosNovo />
+                    <OrcamentoNovo />
                   </ProtectedRoute>
                 }
               />
@@ -299,15 +297,6 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <BydProntaEntrega />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/honorarios"
-                element={
-                  <ProtectedRoute>
-                    <HonorariosConfig />
                   </ProtectedRoute>
                 }
               />

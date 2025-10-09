@@ -1,15 +1,15 @@
-// src/pages/Finance.tsx
 import { useEffect, useState } from "react";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, DollarSign, Percent, Download } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, Download, FileSpreadsheet } from "lucide-react";
 import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 import { GoogleSheetsSync } from "@/components/finance/GoogleSheetsSync";
 import { TopClientsCard } from "@/components/finance/TopClientsCard";
 import { TopSuppliersCard } from "@/components/finance/TopSuppliersCard";
 import { FinancialReport } from "@/components/finance/FinancialReport";
 import { AnnualTotalsDialog } from "@/components/finance/AnnualTotalsDialog";
+import { ImportSpreadsheetModal } from "@/components/finance/ImportSpreadsheetModal";
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +44,7 @@ export default function Finance() {
   const [topClients, setTopClients] = useState<ClientSummary[]>([]);
   const [topSuppliers, setTopSuppliers] = useState<SupplierSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -106,6 +107,10 @@ export default function Finance() {
             </Button>
             {canEdit && (
               <>
+                <Button variant="outline" className="gap-2" onClick={() => setShowImportModal(true)}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Importar/Colar Planilha
+                </Button>
                 <GoogleSheetsSync onSyncComplete={loadData} />
                 <ExcelImportDialog onImportComplete={loadData} />
               </>
@@ -190,6 +195,12 @@ export default function Finance() {
           <TopSuppliersCard suppliers={topSuppliers} loading={loading} />
         </div>
       </div>
+
+      <ImportSpreadsheetModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+        onImportComplete={loadData}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ interface HonorarioWarningDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientName: string;
+  honorarioPercent: number;
 }
 
 export function HonorarioWarningDialog({

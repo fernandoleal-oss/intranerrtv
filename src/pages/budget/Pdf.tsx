@@ -81,7 +81,7 @@ export default function BudgetPdf() {
     fetchBudget();
   }, [id, navigate]);
 
-  // ====== Geração de PDF sem "risco" entre páginas ======
+  // ====== Geração de PDF COM MARGENS FIXAS ======
   const handleGeneratePdf = async () => {
     if (!contentRef.current || !data) return;
     setGenerating(true);
@@ -103,13 +103,18 @@ export default function BudgetPdf() {
 
       const pageWmm = pdf.internal.pageSize.getWidth(); // 210mm
       const pageHmm = pdf.internal.pageSize.getHeight(); // 297mm
+      
+      // Margens internas (12mm em cada lado)
+      const pageMarginMm = 12;
+      const contentWmm = pageWmm - pageMarginMm * 2; // largura útil = 186mm
+      const contentHmm = pageHmm - pageMarginMm * 2; // altura útil = 273mm
 
       const cw = canvas.width;
       const ch = canvas.height;
 
-      // px↔mm com base na LARGURA (mantém proporção perfeita)
-      const pxPerMm = cw / pageWmm;
-      const pageHPx = Math.ceil(pageHmm * pxPerMm); // altura exata da página em px (arredonda pra cima)
+      // px↔mm com base na LARGURA útil (com margens)
+      const pxPerMm = cw / contentWmm;
+      const pageHPx = Math.ceil(contentHmm * pxPerMm); // altura exata por página
 
       let y = 0;
       let pageIndex = 0;
@@ -147,11 +152,12 @@ export default function BudgetPdf() {
         pdf.rect(0, 0, pageWmm, pageHmm, "F");
 
         const isLast = y + srcHeight >= ch;
-        // Para páginas cheias, ocupa 100% da altura; na última respeita altura real
-        const targetHeightMm = isLast ? srcHeight / pxPerMm : pageHmm;
-        const targetWidthMm = pageWmm;
+        // Para páginas cheias, ocupa altura útil; na última respeita altura real
+        const targetHeightMm = isLast ? srcHeight / pxPerMm : contentHmm;
+        const targetWidthMm = contentWmm;
 
-        pdf.addImage(img, "PNG", 0, 0, targetWidthMm, targetHeightMm);
+        // Adiciona imagem COM MARGEM (pageMarginMm de offset em x e y)
+        pdf.addImage(img, "PNG", pageMarginMm, pageMarginMm, targetWidthMm, targetHeightMm);
 
         y += srcHeight;
         pageIndex += 1;
@@ -203,13 +209,19 @@ export default function BudgetPdf() {
   const payload = data.payload || {};
   const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
 
-  const getMaisBarato = (cat: any) => {
-    if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
-    return cat.fornecedores.reduce((min: any, f: any) => {
-      const valor = (f.valor || 0) - (f.desconto || 0);
-      const minValor = (min.valor || 0) - (min.desconto || 0);
-      return valor < minValor ? f : min;
+  // Ordenar fornecedores por valor final (valor - desconto), do mais barato ao mais caro
+  const ordenarFornecedores = (fornecedores: any[]) => {
+    if (!fornecedores || fornecedores.length === 0) return [];
+    return [...fornecedores].sort((a, b) => {
+      const valorA = (a.valor || 0) - (a.desconto || 0);
+      const valorB = (b.valor || 0) - (b.desconto || 0);
+      return valorA - valorB;
     });
+  };
+
+  const getMaisBarato = (cat: any) => {
+    const ordenados = ordenarFornecedores(cat.fornecedores);
+    return ordenados[0] || null;
   };
 
   const calcularSubtotal = (cat: any) => {
@@ -467,7 +479,7 @@ export default function BudgetPdf() {
 
                         {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
                           <div className="space-y-3 mt-3">
-                            {cat.fornecedores.map((f: any, fIdx: number) => {
+                            {ordenarFornecedores(cat.fornecedores).map((f: any, fIdx: number) => {
                               const isMaisBarato = maisBarato === f || maisBarato?.id === f.id;
                               const valorFinal = (f.valor || 0) - (f.desconto || 0);
 

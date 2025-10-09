@@ -11,10 +11,18 @@ import { importPKCS8 } from 'https://deno.land/x/jose@v5.2.0/index.ts'
 
 async function getGoogleAccessToken(clientEmail: string, privateKey: string, scopes: string[]) {
   try {
-    // Clean up the private key
-    const cleanKey = privateKey
-      .replace(/\\n/g, '\n')
-      .trim()
+    // Clean up the private key - handle both \\n and literal newlines
+    let cleanKey = privateKey.trim();
+    
+    // If the key contains \\n (escaped), replace with actual newlines
+    if (cleanKey.includes('\\n')) {
+      cleanKey = cleanKey.replace(/\\n/g, '\n');
+    }
+    
+    // Ensure proper PKCS#8 format with headers
+    if (!cleanKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('Invalid PKCS#8 key format: missing header');
+    }
     
     // Import the private key
     const key = await importPKCS8(cleanKey, 'RS256')
