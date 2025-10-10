@@ -1,4 +1,3 @@
-// src/pages/budget/Pdf.tsx
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -97,12 +96,11 @@ export default function BudgetPdf() {
       });
 
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-      const pageWmm = pdf.internal.pageSize.getWidth(); // 210mm
-      const pageHmm = pdf.internal.pageSize.getHeight(); // 297mm
-      const pageMarginMm = 12; // margens internas
-      const contentWmm = pageWmm - pageMarginMm * 2; // 186mm
-      const contentHmm = pageHmm - pageMarginMm * 2; // 273mm
+      const pageWmm = pdf.internal.pageSize.getWidth();
+      const pageHmm = pdf.internal.pageSize.getHeight();
+      const pageMarginMm = 12;
+      const contentWmm = pageWmm - pageMarginMm * 2;
+      const contentHmm = pageHmm - pageMarginMm * 2;
 
       const cw = canvas.width;
       const ch = canvas.height;
@@ -171,7 +169,7 @@ export default function BudgetPdf() {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
-  // ------- helpers numéricos e de ranking -------
+  // ------- helpers -------
   const toNum = (v: any) => {
     if (typeof v === "number") return isFinite(v) ? v : 0;
     if (typeof v === "string") {
@@ -269,13 +267,12 @@ export default function BudgetPdf() {
       </AppLayout>
     );
   }
-
   if (!data) return null;
 
   const payload = data.payload || {};
   const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
 
-  // sem useMemo:
+  // sem hooks:
   const totaisPorCampanha = campanhas.map((camp: any) => ({
     nome: camp.nome,
     total: calcularTotalCampanha(camp),
@@ -293,14 +290,8 @@ export default function BudgetPdf() {
           .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
         }
         .print-content {
-          width: 210mm;
-          min-height: 297mm;
-          padding: 20mm 20mm;
-          margin: 0 auto;
-          background: #FFFFFF;
-          color: #000000;
-          box-shadow: 0 0 10px rgba(0,0,0,0.1);
-          box-sizing: border-box;
+          width: 210mm; min-height: 297mm; padding: 20mm 20mm; margin: 0 auto;
+          background: #FFFFFF; color: #000000; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box;
         }
         .avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; }
       `}</style>
@@ -374,22 +365,22 @@ export default function BudgetPdf() {
           >
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px", fontSize: "13px" }}>
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Cliente</p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>Cliente</p>
                 <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
               </div>
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Produto</p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>Produto</p>
                 <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.produto || "-"}</p>
               </div>
               {payload.job && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Job</p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>Job</p>
                   <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.job}</p>
                 </div>
               )}
               {campanhas.length > 0 && campanhas[0].nome && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>
                     Campanha (1ª)
                   </p>
                   <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhas[0].nome}</p>
@@ -401,9 +392,7 @@ export default function BudgetPdf() {
           {campanhas.map((campanha: any, campIdx: number) => {
             const categoriasVisiveis = (campanha.categorias || [])
               .filter((c: any) => c.visivel !== false)
-              .filter((c: any) =>
-                c.modoPreco === "fechado" ? c.fornecedores && c.fornecedores.length > 0 : c.itens && c.itens.length > 0,
-              );
+              .filter((c: any) => (c.modoPreco === "fechado" ? c.fornecedores?.length > 0 : c.itens?.length > 0));
 
             if (categoriasVisiveis.length === 0) return null;
 
@@ -652,7 +641,7 @@ export default function BudgetPdf() {
                                     </div>
                                   </div>
 
-                                  {/* Opções em grade 2x */}
+                                  {/* Opções (grade 2 colunas) */}
                                   {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
                                     <div style={{ marginTop: "8px", paddingLeft: "8px" }}>
                                       <p className="text-[10px] font-semibold mb-2" style={{ color: "#666666" }}>
