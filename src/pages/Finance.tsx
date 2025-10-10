@@ -5,9 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   TrendingUp,
-  TrendingDown,
   DollarSign,
-  Percent,
   Download,
   FileSpreadsheet,
   ArrowLeftRight,
@@ -19,7 +17,6 @@ import {
 import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 import { GoogleSheetsSync } from "@/components/finance/GoogleSheetsSync";
 import { TopClientsCard } from "@/components/finance/TopClientsCard";
-import { TopSuppliersCard } from "@/components/finance/TopSuppliersCard";
 import { FinancialReport } from "@/components/finance/FinancialReport";
 import { AnnualTotalsDialog } from "@/components/finance/AnnualTotalsDialog";
 import { ImportSpreadsheetModal } from "@/components/finance/ImportSpreadsheetModal";
@@ -32,22 +29,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
-type ClientSummary = { client: string; total: number; count: number };
-type SupplierSummary = { supplier: string; total: number; count: number };
+/* ============================= */
+/* ===== Tipos e Constantes ==== */
+/* ============================= */
 
-type Event = {
+type ClientSummary = { client: string; total: number; count: number };
+
+type EventRevenue = {
   id?: string;
   cliente: string | null;
-  fornecedor: string | null;
-  ref_month: string; // "YYYY-MM" ou "YYYY-MM-DD"
-  total_cents: number | null;
-  valor_fornecedor_cents: number | null;
+  ref_month: string; // armazenado como "YYYY-MM"
+  total_cents: number | null; // faturado no mês
 };
 
 const MIN_YM = "2025-08";
 
 /* ============================= */
-/* ======= HELPERS BASE =========*/
+/* ========= Helpers =========== */
 /* ============================= */
 
 function formatBRL(v: number) {
@@ -77,7 +75,6 @@ function addMonths(ymStr: string, delta: number) {
   const mm = String(base.getMonth() + 1).padStart(2, "0");
   return `${yy}-${mm}`;
 }
-
 function nextYM(ymStr: string) {
   return addMonths(ymStr, 1);
 }
@@ -101,7 +98,12 @@ function generateAllowedMonths(minYM: string, maxYM: string) {
   return list.reverse(); // recentes primeiro
 }
 
-function summarizeClients(rows: Event[]): ClientSummary[] {
+// padroniza o valor salvo no banco SEMPRE como 'YYYY-MM'
+function storeRefMonth(ymStr: string) {
+  return ymStr;
+}
+
+function summarizeClients(rows: EventRevenue[]): ClientSummary[] {
   const map: Record<string, ClientSummary> = {};
   for (const row of rows) {
     const client = row.cliente || "Sem cliente";
@@ -112,42 +114,22 @@ function summarizeClients(rows: Event[]): ClientSummary[] {
   return Object.values(map).sort((a, b) => b.total - a.total);
 }
 
-function summarizeSuppliers(rows: Event[]): SupplierSummary[] {
-  const map: Record<string, SupplierSummary> = {};
-  for (const row of rows) {
-    const supplier = row.fornecedor || "Sem fornecedor";
-    if (supplier === "Sem fornecedor") continue;
-    if (!map[supplier]) map[supplier] = { supplier, total: 0, count: 0 };
-    map[supplier].total += (row.valor_fornecedor_cents ?? 0) / 100;
-    map[supplier].count += 1;
-  }
-  return Object.values(map).sort((a, b) => b.total - a.total);
-}
-
+/* KPIs só de receita */
 type KPIs = {
   receita: number;
-  despesa: number;
-  resultado: number;
-  margem: number;
   varReceitaPct: number;
-  varDespesaPct: number;
+  registros: number;
+  ticketMedio: number;
 };
 
-function computeKPIs(curRows: Event[], prevRows: Event[]): KPIs {
-  const sum = (xs: Event[], sel: (e: Event) => number) => xs.reduce((acc, e) => acc + sel(e), 0);
-
-  const receita = sum(curRows, (e) => (e.total_cents ?? 0) / 100);
-  const despesa = sum(curRows, (e) => (e.valor_fornecedor_cents ?? 0) / 100);
-  const receitaPrev = sum(prevRows, (e) => (e.total_cents ?? 0) / 100);
-  const despesaPrev = sum(prevRows, (e) => (e.valor_fornecedor_cents ?? 0) / 100);
-
-  const resultado = receita - despesa;
-  const margem = receita > 0 ? (resultado / receita) * 100 : 0;
-
+function computeKPIs(curRows: EventRevenue[], prevRows: EventRevenue[]): KPIs {
+  const sum = (xs: EventRevenue[]) => xs.reduce((acc, e) => acc + (e.total_cents ?? 0), 0) / 100;
+  const receita = sum(curRows);
+  const receitaPrev = sum(prevRows);
   const varReceitaPct = receitaPrev > 0 ? ((receita - receitaPrev) / receitaPrev) * 100 : 0;
-  const varDespesaPct = despesaPrev > 0 ? ((despesa - despesaPrev) / despesaPrev) * 100 : 0;
-
-  return { receita, despesa, resultado, margem, varReceitaPct, varDespesaPct };
+  const registros = curRows.length;
+  const ticketMedio = registros > 0 ? receita / registros : 0;
+  return { receita, varReceitaPct, registros, ticketMedio };
 }
 
 /* ============================= */
@@ -156,12 +138,11 @@ function computeKPIs(curRows: Event[], prevRows: Event[]): KPIs {
 
 type DetectedMapping = {
   idxCliente?: number;
-  idxFornecedor?: number;
   idxTotal?: number;
-  idxValorFornecedor?: number;
   idxRef?: number;
   idxMes?: number;
   idxAno?: number;
+  // fallback para total
   idxHonorario?: number;
   idxHonorarioAgencia?: number;
 };
@@ -205,11 +186,10 @@ function normalize(s: string) {
 
 function guessDelimiter(lines: string[]) {
   const cands = ["\t", ";", ",", "|"];
-  let best = "\t";
-  let bestScore = 0;
+  let best = "\t",
+    bestScore = 0;
   for (const d of cands) {
-    const counts = lines.slice(0, 5).map((l) => (l ? l.split(d).length : 0));
-    const score = counts.reduce((a, b) => a + b, 0);
+    const score = lines.slice(0, 5).reduce((a, l) => a + (l ? l.split(d).length : 0), 0);
     if (score > bestScore) {
       bestScore = score;
       best = d;
@@ -232,23 +212,16 @@ function parseCurrencyBrOrEn(v: string | undefined): number {
 
 function asYMFromText(text: string): string | null {
   const t = normalize(text);
-  // YYYY-MM or YYYY/MM
-  const m1 = t.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/);
+  const m1 = t.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/); // YYYY-MM
   if (m1) return `${m1[1]}-${String(Number(m1[2])).padStart(2, "0")}`;
-  // MM/YYYY
-  const m2 = t.match(/\b(0?[1-9]|1[0-2])[-/](20\d{2})\b/);
+  const m2 = t.match(/\b(0?[1-9]|1[0-2])[-/](20\d{2})\b/); // MM/YYYY
   if (m2) return `${m2[2]}-${String(Number(m2[1])).padStart(2, "0")}`;
-  // DD/MM/YYYY
-  const m3 = t.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/);
+  const m3 = t.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/); // DD/MM/YYYY
   if (m3) return `${m3[3]}-${String(Number(m3[2])).padStart(2, "0")}`;
-  // nomes PT (ago 2025 etc.)
   for (const k of Object.keys(PT_MONTHS)) {
     const re = new RegExp(`\\b${k}\\b[^\\d]*\\b(20\\d{2})\\b`, "i");
     const m = t.match(re);
-    if (m) {
-      const mm = String(PT_MONTHS[k]).padStart(2, "0");
-      return `${m[1]}-${mm}`;
-    }
+    if (m) return `${m[1]}-${String(PT_MONTHS[k]).padStart(2, "0")}`;
   }
   return null;
 }
@@ -261,15 +234,7 @@ function detectMapping(headers: string[]): DetectedMapping {
     return idx >= 0 ? idx : undefined;
   };
   map.idxCliente = find(["cliente", "client", "conta", "brand", "marca"]);
-  map.idxFornecedor = find(["fornecedor", "supplier", "vendor"]);
-  map.idxTotal = find(["total", "valor total", "total geral"]);
-  map.idxValorFornecedor = find([
-    "valor do fornecedor",
-    "valor fornecedor",
-    "custo fornecedor",
-    "fornecedor valor",
-    "custo",
-  ]);
+  map.idxTotal = find(["total", "valor total", "total geral", "faturado", "receita"]);
   map.idxHonorario = find(["honorario", "honorário"]);
   map.idxHonorarioAgencia = find(["honorario agencia", "honorário agencia", "honorario da agencia"]);
   map.idxRef = find(["ref_month", "ref", "competencia", "competência", "periodo", "período", "mes/ano", "mes-ano"]);
@@ -280,8 +245,7 @@ function detectMapping(headers: string[]): DetectedMapping {
 
 function assembleYM(row: string[], map: DetectedMapping): string | null {
   if (map.idxRef !== undefined) {
-    const ymText = row[map.idxRef] ?? "";
-    const ymd = asYMFromText(ymText);
+    const ymd = asYMFromText(row[map.idxRef] ?? "");
     if (ymd) return ymd;
   }
   if (map.idxMes !== undefined && map.idxAno !== undefined) {
@@ -300,25 +264,20 @@ function assembleYM(row: string[], map: DetectedMapping): string | null {
 }
 
 function rowsToEvents(rows: string[][], map: DetectedMapping, fallbackYM: string | null) {
-  const events: Event[] = [];
+  const events: EventRevenue[] = [];
   let ymDetected: string | null = null;
   for (const row of rows) {
     if (row.every((c) => !c || !String(c).trim())) continue;
 
     const cliente = (map.idxCliente !== undefined ? row[map.idxCliente] : "") || null;
-    const fornecedor = (map.idxFornecedor !== undefined ? row[map.idxFornecedor] : "") || null;
 
-    const vFornecedor = parseCurrencyBrOrEn(
-      map.idxValorFornecedor !== undefined ? row[map.idxValorFornecedor] : undefined,
-    );
     let total = parseCurrencyBrOrEn(map.idxTotal !== undefined ? row[map.idxTotal] : undefined);
-
     if (!total) {
       const hon = parseCurrencyBrOrEn(map.idxHonorario !== undefined ? row[map.idxHonorario] : undefined);
       const honAg = parseCurrencyBrOrEn(
         map.idxHonorarioAgencia !== undefined ? row[map.idxHonorarioAgencia] : undefined,
       );
-      total = vFornecedor + hon + honAg;
+      total = hon + honAg;
     }
 
     let thisYM = assembleYM(row, map) || fallbackYM;
@@ -327,25 +286,21 @@ function rowsToEvents(rows: string[][], map: DetectedMapping, fallbackYM: string
 
     events.push({
       cliente,
-      fornecedor,
-      ref_month: `${thisYM}-01`,
+      ref_month: storeRefMonth(thisYM), // sempre "YYYY-MM"
       total_cents: Math.round((total || 0) * 100),
-      valor_fornecedor_cents: Math.round((vFornecedor || 0) * 100),
     });
   }
   return { events, ymDetected };
 }
 
-// chave de deduplicação no cliente
-function dedupKey(e: Event) {
+/* deduplicação por cliente + mês + total */
+function dedupKey(e: EventRevenue) {
   const norm = (s?: string | null) => (s ?? "").trim().toUpperCase();
-  return [norm(e.cliente), norm(e.fornecedor), ym(e.ref_month), e.total_cents ?? 0, e.valor_fornecedor_cents ?? 0].join(
-    "|",
-  );
+  return [norm(e.cliente), ym(e.ref_month), e.total_cents ?? 0].join("|");
 }
 
 /* ============================= */
-/* ========== PAGE ============= */
+/* ========== Página =========== */
 /* ============================= */
 
 export default function Finance() {
@@ -353,7 +308,7 @@ export default function Finance() {
   const { toast } = useToast();
   const canEdit = canEditFinance(user?.email);
 
-  const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [allEvents, setAllEvents] = useState<EventRevenue[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectDialogOpen, setSelectDialogOpen] = useState<boolean>(false);
@@ -367,7 +322,6 @@ export default function Finance() {
     ym: string | null;
     rowsCount: number;
     totalSum: number;
-    fornecedorSum: number;
   } | null>(null);
 
   const [showImportModal, setShowImportModal] = useState(false);
@@ -378,7 +332,6 @@ export default function Finance() {
   useEffect(() => {
     loadData();
   }, []);
-
   useEffect(() => {
     if (!selectedYM) setSelectDialogOpen(true);
   }, [selectedYM]);
@@ -388,10 +341,10 @@ export default function Finance() {
     try {
       const { data, error } = await supabase
         .from("finance_events")
-        .select("cliente, fornecedor, ref_month, total_cents, valor_fornecedor_cents")
+        .select("cliente, ref_month, total_cents")
         .order("ref_month", { ascending: false });
       if (error) throw error;
-      setAllEvents((data || []) as Event[]);
+      setAllEvents((data || []) as EventRevenue[]);
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
     } finally {
@@ -399,12 +352,10 @@ export default function Finance() {
     }
   }
 
-  // filtragem por mês
   const curRows = useMemo(
     () => (selectedYM ? allEvents.filter((r) => ym(r.ref_month) === selectedYM) : []),
     [allEvents, selectedYM],
   );
-
   const prevForSelectedRows = useMemo(() => {
     if (!selectedYM) return [];
     const prevYM = addMonths(selectedYM, -1);
@@ -415,49 +366,37 @@ export default function Finance() {
     () => (compareYM ? allEvents.filter((r) => ym(r.ref_month) === compareYM) : []),
     [allEvents, compareYM],
   );
-
   const prevForCompareRows = useMemo(() => {
     if (!compareYM) return [];
     const prevYM = addMonths(compareYM, -1);
     return allEvents.filter((r) => ym(r.ref_month) === prevYM);
   }, [allEvents, compareYM]);
 
-  const kpisSelected = useMemo<KPIs>(() => computeKPIs(curRows, prevForSelectedRows), [curRows, prevForSelectedRows]);
-  const kpisCompare = useMemo<KPIs>(
-    () => computeKPIs(compareRows, prevForCompareRows),
-    [compareRows, prevForCompareRows],
-  );
+  const kpisSelected = useMemo(() => computeKPIs(curRows, prevForSelectedRows), [curRows, prevForSelectedRows]);
+  const kpisCompare = useMemo(() => computeKPIs(compareRows, prevForCompareRows), [compareRows, prevForCompareRows]);
 
   const topClientsSelected = useMemo(() => summarizeClients(curRows), [curRows]);
-  const topSuppliersSelected = useMemo(() => summarizeSuppliers(curRows), [curRows]);
   const topClientsCompare = useMemo(() => summarizeClients(compareRows), [compareRows]);
-  const topSuppliersCompare = useMemo(() => summarizeSuppliers(compareRows), [compareRows]);
 
   function handleExportCSV() {
     if (!selectedYM) return;
-    const header = ["ref_month", "cliente", "fornecedor", "total", "valor_fornecedor"].join(",");
+    const header = ["ref_month", "cliente", "total"].join(",");
     const lines = curRows.map((e) =>
-      [
-        ym(e.ref_month),
-        `"${(e.cliente ?? "").replace(/"/g, '""')}"`,
-        `"${(e.fornecedor ?? "").replace(/"/g, '""')}"`,
-        (e.total_cents ?? 0) / 100,
-        (e.valor_fornecedor_cents ?? 0) / 100,
-      ].join(","),
+      [ym(e.ref_month), `"${(e.cliente ?? "").replace(/"/g, '""')}"`, (e.total_cents ?? 0) / 100].join(","),
     );
     const csv = [header, ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `finance_events_${selectedYM}.csv`;
+    a.download = `finance_revenue_${selectedYM}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   const comparisonActive = !!compareYM;
 
-  /* ===== Paste handling ===== */
+  /* ===== Colar/Analisar ===== */
   function handlePasteAnalyze() {
     const text = pasteText.trim();
     if (!text) {
@@ -472,8 +411,8 @@ export default function Finance() {
     const delim = guessDelimiter(lines);
     const headerCells = lines[0].split(delim).map((c) => c.trim());
     const mapping = detectMapping(headerCells);
-
     const body = lines.slice(1).map((l) => l.split(delim));
+
     const ymCount: Record<string, number> = {};
     for (const row of body) {
       const ymMaybe = assembleYM(row, mapping);
@@ -492,15 +431,8 @@ export default function Finance() {
 
     const rowsCount = events.length;
     const totalSum = events.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100;
-    const fornecedorSum = events.reduce((a, e) => a + (e.valor_fornecedor_cents ?? 0), 0) / 100;
 
-    setPastePreview({
-      mapping,
-      ym: detectedYM,
-      rowsCount,
-      totalSum,
-      fornecedorSum,
-    });
+    setPastePreview({ mapping, ym: detectedYM, rowsCount, totalSum });
   }
 
   async function handlePasteConfirm() {
@@ -510,23 +442,21 @@ export default function Finance() {
     if (!ymImport) {
       toast({
         title: "Mês/ano não detectado",
-        description:
-          "Não consegui identificar o mês/ano da tabela. Inclua competência ou selecione o mês e tente novamente.",
+        description: "Inclua competência ou selecione o mês e tente novamente.",
         variant: "destructive",
       });
       return;
     }
-
     if (!betweenInclusive(ymImport, MIN_YM, nowYM())) {
       toast({
         title: "Período bloqueado",
-        description: `Somente meses a partir de ${toPTMonthLabel(MIN_YM)} são aceitos.`,
+        description: `Somente meses a partir de ${toPTMonthLabel(MIN_YM)}.`,
         variant: "destructive",
       });
       return;
     }
 
-    // Reparse completo para garantir consistência
+    // Reparse
     const lines = pasteText
       .trim()
       .split(/\r?\n/)
@@ -538,35 +468,37 @@ export default function Finance() {
     const { events } = rowsToEvents(body, mapping, ymImport);
 
     if (events.length === 0) {
-      toast({
-        title: "Nada para importar",
-        description: "Não identifiquei linhas válidas após a análise.",
-        variant: "destructive",
-      });
+      toast({ title: "Nada para importar", description: "Não identifiquei linhas válidas.", variant: "destructive" });
       return;
     }
 
-    // Dedup do lote
-    const uniqueMap = new Map<string, Event>();
+    // Dedup
+    const uniqueMap = new Map<string, EventRevenue>();
     for (const e of events) uniqueMap.set(dedupKey(e), e);
-    const uniqueEvents = Array.from(uniqueMap.values());
+    let uniqueEvents = Array.from(uniqueMap.values());
+
+    // Garante persistência como "YYYY-MM"
+    uniqueEvents = uniqueEvents.map((e) => ({ ...e, ref_month: storeRefMonth(ymImport) }));
 
     const ok = window.confirm(
       `Isso vai substituir ${toPTMonthLabel(ymImport)} por ${uniqueEvents.length} itens.\n` +
-        `Receita total: ${formatBRL(uniqueEvents.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100)}\n` +
-        `Fornecedor: ${formatBRL(uniqueEvents.reduce((a, e) => a + (e.valor_fornecedor_cents ?? 0), 0) / 100)}\n\n` +
+        `Receita total: ${formatBRL(uniqueEvents.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100)}\n\n` +
         `Deseja continuar?`,
     );
     if (!ok) return;
 
     try {
-      // Apagar **por faixa** (funciona se ref_month for date ou texto ISO)
+      // 1) Apaga o mês por FAIXA (cobre coluna DATE)
       const start = `${ymImport}-01`;
       const end = `${nextYM(ymImport)}-01`;
-      const del = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
-      if (del.error) throw del.error;
+      const delRange = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
+      if (delRange.error) throw delRange.error;
 
-      // Inserir sem upsert (já apagamos o mês → sem colisão no índice idempotente)
+      // 2) Apaga o mês por LIKE (cobre TEXT 'YYYY-MM' ou 'YYYY-MM-DD')
+      const delLike = await supabase.from("finance_events").delete().like("ref_month", `${ymImport}%`);
+      if (delLike.error) throw delLike.error;
+
+      // 3) Insere o faturamento do mês (sem upsert — mês foi limpo)
       const ins = await supabase.from("finance_events").insert(uniqueEvents);
       if (ins.error) throw ins.error;
 
@@ -574,7 +506,6 @@ export default function Finance() {
         title: "Importação concluída",
         description: `Substituí ${toPTMonthLabel(ymImport)} com ${uniqueEvents.length} itens.`,
       });
-
       setPasteOpen(false);
       setPasteText("");
       setPastePreview(null);
@@ -659,9 +590,9 @@ export default function Finance() {
           <Card className="mb-6 border-amber-200 bg-amber-50">
             <CardContent className="pt-6">
               <p className="text-sm text-amber-800">
-                Selecione o mês de referência para visualizar o financeiro.
+                Selecione o mês de referência para visualizar o faturamento.
                 <br />
-                Por política de dados, meses anteriores a <strong>ago/2025</strong> ficam indisponíveis.
+                Meses anteriores a <strong>ago/2025</strong> ficam indisponíveis.
               </p>
             </CardContent>
           </Card>
@@ -671,11 +602,9 @@ export default function Finance() {
           <>
             <KPICards
               receita={kpisSelected.receita}
-              despesa={kpisSelected.despesa}
-              resultado={kpisSelected.resultado}
-              margem={kpisSelected.margem}
               varReceitaPct={kpisSelected.varReceitaPct}
-              varDespesaPct={kpisSelected.varDespesaPct}
+              registros={kpisSelected.registros}
+              ticketMedio={kpisSelected.ticketMedio}
             />
 
             {!canEdit && (
@@ -690,7 +619,6 @@ export default function Finance() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <TopClientsCard clients={topClientsSelected} loading={loading} />
-              <TopSuppliersCard suppliers={topSuppliersSelected} loading={loading} />
             </div>
           </>
         )}
@@ -706,19 +634,15 @@ export default function Finance() {
                   <CardContent>
                     <KPICards
                       receita={kpisSelected.receita}
-                      despesa={kpisSelected.despesa}
-                      resultado={kpisSelected.resultado}
-                      margem={kpisSelected.margem}
                       varReceitaPct={kpisSelected.varReceitaPct}
-                      varDespesaPct={kpisSelected.varDespesaPct}
+                      registros={kpisSelected.registros}
+                      ticketMedio={kpisSelected.ticketMedio}
                       compact
                     />
                   </CardContent>
                 </Card>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <TopClientsCard clients={topClientsSelected} loading={loading} />
-                  <TopSuppliersCard suppliers={topSuppliersSelected} loading={loading} />
                 </div>
               </div>
 
@@ -730,19 +654,15 @@ export default function Finance() {
                   <CardContent>
                     <KPICards
                       receita={kpisCompare.receita}
-                      despesa={kpisCompare.despesa}
-                      resultado={kpisCompare.resultado}
-                      margem={kpisCompare.margem}
                       varReceitaPct={kpisCompare.varReceitaPct}
-                      varDespesaPct={kpisCompare.varDespesaPct}
+                      registros={kpisCompare.registros}
+                      ticketMedio={kpisCompare.ticketMedio}
                       compact
                     />
                   </CardContent>
                 </Card>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <TopClientsCard clients={topClientsCompare} loading={loading} />
-                  <TopSuppliersCard suppliers={topSuppliersCompare} loading={loading} />
                 </div>
               </div>
             </div>
@@ -754,15 +674,11 @@ export default function Finance() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <DiffItem label="Receita" value={kpisSelected.receita - kpisCompare.receita} money />
-                  <DiffItem label="Despesa" value={kpisSelected.despesa - kpisCompare.despesa} money />
-                  <DiffItem label="Resultado" value={kpisSelected.resultado - kpisCompare.resultado} money />
-                  <DiffItem label="Margem (p.p.)" value={kpisSelected.margem - kpisCompare.margem} suffix=" p.p." />
+                  <DiffItem label="Registros" value={kpisSelected.registros - kpisCompare.registros} />
+                  <DiffItem label="Ticket médio" value={kpisSelected.ticketMedio - kpisCompare.ticketMedio} money />
                 </div>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Dica: use “Trocar mês” para ajustar o mês principal e “Remover comparação” para voltar à visão única.
-                </p>
               </CardContent>
             </Card>
           </>
@@ -771,7 +687,7 @@ export default function Finance() {
 
       <ImportSpreadsheetModal open={showImportModal} onOpenChange={setShowImportModal} onImportComplete={loadData} />
 
-      {/* Diálogo de seleção de mês / comparação */}
+      {/* Seleção de mês / comparação */}
       <MonthSelectDialog
         open={selectDialogOpen}
         onOpenChange={(o) => setSelectDialogOpen(o)}
@@ -783,20 +699,17 @@ export default function Finance() {
         helper="Apenas meses a partir de ago/2025 estão disponíveis."
         onConfirm={(value) => {
           if (!value) return;
-          if (!selectedYM) {
-            setSelectedYM(value);
-          } else if (!compareYM) {
+          if (!selectedYM) setSelectedYM(value);
+          else if (!compareYM) {
             if (value === selectedYM) setCompareYM(null);
             else setCompareYM(value);
-          } else {
-            setSelectedYM(value);
-          }
+          } else setSelectedYM(value);
           setSelectDialogOpen(false);
         }}
         exclude={selectedYM ? [selectedYM] : []}
       />
 
-      {/* Diálogo de "Zerar e colar do Excel" */}
+      {/* Zerar e colar do Excel */}
       <Dialog
         open={pasteOpen}
         onOpenChange={(o) => {
@@ -814,13 +727,13 @@ export default function Finance() {
 
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Cole aqui a tabela copiada do Excel/Sheets (aceita tabulação, “;”, “,” ou “|”). O sistema detecta colunas
-              e o mês/ano automaticamente. Você confirma antes de gravar.
+              Cole a planilha copiada do Excel/Sheets (tab, “;”, “,” ou “|”). Detectamos colunas e competência
+              automaticamente.
             </p>
 
             <Textarea
               className="h-56"
-              placeholder={`Exemplo de cabeçalhos: CLIENTE\tFORNECEDOR\tTOTAL\tVALOR DO FORNECEDOR\tCOMPETÊNCIA\n...`}
+              placeholder={`Ex.: CLIENTE\tTOTAL\tCOMPETÊNCIA\n...`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               onBlur={handlePasteAnalyze}
@@ -869,10 +782,6 @@ export default function Finance() {
                     <div>
                       <span className="text-muted-foreground">Receita (soma):</span> {formatBRL(pastePreview.totalSum)}
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Fornecedor (soma):</span>{" "}
-                      {formatBRL(pastePreview.fornecedorSum)}
-                    </div>
                   </div>
 
                   <div className="text-xs text-muted-foreground mt-2">
@@ -882,18 +791,8 @@ export default function Finance() {
                         Cliente → {pastePreview.mapping?.idxCliente !== undefined ? "detectado" : "não encontrado"}
                       </li>
                       <li>
-                        Fornecedor →{" "}
-                        {pastePreview.mapping?.idxFornecedor !== undefined ? "detectado" : "não encontrado"}
-                      </li>
-                      <li>
                         Total →{" "}
-                        {pastePreview.mapping?.idxTotal !== undefined
-                          ? "detectado"
-                          : "somado (honorários + fornecedor)"}
-                      </li>
-                      <li>
-                        Valor do fornecedor →{" "}
-                        {pastePreview.mapping?.idxValorFornecedor !== undefined ? "detectado" : "não encontrado"}
+                        {pastePreview.mapping?.idxTotal !== undefined ? "detectado" : "tentarei somar honorários"}
                       </li>
                       <li>
                         Competência/Mês →{" "}
@@ -927,19 +826,23 @@ export default function Finance() {
 
 function KPICards({
   receita,
-  despesa,
-  resultado,
-  margem,
   varReceitaPct,
-  varDespesaPct,
+  registros,
+  ticketMedio,
   compact = false,
-}: KPIs & { compact?: boolean }) {
+}: {
+  receita: number;
+  varReceitaPct: number;
+  registros: number;
+  ticketMedio: number;
+  compact?: boolean;
+}) {
   const valueClass = compact ? "text-xl" : "text-2xl";
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 ${compact ? "" : "mb-6"}`}>
+    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${compact ? "" : "mb-6"}`}>
       <Card className="border-blue-200 bg-blue-50/30">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Receitas do Mês</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Receita do mês</CardTitle>
           <DollarSign className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
@@ -952,39 +855,23 @@ function KPICards({
         </CardContent>
       </Card>
 
-      <Card className="border-red-200 bg-red-50/30">
+      <Card className="border-emerald-200 bg-emerald-50/30">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Despesas do Mês</CardTitle>
-          <TrendingDown className="h-4 w-4 text-red-600" />
+          <CardTitle className="text-sm font-medium text-muted-foreground">Registros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`${valueClass} font-bold text-red-700`}>{formatBRL(despesa)}</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {varDespesaPct >= 0 ? "+" : ""}
-            {varDespesaPct.toFixed(1)}% vs mês anterior
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border-green-200 bg-green-50/30">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Resultado</CardTitle>
-          <DollarSign className="h-4 w-4 text-green-600" />
-        </CardHeader>
-        <CardContent>
-          <div className={`${valueClass} font-bold text-green-700`}>{formatBRL(resultado)}</div>
-          <p className="text-xs text-muted-foreground mt-1">Receitas - Despesas</p>
+          <div className={`${valueClass} font-bold text-emerald-700`}>{registros}</div>
+          <p className="text-xs text-muted-foreground mt-1">Quantidade de lançamentos</p>
         </CardContent>
       </Card>
 
       <Card className="border-purple-200 bg-purple-50/30">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Margem</CardTitle>
-          <Percent className="h-4 w-4 text-purple-600" />
+          <CardTitle className="text-sm font-medium text-muted-foreground">Ticket médio</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`${valueClass} font-bold text-purple-700`}>{margem.toFixed(1)}%</div>
-          <p className="text-xs text-muted-foreground mt-1">% de lucro do mês</p>
+          <div className={`${valueClass} font-bold text-purple-700`}>{formatBRL(ticketMedio)}</div>
+          <p className="text-xs text-muted-foreground mt-1">Receita / registro</p>
         </CardContent>
       </Card>
     </div>
@@ -1001,7 +888,7 @@ function DiffItem({ label, value, money, suffix }: { label: string; value: numbe
       <CardContent>
         <div className={`text-lg font-semibold ${positive ? "text-emerald-700" : "text-rose-700"}`}>
           {positive ? "+" : ""}
-          {money ? formatBRL(Math.abs(value)) : `${Math.abs(value).toFixed(1)}${suffix ?? ""}`}
+          {money ? formatBRL(Math.abs(value)) : `${Math.abs(value).toFixed(0)}${suffix ?? ""}`}
         </div>
       </CardContent>
     </Card>
@@ -1086,7 +973,7 @@ function FinancialEditActions({
     <>
       <Button variant="outline" className="gap-2" onClick={onImportOpen}>
         <FileSpreadsheet className="h-4 w-4" />
-        Importar/Colar Planilha (arquivo)
+        Importar Planilha (arquivo)
       </Button>
       <GoogleSheetsSync onSyncComplete={onSync} />
       <ExcelImportDialog onImportComplete={onSync} />
