@@ -29,24 +29,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
-/* ============================= */
-/* ===== Tipos e Constantes ==== */
-/* ============================= */
+/* ========== Tipos/constantes ========== */
 
 type ClientSummary = { client: string; total: number; count: number };
 
 type EventRevenue = {
   id?: string;
   cliente: string | null;
-  ref_month: string; // armazenado como "YYYY-MM"
-  total_cents: number | null; // faturado no mês
+  ref_month: string; // "YYYY-MM"
+  total_cents: number | null; // faturado
 };
 
 const MIN_YM = "2025-08";
 
-/* ============================= */
-/* ========= Helpers =========== */
-/* ============================= */
+/* ========== Helpers ========== */
 
 function formatBRL(v: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -55,18 +51,14 @@ function formatBRL(v: number) {
     maximumFractionDigits: 2,
   }).format(v);
 }
-
 function ym(ref: string | null | undefined) {
-  if (!ref) return "";
-  return ref.slice(0, 7);
+  return ref ? ref.slice(0, 7) : "";
 }
-
 function toPTMonthLabel(ymStr: string) {
   const [y, m] = ymStr.split("-").map(Number);
   const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   return `${months[(m ?? 1) - 1]}/${y}`;
 }
-
 function addMonths(ymStr: string, delta: number) {
   const [y, m] = ymStr.split("-").map(Number);
   const base = new Date(y, (m ?? 1) - 1, 1);
@@ -75,19 +67,14 @@ function addMonths(ymStr: string, delta: number) {
   const mm = String(base.getMonth() + 1).padStart(2, "0");
   return `${yy}-${mm}`;
 }
-function nextYM(ymStr: string) {
-  return addMonths(ymStr, 1);
-}
-
+const nextYM = (x: string) => addMonths(x, 1);
 function nowYM() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
 }
-
 function betweenInclusive(ymStr: string, min: string, max: string) {
   return ymStr >= min && ymStr <= max;
 }
-
 function generateAllowedMonths(minYM: string, maxYM: string) {
   const list: string[] = [];
   let cur = minYM;
@@ -95,13 +82,10 @@ function generateAllowedMonths(minYM: string, maxYM: string) {
     list.push(cur);
     cur = addMonths(cur, 1);
   }
-  return list.reverse(); // recentes primeiro
+  return list.reverse();
 }
-
-// padroniza o valor salvo no banco SEMPRE como 'YYYY-MM'
-function storeRefMonth(ymStr: string) {
-  return ymStr;
-}
+// persistimos sempre como "YYYY-MM"
+const storeRefMonth = (ymStr: string) => ymStr;
 
 function summarizeClients(rows: EventRevenue[]): ClientSummary[] {
   const map: Record<string, ClientSummary> = {};
@@ -114,16 +98,10 @@ function summarizeClients(rows: EventRevenue[]): ClientSummary[] {
   return Object.values(map).sort((a, b) => b.total - a.total);
 }
 
-/* KPIs só de receita */
-type KPIs = {
-  receita: number;
-  varReceitaPct: number;
-  registros: number;
-  ticketMedio: number;
-};
-
+/* KPIs (só receita) */
+type KPIs = { receita: number; varReceitaPct: number; registros: number; ticketMedio: number };
 function computeKPIs(curRows: EventRevenue[], prevRows: EventRevenue[]): KPIs {
-  const sum = (xs: EventRevenue[]) => xs.reduce((acc, e) => acc + (e.total_cents ?? 0), 0) / 100;
+  const sum = (xs: EventRevenue[]) => xs.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100;
   const receita = sum(curRows);
   const receitaPrev = sum(prevRows);
   const varReceitaPct = receitaPrev > 0 ? ((receita - receitaPrev) / receitaPrev) * 100 : 0;
@@ -132,48 +110,7 @@ function computeKPIs(curRows: EventRevenue[], prevRows: EventRevenue[]): KPIs {
   return { receita, varReceitaPct, registros, ticketMedio };
 }
 
-/* ============================= */
-/* ======= PASTE PARSER =========*/
-/* ============================= */
-
-type DetectedMapping = {
-  idxCliente?: number;
-  idxTotal?: number;
-  idxRef?: number;
-  idxMes?: number;
-  idxAno?: number;
-  // fallback para total
-  idxHonorario?: number;
-  idxHonorarioAgencia?: number;
-};
-
-const PT_MONTHS: Record<string, number> = {
-  jan: 1,
-  janeiro: 1,
-  fev: 2,
-  fevereiro: 2,
-  mar: 3,
-  março: 3,
-  marco: 3,
-  abr: 4,
-  abril: 4,
-  mai: 5,
-  maio: 5,
-  jun: 6,
-  junho: 6,
-  jul: 7,
-  julho: 7,
-  ago: 8,
-  agosto: 8,
-  set: 9,
-  setembro: 9,
-  out: 10,
-  outubro: 10,
-  nov: 11,
-  novembro: 11,
-  dez: 12,
-  dezembro: 12,
-};
+/* ========== Parsing da colagem (sem cabeçalho, com quebras) ========== */
 
 function normalize(s: string) {
   return s
@@ -184,22 +121,8 @@ function normalize(s: string) {
     .trim();
 }
 
-function guessDelimiter(lines: string[]) {
-  const cands = ["\t", ";", ",", "|"];
-  let best = "\t",
-    bestScore = 0;
-  for (const d of cands) {
-    const score = lines.slice(0, 5).reduce((a, l) => a + (l ? l.split(d).length : 0), 0);
-    if (score > bestScore) {
-      bestScore = score;
-      best = d;
-    }
-  }
-  return best;
-}
-
 function parseCurrencyBrOrEn(v: string | undefined): number {
-  if (!v) return 0;
+  if (!v) return NaN;
   const raw = v
     .replace(/\s/g, "")
     .replace(/[R$\u00A0]/g, "")
@@ -207,17 +130,129 @@ function parseCurrencyBrOrEn(v: string | undefined): number {
     .replace(/,/g, ".")
     .replace(/[^\d.-]/g, "");
   const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : NaN;
 }
 
-function asYMFromText(text: string): string | null {
-  const t = normalize(text);
-  const m1 = t.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/); // YYYY-MM
+const CURRENCY_RE = /R\$\s*\d{1,3}(\.\d{3})*,\d{2}/;
+
+/** Junta linhas soltas (descrição/links) até encontrar uma linha com tabs e um R$.
+ * Retorna cada "registro" como uma string única (ainda tabulada). */
+function splitIntoRecords(text: string): string[] {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const records: string[] = [];
+  let buf = "";
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const accum = buf ? buf + "\n" + line : line;
+
+    const tabCount = (accum.match(/\t/g) || []).length;
+    const hasCurrency = CURRENCY_RE.test(accum);
+
+    // Heurística de término de registro:
+    // precisa ter ao menos 2 colunas e conter algum valor em R$.
+    if (hasCurrency && tabCount >= 2) {
+      records.push(accum);
+      buf = "";
+    } else {
+      buf = accum;
+    }
+  }
+  if (buf.trim().length > 0) records.push(buf);
+  return records;
+}
+
+/** Converte records tabulados em eventos (cliente, total).
+ * total = último valor monetário da linha; mês/ano = fallbackSelectedYM (ou detectado no texto). */
+function recordsToEvents(
+  records: string[],
+  fallbackSelectedYM: string | null,
+): { events: EventRevenue[]; ymDetected: string | null } {
+  const events: EventRevenue[] = [];
+  let ymDetected: string | null = null;
+
+  for (const rec of records) {
+    const cells = rec
+      .split(/\t+/)
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0);
+    if (cells.length < 2) continue;
+
+    const cliente = (cells[0] ?? "") || null;
+
+    // total: procura do fim pro começo o último token com R$
+    let total: number | null = null;
+    for (let i = cells.length - 1; i >= 0; i--) {
+      const cell = cells[i];
+      if (CURRENCY_RE.test(cell)) {
+        const n = parseCurrencyBrOrEn(cell);
+        if (!isNaN(n)) {
+          total = n;
+          break;
+        }
+      }
+    }
+    if (total === null) continue;
+
+    // tenta achar um mês/ano em qualquer célula (YYYY-MM, MM/YYYY, nome do mês + ano)
+    if (!ymDetected) {
+      const guess = guessYMFromCells(cells);
+      if (guess) ymDetected = guess;
+    }
+
+    const ymFinal = storeRefMonth(ymDetected || fallbackSelectedYM || "");
+    if (!ymFinal) continue;
+
+    events.push({
+      cliente,
+      ref_month: ymFinal,
+      total_cents: Math.round(total * 100),
+    });
+  }
+  return { events, ymDetected };
+}
+
+/** Detecta YM no conteúdo das células (YYYY-MM, MM/YYYY, nomes PT). */
+function guessYMFromCells(cells: string[]): string | null {
+  const PT_MONTHS: Record<string, number> = {
+    jan: 1,
+    janeiro: 1,
+    fev: 2,
+    fevereiro: 2,
+    mar: 3,
+    marco: 3,
+    março: 3,
+    abr: 4,
+    abril: 4,
+    mai: 5,
+    maio: 5,
+    jun: 6,
+    junho: 6,
+    jul: 7,
+    julho: 7,
+    ago: 8,
+    agosto: 8,
+    set: 9,
+    setembro: 9,
+    out: 10,
+    outubro: 10,
+    nov: 11,
+    novembro: 11,
+    dez: 12,
+    dezembro: 12,
+  };
+  const cellText = cells.join(" ");
+  const t = normalize(cellText);
+
+  const m1 = t.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/);
   if (m1) return `${m1[1]}-${String(Number(m1[2])).padStart(2, "0")}`;
-  const m2 = t.match(/\b(0?[1-9]|1[0-2])[-/](20\d{2})\b/); // MM/YYYY
+
+  const m2 = t.match(/\b(0?[1-9]|1[0-2])[-/](20\d{2})\b/);
   if (m2) return `${m2[2]}-${String(Number(m2[1])).padStart(2, "0")}`;
-  const m3 = t.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/); // DD/MM/YYYY
+
+  const m3 = t.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/);
   if (m3) return `${m3[3]}-${String(Number(m3[2])).padStart(2, "0")}`;
+
   for (const k of Object.keys(PT_MONTHS)) {
     const re = new RegExp(`\\b${k}\\b[^\\d]*\\b(20\\d{2})\\b`, "i");
     const m = t.match(re);
@@ -226,82 +261,13 @@ function asYMFromText(text: string): string | null {
   return null;
 }
 
-function detectMapping(headers: string[]): DetectedMapping {
-  const map: DetectedMapping = {};
-  const cols = headers.map((h) => normalize(h));
-  const find = (alts: string[]) => {
-    const idx = cols.findIndex((c) => alts.some((a) => c === a || c.includes(a)));
-    return idx >= 0 ? idx : undefined;
-  };
-  map.idxCliente = find(["cliente", "client", "conta", "brand", "marca"]);
-  map.idxTotal = find(["total", "valor total", "total geral", "faturado", "receita"]);
-  map.idxHonorario = find(["honorario", "honorário"]);
-  map.idxHonorarioAgencia = find(["honorario agencia", "honorário agencia", "honorario da agencia"]);
-  map.idxRef = find(["ref_month", "ref", "competencia", "competência", "periodo", "período", "mes/ano", "mes-ano"]);
-  map.idxMes = find(["mes", "mês", "month"]);
-  map.idxAno = find(["ano", "year"]);
-  return map;
-}
-
-function assembleYM(row: string[], map: DetectedMapping): string | null {
-  if (map.idxRef !== undefined) {
-    const ymd = asYMFromText(row[map.idxRef] ?? "");
-    if (ymd) return ymd;
-  }
-  if (map.idxMes !== undefined && map.idxAno !== undefined) {
-    const mesRaw = normalize(row[map.idxMes] ?? "");
-    const anoRaw = row[map.idxAno] ?? "";
-    let m = Number(mesRaw);
-    if (!m || m < 1 || m > 12) m = PT_MONTHS[mesRaw] || 0;
-    const y = Number(anoRaw);
-    if (m >= 1 && m <= 12 && y >= 2000) return `${y}-${String(m).padStart(2, "0")}`;
-  }
-  for (const cell of row) {
-    const ymd = asYMFromText(cell ?? "");
-    if (ymd) return ymd;
-  }
-  return null;
-}
-
-function rowsToEvents(rows: string[][], map: DetectedMapping, fallbackYM: string | null) {
-  const events: EventRevenue[] = [];
-  let ymDetected: string | null = null;
-  for (const row of rows) {
-    if (row.every((c) => !c || !String(c).trim())) continue;
-
-    const cliente = (map.idxCliente !== undefined ? row[map.idxCliente] : "") || null;
-
-    let total = parseCurrencyBrOrEn(map.idxTotal !== undefined ? row[map.idxTotal] : undefined);
-    if (!total) {
-      const hon = parseCurrencyBrOrEn(map.idxHonorario !== undefined ? row[map.idxHonorario] : undefined);
-      const honAg = parseCurrencyBrOrEn(
-        map.idxHonorarioAgencia !== undefined ? row[map.idxHonorarioAgencia] : undefined,
-      );
-      total = hon + honAg;
-    }
-
-    let thisYM = assembleYM(row, map) || fallbackYM;
-    if (!ymDetected && thisYM) ymDetected = thisYM;
-    if (!thisYM) continue;
-
-    events.push({
-      cliente,
-      ref_month: storeRefMonth(thisYM), // sempre "YYYY-MM"
-      total_cents: Math.round((total || 0) * 100),
-    });
-  }
-  return { events, ymDetected };
-}
-
 /* deduplicação por cliente + mês + total */
 function dedupKey(e: EventRevenue) {
   const norm = (s?: string | null) => (s ?? "").trim().toUpperCase();
   return [norm(e.cliente), ym(e.ref_month), e.total_cents ?? 0].join("|");
 }
 
-/* ============================= */
-/* ========== Página =========== */
-/* ============================= */
+/* ========== Página ========== */
 
 export default function Finance() {
   const { user } = useAuth();
@@ -318,7 +284,6 @@ export default function Finance() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [pastePreview, setPastePreview] = useState<{
-    mapping: DetectedMapping | null;
     ym: string | null;
     rowsCount: number;
     totalSum: number;
@@ -403,46 +368,36 @@ export default function Finance() {
       setPastePreview(null);
       return;
     }
-    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length < 2) {
+
+    // 1) separamos registros robustamente
+    const records = splitIntoRecords(text);
+    if (records.length === 0) {
       setPastePreview(null);
       return;
     }
-    const delim = guessDelimiter(lines);
-    const headerCells = lines[0].split(delim).map((c) => c.trim());
-    const mapping = detectMapping(headerCells);
-    const body = lines.slice(1).map((l) => l.split(delim));
 
-    const ymCount: Record<string, number> = {};
-    for (const row of body) {
-      const ymMaybe = assembleYM(row, mapping);
-      if (ymMaybe) ymCount[ymMaybe] = (ymCount[ymMaybe] ?? 0) + 1;
-    }
-    let detectedYM: string | null = null;
-    let maxC = 0;
-    for (const k of Object.keys(ymCount)) {
-      if (ymCount[k] > maxC) {
-        maxC = ymCount[k];
-        detectedYM = k;
-      }
-    }
-
-    const { events } = rowsToEvents(body, mapping, detectedYM);
+    // 2) transformamos em eventos usando mês detectado OU o mês atualmente selecionado
+    const { events, ymDetected } = recordsToEvents(records, selectedYM ?? null);
 
     const rowsCount = events.length;
     const totalSum = events.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100;
 
-    setPastePreview({ mapping, ym: detectedYM, rowsCount, totalSum });
+    setPastePreview({
+      ym: ymDetected ?? selectedYM ?? null,
+      rowsCount,
+      totalSum,
+    });
   }
 
   async function handlePasteConfirm() {
-    if (!pastePreview || !pastePreview.mapping) return;
+    if (!pastePreview) return;
 
-    let ymImport = pastePreview.ym;
+    // usa o mês detectado ou o que está selecionado na UI
+    let ymImport = pastePreview.ym || selectedYM;
     if (!ymImport) {
       toast({
-        title: "Mês/ano não detectado",
-        description: "Inclua competência ou selecione o mês e tente novamente.",
+        title: "Selecione o mês",
+        description: "Não identifiquei a competência. Selecione um mês na barra superior.",
         variant: "destructive",
       });
       return;
@@ -456,17 +411,9 @@ export default function Finance() {
       return;
     }
 
-    // Reparse
-    const lines = pasteText
-      .trim()
-      .split(/\r?\n/)
-      .filter((l) => l.trim().length > 0);
-    const delim = guessDelimiter(lines);
-    const headerCells = lines[0].split(delim).map((c) => c.trim());
-    const mapping = detectMapping(headerCells);
-    const body = lines.slice(1).map((l) => l.split(delim));
-    const { events } = rowsToEvents(body, mapping, ymImport);
-
+    // Reparse final para garantir consistência com o texto atual
+    const records = splitIntoRecords(pasteText.trim());
+    const { events } = recordsToEvents(records, ymImport);
     if (events.length === 0) {
       toast({ title: "Nada para importar", description: "Não identifiquei linhas válidas.", variant: "destructive" });
       return;
@@ -476,9 +423,8 @@ export default function Finance() {
     const uniqueMap = new Map<string, EventRevenue>();
     for (const e of events) uniqueMap.set(dedupKey(e), e);
     let uniqueEvents = Array.from(uniqueMap.values());
-
-    // Garante persistência como "YYYY-MM"
-    uniqueEvents = uniqueEvents.map((e) => ({ ...e, ref_month: storeRefMonth(ymImport) }));
+    // força ref_month = "YYYY-MM"
+    uniqueEvents = uniqueEvents.map((e) => ({ ...e, ref_month: storeRefMonth(ymImport!) }));
 
     const ok = window.confirm(
       `Isso vai substituir ${toPTMonthLabel(ymImport)} por ${uniqueEvents.length} itens.\n` +
@@ -488,17 +434,17 @@ export default function Finance() {
     if (!ok) return;
 
     try {
-      // 1) Apaga o mês por FAIXA (cobre coluna DATE)
+      // 1) Apaga por faixa (cobre coluna DATE)
       const start = `${ymImport}-01`;
       const end = `${nextYM(ymImport)}-01`;
       const delRange = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
       if (delRange.error) throw delRange.error;
 
-      // 2) Apaga o mês por LIKE (cobre TEXT 'YYYY-MM' ou 'YYYY-MM-DD')
+      // 2) Apaga por LIKE (cobre TEXT 'YYYY-MM' ou 'YYYY-MM-DD')
       const delLike = await supabase.from("finance_events").delete().like("ref_month", `${ymImport}%`);
       if (delLike.error) throw delLike.error;
 
-      // 3) Insere o faturamento do mês (sem upsert — mês foi limpo)
+      // 3) Insere (mês limpo, então sem conflito no índice)
       const ins = await supabase.from("finance_events").insert(uniqueEvents);
       if (ins.error) throw ins.error;
 
@@ -727,13 +673,13 @@ export default function Finance() {
 
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Cole a planilha copiada do Excel/Sheets (tab, “;”, “,” ou “|”). Detectamos colunas e competência
-              automaticamente.
+              Pode colar diretamente como no exemplo que você enviou (sem cabeçalho). Vou detectar cada linha e o último{" "}
+              <b>R$</b> como total. Se não houver competência na colagem, uso o mês atualmente selecionado.
             </p>
 
             <Textarea
               className="h-56"
-              placeholder={`Ex.: CLIENTE\tTOTAL\tCOMPETÊNCIA\n...`}
+              placeholder={`Cole aqui...`}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               onBlur={handlePasteAnalyze}
@@ -742,7 +688,7 @@ export default function Finance() {
             <div className="flex gap-2">
               <Button variant="outline" className="gap-2" onClick={handlePasteAnalyze}>
                 <CalendarSearch className="h-4 w-4" />
-                Analisar formatação
+                Analisar colagem
               </Button>
               <Button
                 variant="ghost"
@@ -760,7 +706,7 @@ export default function Finance() {
             {pastePreview && (
               <Card className="border-slate-200 bg-slate-50/50">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Pré-visualização detectada</CardTitle>
+                  <CardTitle className="text-sm">Pré-visualização</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm space-y-2">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -773,7 +719,9 @@ export default function Finance() {
                             : "text-rose-700"
                         }
                       >
-                        {pastePreview.ym ? toPTMonthLabel(pastePreview.ym) : "não identificado"}
+                        {pastePreview.ym
+                          ? toPTMonthLabel(pastePreview.ym)
+                          : "não identificado (usarei o mês selecionado)"}
                       </span>
                     </div>
                     <div>
@@ -782,26 +730,6 @@ export default function Finance() {
                     <div>
                       <span className="text-muted-foreground">Receita (soma):</span> {formatBRL(pastePreview.totalSum)}
                     </div>
-                  </div>
-
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Mapeamento:
-                    <ul className="list-disc ml-5 mt-1 space-y-1">
-                      <li>
-                        Cliente → {pastePreview.mapping?.idxCliente !== undefined ? "detectado" : "não encontrado"}
-                      </li>
-                      <li>
-                        Total →{" "}
-                        {pastePreview.mapping?.idxTotal !== undefined ? "detectado" : "tentarei somar honorários"}
-                      </li>
-                      <li>
-                        Competência/Mês →{" "}
-                        {pastePreview.mapping?.idxRef !== undefined ||
-                        (pastePreview.mapping?.idxMes !== undefined && pastePreview.mapping?.idxAno !== undefined)
-                          ? "detectado"
-                          : "não encontrado"}
-                      </li>
-                    </ul>
                   </div>
                 </CardContent>
               </Card>
@@ -915,11 +843,9 @@ function MonthSelectDialog({
   exclude?: string[];
 }) {
   const [temp, setTemp] = useState<string | null>(selected);
-
   useEffect(() => {
     setTemp(selected);
   }, [selected, open]);
-
   const filtered = allowedMonths.filter((m) => !exclude.includes(m));
 
   return (
@@ -928,7 +854,6 @@ function MonthSelectDialog({
         <DialogHeader>
           <DialogTitle className="text-base">{title}</DialogTitle>
         </DialogHeader>
-
         <div className="space-y-2">
           <label className="text-sm text-muted-foreground">Mês de referência</label>
           <Select value={temp ?? undefined} onValueChange={(v) => setTemp(v)}>
@@ -945,7 +870,6 @@ function MonthSelectDialog({
           </Select>
           {helper && <p className="text-xs text-muted-foreground">{helper}</p>}
         </div>
-
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
