@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -285,6 +285,7 @@ export default function BudgetPdf() {
       .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
   };
 
+  // ------- NÃO USE HOOKS ABAIXO DESTA LINHA ANTES DOS RETURNS CONDICIONAIS -------
   if (loading) {
     return (
       <AppLayout>
@@ -295,19 +296,14 @@ export default function BudgetPdf() {
 
   if (!data) return null;
 
+  // Pode calcular variáveis normalmente sem hooks
   const payload = data.payload || {};
   const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
 
-  // Resumo por campanha
-  const totaisPorCampanha = useMemo(
-    () =>
-      campanhas.map((camp: any) => ({
-        nome: camp.nome,
-        total: calcularTotalCampanha(camp),
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(campanhas)],
-  );
+  const totaisPorCampanha = campanhas.map((camp: any) => ({
+    nome: camp.nome,
+    total: calcularTotalCampanha(camp),
+  }));
 
   return (
     <AppLayout>
