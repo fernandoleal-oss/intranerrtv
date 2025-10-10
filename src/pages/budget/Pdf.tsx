@@ -8,9 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-
-// Import de asset robusto para Vite/CDN
-const logoWE = new URL("@/assets/LOGO-WE-2.png", import.meta.url).href;
+import logoWE from "@/assets/LOGO-WE-2.png";
 
 interface BudgetData {
   id: string;
@@ -21,6 +19,32 @@ interface BudgetData {
   version_id: string;
   budget_number: string;
 }
+
+type Fornecedor = {
+  id: string;
+  nome: string;
+  diretor?: string;
+  tratamento?: string;
+  escopo?: string;
+  valor?: number | string;
+  desconto?: number | string;
+  tem_opcoes?: boolean;
+  opcoes?: { id: string; nome?: string; escopo?: string; valor?: number | string; desconto?: number | string }[];
+};
+
+type Categoria = {
+  nome: string;
+  modoPreco: "fechado" | "itens";
+  fornecedores?: Fornecedor[];
+  itens?: any[];
+  visivel?: boolean;
+  observacao?: string;
+};
+
+type CampanhaPDF = {
+  nome: string;
+  categorias: Categoria[];
+};
 
 export default function BudgetPdf() {
   const { id } = useParams();
@@ -83,12 +107,10 @@ export default function BudgetPdf() {
     fetchBudget();
   }, [id, navigate]);
 
-  // ===== Helpers / cálculo =====
-
+  // ===== Utils =====
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
-  // Converte strings "1.234,56" para number
   const toNum = (v: any) => {
     if (typeof v === "number") return isFinite(v) ? v : 0;
     if (typeof v === "string") {
@@ -100,8 +122,74 @@ export default function BudgetPdf() {
     return isFinite(n) ? n : 0;
   };
 
-  // Preço mínimo do fornecedor (base vs opções)
-  const precoMinFornecedor = (f: any) => {
+  // ===== NORMALIZAÇÃO (novo modelo -> categorias/fornecedores) =====
+  const normalizeCampanhas = (payload: any): CampanhaPDF[] => {
+    // Caso 1: já veio no modelo antigo (categorias)
+    if (Array.isArray(payload?.campanhas) && payload.campanhas[0]?.categorias) {
+      return payload.campanhas as CampanhaPDF[];
+    }
+    if (Array.isArray(payload?.categorias)) {
+      return [{ nome: payload?.nome || "Campanha Única", categorias: payload.categorias }];
+    }
+
+    // Caso 2: novo modelo com quotes_film / quotes_audio
+    if (Array.isArray(payload?.campanhas)) {
+      return payload.campanhas.map((c: any) => {
+        const catFilme: Categoria = {
+          nome: "Produção de Filme",
+          modoPreco: "fechado",
+          fornecedores: (c.quotes_film || []).map((q: any) => ({
+            id: q.id,
+            nome: q.produtora || q.nome || "Fornecedor",
+            diretor: q.diretor,
+            tratamento: q.tratamento,
+            escopo: q.escopo,
+            valor: toNum(q.valor),
+            desconto: toNum(q.desconto),
+            tem_opcoes: !!q.tem_opcoes && Array.isArray(q.opcoes) && q.opcoes.length > 0,
+            opcoes: (q.opcoes || []).map((op: any) => ({
+              id: op.id,
+              nome: op.nome,
+              escopo: op.escopo,
+              valor: toNum(op.valor),
+              desconto: toNum(op.desconto),
+            })),
+          })),
+          visivel: true,
+        };
+
+        const categorias: Categoria[] = [];
+        if ((catFilme.fornecedores || []).length > 0) categorias.push(catFilme);
+
+        if (c.inclui_audio) {
+          const catAudio: Categoria = {
+            nome: "Áudio",
+            modoPreco: "fechado",
+            fornecedores: (c.quotes_audio || []).map((q: any) => ({
+              id: q.id,
+              nome: q.produtora || "Produtora de Áudio",
+              escopo: q.descricao,
+              valor: toNum(q.valor),
+              desconto: toNum(q.desconto),
+              tem_opcoes: false,
+              opcoes: [],
+            })),
+            visivel: true,
+          };
+          if ((catAudio.fornecedores || []).length > 0) categorias.push(catAudio);
+        }
+
+        return { nome: c.nome || "Campanha", categorias };
+      });
+    }
+
+    // Fallback (vazio)
+    const categorias: Categoria[] = (payload?.categorias || []).map((x: any) => x);
+    return [{ nome: "Campanha Única", categorias }];
+  };
+
+  // ===== Cálculos =====
+  const precoMinFornecedor = (f: Fornecedor) => {
     const base = toNum(f.valor) - toNum(f.desconto);
     if (f.tem_opcoes && Array.isArray(f.opcoes) && f.opcoes.length) {
       const minOpc = f.opcoes.reduce((min: number, opc: any) => {
@@ -113,31 +201,30 @@ export default function BudgetPdf() {
     return base;
   };
 
-  const ordenarFornecedores = (fornecedores: any[] = []) =>
+  const ordenarFornecedores = (fornecedores: Fornecedor[] = []) =>
     [...fornecedores].sort((a, b) => precoMinFornecedor(a) - precoMinFornecedor(b));
 
-  // Se existir selecionado (f.selecionado ou opc.selecionada), ele tem prioridade
-  const getSelecionado = (cat: any) => {
+  const getSelecionado = (cat: Categoria) => {
     for (const f of cat.fornecedores || []) {
-      if (f?.selecionado) {
-        if (f.tem_opcoes && Array.isArray(f.opcoes)) {
-          const opSel = f.opcoes.find((o: any) => o?.selecionada);
+      // suporte a flags futuras
+      if ((f as any)?.selecionado) {
+        if (f.tem_opcoes && f.opcoes?.length) {
+          const opSel = (f.opcoes as any[]).find((o) => (o as any)?.selecionada);
           if (opSel) return { ...f, opcaoSelecionada: opSel, selecionado: true };
         }
         return { ...f, selecionado: true };
       }
     }
     for (const f of cat.fornecedores || []) {
-      if (f.tem_opcoes && Array.isArray(f.opcoes)) {
-        const opSel = f.opcoes.find((o: any) => o?.selecionada);
+      if (f.tem_opcoes && f.opcoes?.length) {
+        const opSel = (f.opcoes as any[]).find((o) => (o as any)?.selecionada);
         if (opSel) return { ...f, opcaoSelecionada: opSel, selecionado: true };
       }
     }
     return null;
   };
 
-  // escolhido = selecionado > mais barato (considerando opções)
-  const getEscolhido = (cat: any) => {
+  const getEscolhido = (cat: Categoria) => {
     const sel = getSelecionado(cat);
     if (sel) return sel;
 
@@ -163,7 +250,7 @@ export default function BudgetPdf() {
     return best;
   };
 
-  const calcularSubtotal = (cat: any) => {
+  const calcularSubtotal = (cat: Categoria) => {
     if (cat.modoPreco === "fechado") {
       const escolhido = getEscolhido(cat);
       if (!escolhido) return 0;
@@ -177,34 +264,28 @@ export default function BudgetPdf() {
     );
   };
 
-  const calcularTotalCampanha = (campanha: any) =>
+  const calcularTotalCampanha = (campanha: CampanhaPDF) =>
     (campanha.categorias || [])
       .filter((c: any) => c.visivel !== false)
       .filter((c: any) => (c.modoPreco === "fechado" ? c.fornecedores?.length > 0 : c.itens?.length > 0))
       .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
 
-  // ===== HOOKS: SEMPRE no topo (antes de qualquer early return) =====
-
+  // ===== Hooks sempre antes dos returns =====
   const payload = data?.payload || {};
-  const campanhas: any[] =
-    payload.campanhas || (payload.categorias ? [{ nome: "Campanha Única", categorias: payload.categorias }] : []);
+  const campanhasPDF: CampanhaPDF[] = useMemo(() => normalizeCampanhas(payload), [JSON.stringify(payload)]);
 
-  // Memo SEMPRE chamado (mesma ordem de hooks em todos os renders)
   const totaisPorCampanha = useMemo(
-    () => campanhas.map((camp: any) => ({ nome: camp.nome, total: calcularTotalCampanha(camp) })),
-    // stringificar para depender do conteúdo
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(campanhas)],
+    () => campanhasPDF.map((camp) => ({ nome: camp.nome, total: calcularTotalCampanha(camp) })),
+    [JSON.stringify(campanhasPDF)],
   );
 
-  // ====== Geração de PDF COM MARGENS FIXAS ======
+  // ===== PDF =====
   const handleGeneratePdf = async () => {
     if (!contentRef.current || !data) return;
     setGenerating(true);
 
     try {
       const element = contentRef.current;
-
       const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
       const canvas = await html2canvas(element, {
         scale,
@@ -217,20 +298,18 @@ export default function BudgetPdf() {
 
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-      const pageWmm = pdf.internal.pageSize.getWidth(); // 210mm
-      const pageHmm = pdf.internal.pageSize.getHeight(); // 297mm
+      const pageWmm = pdf.internal.pageSize.getWidth();
+      const pageHmm = pdf.internal.pageSize.getHeight();
 
-      // Margens internas (12mm em cada lado)
       const pageMarginMm = 12;
-      const contentWmm = pageWmm - pageMarginMm * 2; // 186mm
-      const contentHmm = pageHmm - pageMarginMm * 2; // 273mm
+      const contentWmm = pageWmm - pageMarginMm * 2;
+      const contentHmm = pageHmm - pageMarginMm * 2;
 
       const cw = canvas.width;
       const ch = canvas.height;
 
-      // px↔mm com base na LARGURA útil (com margens)
       const pxPerMm = cw / contentWmm;
-      const pageHPx = Math.ceil(contentHmm * pxPerMm); // altura exata por página
+      const pageHPx = Math.ceil(contentHmm * pxPerMm);
 
       let y = 0;
       let pageIndex = 0;
@@ -246,14 +325,12 @@ export default function BudgetPdf() {
         ctx.imageSmoothingEnabled = true;
         // @ts-ignore
         ctx.imageSmoothingQuality = "high";
-
         ctx.drawImage(canvas, 0, y, cw, srcHeight, 0, 0, cw, srcHeight);
 
         const img = pageCanvas.toDataURL("image/png");
 
         if (pageIndex > 0) pdf.addPage();
 
-        // Fundo branco
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pageWmm, pageHmm, "F");
 
@@ -267,7 +344,6 @@ export default function BudgetPdf() {
         pageIndex += 1;
       }
 
-      // Nome do arquivo: cliente_produto_numero.pdf
       const cliente = payload.cliente || "cliente";
       const produto = payload.produto || "produto";
       const numero = data.budget_number || "000";
@@ -295,8 +371,7 @@ export default function BudgetPdf() {
     }
   };
 
-  // ===== Early returns APÓS TODOS os hooks =====
-
+  // ===== Early returns =====
   if (loading) {
     return (
       <AppLayout>
@@ -305,55 +380,24 @@ export default function BudgetPdf() {
     );
   }
 
-  if (!data) {
-    return (
-      <AppLayout>
-        <div className="p-6">Orçamento não encontrado.</div>
-      </AppLayout>
-    );
-  }
+  if (!data) return null;
 
   return (
     <AppLayout>
       <style>{`
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
         @media print {
-          @page { 
-            size: A4 portrait; 
-            margin: 15mm 20mm; 
-          }
-          html, body { 
-            width: 210mm; 
-            background: #FFFFFF !important; 
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
+          @page { size: A4 portrait; margin: 15mm 20mm; }
+          html, body { width: 210mm; background: #FFFFFF !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
-          .print-content, .print-content * { 
-            box-shadow: none !important; 
-          }
-          .avoid-break {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
+          .print-content, .print-content * { box-shadow: none !important; }
+          .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
         }
-
         .print-content {
-          width: 210mm;
-          min-height: 297mm;
-          padding: 20mm 20mm;
-          margin: 0 auto;
-          background: #FFFFFF;
-          color: #000000;
-          box-shadow: 0 0 10px rgba(0,0,0,0.1);
-          box-sizing: border-box;
+          width: 210mm; min-height: 297mm; padding: 20mm 20mm; margin: 0 auto;
+          background: #FFFFFF; color: #000000; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box;
         }
-
-        .avoid-break { 
-          break-inside: avoid !important; 
-          page-break-inside: avoid !important;
-        }
+        .avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; }
       `}</style>
 
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
@@ -393,14 +437,7 @@ export default function BudgetPdf() {
             style={{ borderBottom: "3px solid #E6191E" }}
           >
             <div className="flex-1">
-              <img
-                src={logoWE}
-                alt="Logo WE"
-                style={{ height: "50px", marginBottom: "12px" }}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
+              <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
               <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666666" }}>
                 <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000000", marginBottom: "4px" }}>
                   WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
@@ -430,14 +467,7 @@ export default function BudgetPdf() {
               border: "1px solid #E0E0E0",
             }}
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "16px",
-                fontSize: "13px",
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px", fontSize: "13px" }}>
               <div>
                 <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Cliente</p>
                 <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
@@ -452,18 +482,18 @@ export default function BudgetPdf() {
                   <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.job}</p>
                 </div>
               )}
-              {campanhas.length > 0 && campanhas[0].nome && (
+              {campanhasPDF.length > 0 && campanhasPDF[0].nome && (
                 <div>
                   <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
                     Campanha (1ª)
                   </p>
-                  <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhas[0].nome}</p>
+                  <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhasPDF[0].nome}</p>
                 </div>
               )}
             </div>
           </div>
 
-          {campanhas.map((campanha: any, campIdx: number) => {
+          {campanhasPDF.map((campanha: CampanhaPDF, campIdx: number) => {
             const categoriasVisiveis = (campanha.categorias || [])
               .filter((c: any) => c.visivel !== false)
               .filter((c: any) => (c.modoPreco === "fechado" ? c.fornecedores?.length > 0 : c.itens?.length > 0));
@@ -490,8 +520,8 @@ export default function BudgetPdf() {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {categoriasVisiveis.map((cat: any, idx: number) => {
-                    const escolhido = getEscolhido(cat);
+                  {categoriasVisiveis.map((cat: Categoria, idx: number) => {
+                    const escolhido: any = getEscolhido(cat);
                     const subtotal = calcularSubtotal(cat);
 
                     const fornecedoresOrdenados = ordenarFornecedores(cat.fornecedores || []);
@@ -562,7 +592,7 @@ export default function BudgetPdf() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {cat.itens.map((item: any, iIdx: number) => {
+                                {cat.itens!.map((item: any, iIdx: number) => {
                                   const totalItem =
                                     toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto);
                                   return (
@@ -591,11 +621,11 @@ export default function BudgetPdf() {
                         {/* Fornecedores (modo fechado) */}
                         {cat.modoPreco === "fechado" && (cat.fornecedores?.length || 0) > 0 && (
                           <div className="space-y-3 mt-3">
-                            {ordenarFornecedores(cat.fornecedores).map((f: any, fIdx: number) => {
+                            {ordenarFornecedores(cat.fornecedores!).map((f: any, fIdx: number) => {
                               const isEscolhido = !!(escolhido && escolhido.id === f.id);
                               const isSelecionado = !!(escolhido?.selecionado && escolhido.id === f.id);
                               const precoMinDoFornecedor = precoMinFornecedor(f);
-                              const isMaisBaratoGlobal = Math.abs(precoMinDoFornecedor - globalMin) < 0.005; // tolerância
+                              const isMaisBaratoGlobal = Math.abs(precoMinDoFornecedor - globalMin) < 0.005;
 
                               const valorBase = toNum(f.valor) - toNum(f.desconto);
                               const valorEscolhidoOpc =
@@ -634,39 +664,6 @@ export default function BudgetPdf() {
                                         </p>
                                       </div>
 
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        {isSelecionado && (
-                                          <span
-                                            style={{
-                                              fontSize: "10px",
-                                              fontWeight: 700,
-                                              color: "#2F855A",
-                                              background: "#C6F6D5",
-                                              border: "1px solid #48BB78",
-                                              padding: "2px 6px",
-                                              borderRadius: "999px",
-                                            }}
-                                          >
-                                            ✓ SELECIONADO
-                                          </span>
-                                        )}
-                                        {isMaisBaratoGlobal && (
-                                          <span
-                                            style={{
-                                              fontSize: "10px",
-                                              fontWeight: 700,
-                                              color: "#2F855A",
-                                              background: "#E6FFFA",
-                                              border: "1px solid #38B2AC",
-                                              padding: "2px 6px",
-                                              borderRadius: "999px",
-                                            }}
-                                          >
-                                            ★ OPÇÃO MAIS BARATA
-                                          </span>
-                                        )}
-                                      </div>
-
                                       {f.diretor && (
                                         <p className="text-[10px] mt-1" style={{ color: "#666666" }}>
                                           <span className="font-semibold">Diretor:</span> {f.diretor}
@@ -676,10 +673,12 @@ export default function BudgetPdf() {
                                       {f.escopo && (
                                         <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444444" }}>
                                           {(() => {
-                                            const elencoMatch = f.escopo?.match(/elenco:([^\.]+)/i);
+                                            const elencoMatch = String(f.escopo || "").match(/elenco:([^\.]+)/i);
                                             if (elencoMatch) {
                                               const elenco = elencoMatch[1].trim();
-                                              const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, "").trim();
+                                              const resto = String(f.escopo || "")
+                                                .replace(/elenco:[^\.]+\.?/i, "")
+                                                .trim();
                                               return (
                                                 <>
                                                   {resto && <p className="mb-1.5">{resto}</p>}
@@ -718,7 +717,7 @@ export default function BudgetPdf() {
                                     </div>
                                   </div>
 
-                                  {/* Opções múltiplas do fornecedor */}
+                                  {/* Opções do fornecedor */}
                                   {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
                                     <div style={{ marginTop: "8px", paddingLeft: "12px" }}>
                                       <p className="text-[10px] font-semibold mb-2" style={{ color: "#666666" }}>
@@ -728,7 +727,7 @@ export default function BudgetPdf() {
                                         {f.opcoes.map((opc: any, opcIdx: number) => {
                                           const valorOpcao = toNum(opc.valor) - toNum(opc.desconto);
                                           const isOpcSelecionada =
-                                            isSelecionado &&
+                                            isEscolhido &&
                                             !!escolhido?.opcaoSelecionada &&
                                             escolhido.opcaoSelecionada === opc;
                                           return (
@@ -824,14 +823,7 @@ export default function BudgetPdf() {
             <div style={{ marginBottom: "8px", fontWeight: 700, fontSize: "14px", color: "#000000" }}>
               Resumo por Campanha
             </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "10px",
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
               {totaisPorCampanha.map((c: any, idx: number) => (
                 <div
                   key={idx}
@@ -852,48 +844,12 @@ export default function BudgetPdf() {
             </div>
           </div>
 
-          {/* Observações */}
-          {payload.observacoes && (
-            <div
-              className="avoid-break"
-              style={{
-                marginTop: "20px",
-                padding: "16px",
-                borderRadius: "8px",
-                backgroundColor: "#FAFAFA",
-                border: "1px solid #E0E0E0",
-                pageBreakInside: "avoid",
-              }}
-            >
-              <p style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#000000" }}>
-                Observações:
-              </p>
-              <p
-                style={{
-                  fontSize: "11px",
-                  lineHeight: "1.6",
-                  whiteSpace: "pre-wrap",
-                  color: "#555555",
-                }}
-              >
-                {payload.observacoes}
-              </p>
-            </div>
-          )}
-
           {/* Rodapé LGPD */}
           <div
             className="avoid-break"
             style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}
           >
-            <p
-              style={{
-                fontSize: "9px",
-                textAlign: "center",
-                lineHeight: "1.6",
-                color: "#888888",
-              }}
-            >
+            <p style={{ fontSize: "9px", textAlign: "center", lineHeight: "1.6", color: "#888888" }}>
               Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. Conforme a Lei Geral de
               Proteção de Dados (LGPD - Lei nº 13.709/2018), todas as informações contidas neste documento são tratadas
               com segurança e privacidade.
