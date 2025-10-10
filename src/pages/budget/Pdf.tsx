@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,45 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logoWE from "@/assets/LOGO-WE-2.png";
 
+/** ====== Tipagens ====== */
+interface FilmOption {
+  id: string;
+  nome?: string;
+  escopo?: string;
+  valor?: number | string;
+  desconto?: number | string;
+}
+
+interface QuoteFilm {
+  id: string;
+  produtora?: string;
+  escopo?: string;
+  valor?: number | string;
+  diretor?: string;
+  tratamento?: string;
+  desconto?: number | string;
+  tem_opcoes?: boolean;
+  opcoes?: FilmOption[];
+  selecionado?: boolean;
+}
+
+interface QuoteAudio {
+  id: string;
+  produtora?: string;
+  descricao?: string;
+  valor?: number | string;
+  desconto?: number | string;
+  selecionado?: boolean;
+}
+
+interface CampaignQuotes {
+  id: string;
+  nome: string;
+  inclui_audio?: boolean;
+  quotes_film?: QuoteFilm[];
+  quotes_audio?: QuoteAudio[];
+}
+
 interface BudgetData {
   id: string;
   display_id: string;
@@ -20,17 +59,82 @@ interface BudgetData {
   budget_number: string;
 }
 
+/** ====== Utils numéricos e de formatação ====== */
+const parseCurrency = (v: any): number => {
+  if (v == null || v === "") return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const clean = String(v)
+    .replace(/[R$\s]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+  const n = Number(clean);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toNum = (v: any) => parseCurrency(v);
+
+const money = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
+
+/** menor entre base e opções de um fornecedor de FILME */
+const lowestQuoteValue = (q: QuoteFilm) => {
+  const base = toNum(q.valor) - toNum(q.desconto);
+  if (q.tem_opcoes && Array.isArray(q.opcoes) && q.opcoes.length > 0) {
+    const minOpt = Math.min(...q.opcoes.map((o) => toNum(o.valor) - toNum(o.desconto)));
+    return Math.min(base, minOpt);
+  }
+  return base;
+};
+/** valor final para áudio */
+const finalAudioValue = (a: QuoteAudio) => toNum(a.valor) - toNum(a.desconto);
+
+/** escolhe fornecedor “selecionado” ou o mais barato */
+const pickFilm = (quotes: QuoteFilm[] = []) => {
+  const sel = quotes.find((q) => q.selecionado);
+  if (sel) return sel;
+  return quotes.reduce<QuoteFilm | null>((best, q) => {
+    if (!best) return q;
+    return lowestQuoteValue(q) < lowestQuoteValue(best) ? q : best;
+  }, null as any);
+};
+const pickAudio = (quotes: QuoteAudio[] = []) => {
+  const sel = quotes.find((q) => q.selecionado);
+  if (sel) return sel;
+  return quotes.reduce<QuoteAudio | null>((best, q) => {
+    if (!best) return q;
+    return finalAudioValue(q) < finalAudioValue(best) ? q : best;
+  }, null as any);
+};
+
+/** ====== Componente ====== */
 export default function BudgetPdf() {
   const { id } = useParams();
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [data, setData] = useState<BudgetData | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Hooks que dependem de "data" PRECISAM vir antes de return, para não quebrar a ordem.
+  const payload = data?.payload ?? {};
+  // O seu orçamento novo salva como campanhas -> quotes_film/quotes_audio.
+  const campanhas: CampaignQuotes[] = Array.isArray(payload.campanhas) ? payload.campanhas : [];
+
+  const totaisPorCampanha = useMemo(() => {
+    return campanhas.map((camp) => {
+      const film = pickFilm(camp.quotes_film || []);
+      const audio = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
+      const filmVal = film ? lowestQuoteValue(film) : 0;
+      const audioVal = audio ? finalAudioValue(audio) : 0;
+      return { id: camp.id, nome: camp.nome, total: filmVal + audioVal };
+    });
+  }, [JSON.stringify(campanhas)]);
+
+  /** ====== Carrega orçamento ====== */
   useEffect(() => {
     const fetchBudget = async () => {
       if (!id) return;
+
       try {
         const { data: row, error } = await supabase
           .from("versions")
@@ -80,11 +184,13 @@ export default function BudgetPdf() {
     fetchBudget();
   }, [id, navigate]);
 
+  /** ====== Geração de PDF com margens ====== */
   const handleGeneratePdf = async () => {
     if (!contentRef.current || !data) return;
     setGenerating(true);
     try {
       const element = contentRef.current;
+
       const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
       const canvas = await html2canvas(element, {
         scale,
@@ -98,62 +204,56 @@ export default function BudgetPdf() {
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWmm = pdf.internal.pageSize.getWidth();
       const pageHmm = pdf.internal.pageSize.getHeight();
-      const pageMarginMm = 12;
-      const contentWmm = pageWmm - pageMarginMm * 2;
-      const contentHmm = pageHmm - pageMarginMm * 2;
+
+      const margin = 12;
+      const usableW = pageWmm - margin * 2;
+      const usableH = pageHmm - margin * 2;
 
       const cw = canvas.width;
       const ch = canvas.height;
-
-      const pxPerMm = cw / contentWmm;
-      const pageHPx = Math.ceil(contentHmm * pxPerMm);
+      const pxPerMm = cw / usableW;
+      const pageHPx = Math.ceil(usableH * pxPerMm);
 
       let y = 0;
       let pageIndex = 0;
 
       while (y < ch) {
-        const srcHeight = Math.min(pageHPx, ch - y);
+        const srcH = Math.min(pageHPx, ch - y);
         const pageCanvas = document.createElement("canvas");
         pageCanvas.width = cw;
-        pageCanvas.height = srcHeight;
-
+        pageCanvas.height = srcH;
         const ctx = pageCanvas.getContext("2d")!;
         ctx.imageSmoothingEnabled = true;
         // @ts-ignore
         ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(canvas, 0, y, cw, srcHeight, 0, 0, cw, srcHeight);
+        ctx.drawImage(canvas, 0, y, cw, srcH, 0, 0, cw, srcH);
 
         const img = pageCanvas.toDataURL("image/png");
-
         if (pageIndex > 0) pdf.addPage();
+
         pdf.setFillColor(255, 255, 255);
         pdf.rect(0, 0, pageWmm, pageHmm, "F");
 
-        const isLast = y + srcHeight >= ch;
-        const targetHeightMm = isLast ? srcHeight / pxPerMm : contentHmm;
-        const targetWidthMm = contentWmm;
+        const isLast = y + srcH >= ch;
+        const hMm = isLast ? srcH / pxPerMm : usableH;
+        pdf.addImage(img, "PNG", margin, margin, usableW, hMm);
 
-        pdf.addImage(img, "PNG", pageMarginMm, pageMarginMm, targetWidthMm, targetHeightMm);
-
-        y += srcHeight;
-        pageIndex += 1;
+        y += srcH;
+        pageIndex++;
       }
 
-      const payload = data.payload || {};
-      const cliente = payload.cliente || "cliente";
-      const produto = payload.produto || "produto";
-      const numero = data.budget_number || "000";
-
-      const cleanText = (text: string) =>
-        String(text)
+      // nome do arquivo
+      const cliente = String(payload.cliente || "cliente");
+      const produto = String(payload.produto || "produto");
+      const num = data.budget_number || "000";
+      const clean = (t: string) =>
+        t
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9]/g, "_")
+          .replace(/[^a-z0-9]/gi, "_")
           .replace(/_+/g, "_")
           .toLowerCase();
-
-      const fileName = `${cleanText(cliente)}_${cleanText(produto)}_${numero}.pdf`;
-      pdf.save(fileName);
+      pdf.save(`${clean(cliente)}_${clean(produto)}_${num}.pdf`);
       toast({ title: "PDF gerado com sucesso!" });
     } catch (err: any) {
       toast({
@@ -166,100 +266,6 @@ export default function BudgetPdf() {
     }
   };
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
-
-  // ------- helpers -------
-  const toNum = (v: any) => {
-    if (typeof v === "number") return isFinite(v) ? v : 0;
-    if (typeof v === "string") {
-      const norm = v.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-      const n = Number(norm);
-      return isFinite(n) ? n : 0;
-    }
-    return Number(v) || 0;
-  };
-
-  const precoMinFornecedor = (f: any) => {
-    const base = toNum(f.valor) - toNum(f.desconto);
-    if (f?.tem_opcoes && Array.isArray(f.opcoes) && f.opcoes.length) {
-      const minOpc = f.opcoes.reduce((min: number, opc: any) => {
-        const val = toNum(opc.valor) - toNum(opc.desconto);
-        return val < min ? val : min;
-      }, base);
-      return Math.min(base, minOpc);
-    }
-    return base;
-  };
-
-  const ordenarFornecedores = (fornecedores: any[] = []) =>
-    [...fornecedores].sort((a, b) => precoMinFornecedor(a) - precoMinFornecedor(b));
-
-  const getSelecionado = (cat: any) => {
-    for (const f of cat.fornecedores || []) {
-      if (f?.selecionado) {
-        if (f.tem_opcoes && Array.isArray(f.opcoes)) {
-          const opSel = f.opcoes.find((o: any) => o?.selecionada);
-          if (opSel) return { ...f, opcaoSelecionada: opSel, selecionado: true };
-        }
-        return { ...f, selecionado: true };
-      }
-    }
-    for (const f of cat.fornecedores || []) {
-      if (f.tem_opcoes && Array.isArray(f.opcoes)) {
-        const opSel = f.opcoes.find((o: any) => o?.selecionada);
-        if (opSel) return { ...f, opcaoSelecionada: opSel, selecionado: true };
-      }
-    }
-    return null;
-  };
-
-  const getEscolhido = (cat: any) => {
-    const sel = getSelecionado(cat);
-    if (sel) return sel;
-
-    let best: any = null;
-    let bestVal = Infinity;
-    for (const f of cat.fornecedores || []) {
-      if (f.tem_opcoes && f.opcoes?.length) {
-        for (const opc of f.opcoes) {
-          const val = toNum(opc.valor) - toNum(opc.desconto);
-          if (val < bestVal) {
-            bestVal = val;
-            best = { ...f, opcaoSelecionada: opc };
-          }
-        }
-      } else {
-        const val = toNum(f.valor) - toNum(f.desconto);
-        if (val < bestVal) {
-          bestVal = val;
-          best = f;
-        }
-      }
-    }
-    return best;
-  };
-
-  const calcularSubtotal = (cat: any) => {
-    if (cat.modoPreco === "fechado") {
-      const escolhido = getEscolhido(cat);
-      if (!escolhido) return 0;
-      return escolhido.opcaoSelecionada
-        ? toNum(escolhido.opcaoSelecionada.valor) - toNum(escolhido.opcaoSelecionada.desconto)
-        : toNum(escolhido.valor) - toNum(escolhido.desconto);
-    }
-    return (cat.itens || []).reduce(
-      (sum: number, item: any) => sum + toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto),
-      0,
-    );
-  };
-
-  const calcularTotalCampanha = (campanha: any) =>
-    (campanha.categorias || [])
-      .filter((c: any) => c.visivel !== false)
-      .filter((c: any) => (c.modoPreco === "fechado" ? c.fornecedores?.length > 0 : c.itens?.length > 0))
-      .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
-
   if (loading) {
     return (
       <AppLayout>
@@ -267,36 +273,37 @@ export default function BudgetPdf() {
       </AppLayout>
     );
   }
+
   if (!data) return null;
-
-  const payload = data.payload || {};
-  const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
-
-  // sem hooks:
-  const totaisPorCampanha = campanhas.map((camp: any) => ({
-    nome: camp.nome,
-    total: calcularTotalCampanha(camp),
-  }));
 
   return (
     <AppLayout>
+      {/* Estilos para impressão + grid 2 colunas de opções */}
       <style>{`
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @media print {
           @page { size: A4 portrait; margin: 15mm 20mm; }
-          html, body { width: 210mm; background: #FFFFFF !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
-          .print-content, .print-content * { box-shadow: none !important; }
-          .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+          .avoid-break { page-break-inside: avoid; break-inside: avoid; }
         }
         .print-content {
-          width: 210mm; min-height: 297mm; padding: 20mm 20mm; margin: 0 auto;
-          background: #FFFFFF; color: #000000; box-shadow: 0 0 10px rgba(0,0,0,0.1); box-sizing: border-box;
+          width: 210mm;
+          min-height: 297mm;
+          padding: 20mm;
+          margin: 0 auto;
+          background: #FFFFFF;
+          color: #000000;
+          box-sizing: border-box;
         }
-        .avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; }
+        .grid-opts {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
       `}</style>
 
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6 no-print">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate(`/budget/${id}`)}>
@@ -314,19 +321,8 @@ export default function BudgetPdf() {
           </Button>
         </div>
 
-        <div
-          ref={contentRef}
-          className="print-content"
-          style={{
-            width: "210mm",
-            minHeight: "297mm",
-            backgroundColor: "#FFFFFF",
-            color: "#000000",
-            padding: "20mm 20mm",
-            margin: "0 auto",
-            boxSizing: "border-box",
-          }}
-        >
+        {/* Conteúdo que vira PDF */}
+        <div ref={contentRef} className="print-content">
           {/* Cabeçalho */}
           <div
             className="avoid-break flex items-start justify-between mb-8 pb-6"
@@ -334,8 +330,8 @@ export default function BudgetPdf() {
           >
             <div className="flex-1">
               <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
-              <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666666" }}>
-                <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000000", marginBottom: "4px" }}>
+              <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666" }}>
+                <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000", marginBottom: "4px" }}>
                   WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
                 </p>
                 <p style={{ marginBottom: "2px" }}>CNPJ: 05.265.118/0001-65</p>
@@ -344,15 +340,15 @@ export default function BudgetPdf() {
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>ORÇAMENTO</h1>
-              <p style={{ fontSize: "18px", fontWeight: "700", color: "#000000", marginBottom: "4px" }}>
+              <p style={{ fontSize: "18px", fontWeight: 700, color: "#000", marginBottom: "4px" }}>
                 Nº {data.budget_number}
               </p>
-              <p style={{ fontSize: "11px", color: "#666666", marginBottom: "2px" }}>{data.display_id}</p>
-              <p style={{ fontSize: "12px", color: "#666666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
+              <p style={{ fontSize: "11px", color: "#666", marginBottom: "2px" }}>{data.display_id}</p>
+              <p style={{ fontSize: "12px", color: "#666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
             </div>
           </div>
 
-          {/* Informações do Cliente */}
+          {/* Identificação */}
           <div
             className="avoid-break"
             style={{
@@ -363,41 +359,53 @@ export default function BudgetPdf() {
               border: "1px solid #E0E0E0",
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px", fontSize: "13px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px",
+                fontSize: "13px",
+              }}
+            >
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>Cliente</p>
-                <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Cliente</p>
+                <p style={{ fontWeight: "bold", color: "#000" }}>{payload.cliente || "-"}</p>
               </div>
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>Produto</p>
-                <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.produto || "-"}</p>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Produto</p>
+                <p style={{ fontWeight: "bold", color: "#000" }}>{payload.produto || "-"}</p>
               </div>
               {payload.job && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>Job</p>
-                  <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.job}</p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Job</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.job}</p>
                 </div>
               )}
-              {campanhas.length > 0 && campanhas[0].nome && (
+              {campanhas[0]?.nome && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666666" }}>
-                    Campanha (1ª)
-                  </p>
-                  <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhas[0].nome}</p>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Campanha (1ª)</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{campanhas[0].nome}</p>
                 </div>
               )}
             </div>
           </div>
 
-          {campanhas.map((campanha: any, campIdx: number) => {
-            const categoriasVisiveis = (campanha.categorias || [])
-              .filter((c: any) => c.visivel !== false)
-              .filter((c: any) => (c.modoPreco === "fechado" ? c.fornecedores?.length > 0 : c.itens?.length > 0));
+          {/* Campanhas (modelo de quotes) */}
+          {campanhas.map((camp, campIdx) => {
+            const filmSel = pickFilm(camp.quotes_film || []);
+            const audioSel = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
+            const campTotal = (filmSel ? lowestQuoteValue(filmSel) : 0) + (audioSel ? finalAudioValue(audioSel) : 0);
 
-            if (categoriasVisiveis.length === 0) return null;
+            const films = camp.quotes_film || [];
+            const audios = camp.quotes_audio || [];
+
+            if (films.length === 0 && (!camp.inclui_audio || audios.length === 0)) return null;
+
+            const globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
 
             return (
-              <div key={campIdx} className="avoid-break" style={{ marginBottom: "24px", pageBreakInside: "avoid" }}>
+              <div key={camp.id || campIdx} className="avoid-break" style={{ marginBottom: "24px" }}>
+                {/* Cabeçalho da campanha */}
                 <div
                   style={{
                     borderLeft: "4px solid #E6191E",
@@ -408,414 +416,230 @@ export default function BudgetPdf() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>{campanha.nome}</h2>
-                    <span style={{ fontSize: "16px", fontWeight: "bold", color: "#E6191E" }}>
-                      {formatCurrency(calcularTotalCampanha(campanha))}
-                    </span>
+                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000" }}>
+                      {camp.nome || `Campanha ${campIdx + 1}`}
+                    </h2>
+                    <span style={{ fontSize: "16px", fontWeight: "bold", color: "#E6191E" }}>{money(campTotal)}</span>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {categoriasVisiveis.map((cat: any, idx: number) => {
-                    const escolhido = getEscolhido(cat);
-                    const subtotal = calcularSubtotal(cat);
-                    const fornecedoresOrdenados = ordenarFornecedores(cat.fornecedores || []);
-                    const globalMin = fornecedoresOrdenados.length
-                      ? Math.min(...fornecedoresOrdenados.map((f: any) => precoMinFornecedor(f)))
-                      : Infinity;
+                {/* PRODUTORAS DE FILME */}
+                {films.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "12px" }}>
+                    <div style={{ fontWeight: 700, fontSize: "14px", color: "#000" }}>Produtoras — Filme</div>
+                    {films.map((f, idx) => {
+                      const isEscolhido = !!(filmSel && filmSel.id === f.id);
+                      const minFornecedor = lowestQuoteValue(f);
+                      const isMaisBaratoGlobal = Math.abs(minFornecedor - globalMinFilm) < 0.005;
 
-                    return (
-                      <div
-                        key={idx}
-                        className="avoid-break"
-                        style={{
-                          paddingLeft: "16px",
-                          paddingTop: "8px",
-                          paddingBottom: "8px",
-                          borderRadius: "8px",
-                          backgroundColor: "#FAFAFA",
-                          borderLeft: "3px solid #D0D0D0",
-                          pageBreakInside: "avoid",
-                        }}
-                      >
+                      const destaque = isEscolhido || isMaisBaratoGlobal;
+                      const cardBg = destaque ? "#F0FAF4" : "#FFFFFF";
+                      const cardBorder = destaque ? "2px solid #48bb78" : "1px solid #E5E5E5";
+                      const shadow = destaque ? "0 2px 8px rgba(72, 187, 120, 0.15)" : "0 1px 3px rgba(0,0,0,0.08)";
+
+                      return (
                         <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                            marginBottom: "8px",
-                          }}
+                          key={f.id || idx}
+                          className="rounded-lg px-3 py-3"
+                          style={{ backgroundColor: cardBg, border: cardBorder, boxShadow: shadow }}
                         >
-                          <h3 style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>{cat.nome}</h3>
-                          <span style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>
-                            {formatCurrency(subtotal)}
-                          </span>
-                        </div>
-
-                        {cat.observacao && (
-                          <p
-                            style={{
-                              fontSize: "11px",
-                              marginBottom: "8px",
-                              fontStyle: "italic",
-                              padding: "4px 8px",
-                              borderRadius: "4px",
-                              color: "#555555",
-                              backgroundColor: "#F0F0F0",
-                            }}
-                          >
-                            {cat.observacao}
-                          </p>
-                        )}
-
-                        {/* Itens itemizados */}
-                        {cat.modoPreco !== "fechado" && cat.itens?.length > 0 && (
-                          <div style={{ marginTop: "12px" }}>
-                            <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse" }}>
-                              <thead>
-                                <tr style={{ backgroundColor: "#F0F0F0", borderBottom: "1px solid #D0D0D0" }}>
-                                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>Item</th>
-                                  <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: 600 }}>Qtd</th>
-                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
-                                    Valor Unit.
-                                  </th>
-                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>Desconto</th>
-                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {cat.itens.map((item: any, iIdx: number) => {
-                                  const totalItem =
-                                    toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto);
-                                  return (
-                                    <tr key={iIdx} style={{ borderBottom: "1px solid #E5E5E5" }}>
-                                      <td style={{ padding: "6px 8px" }}>{item.nome || "-"}</td>
-                                      <td style={{ padding: "6px 8px", textAlign: "center" }}>
-                                        {toNum(item.quantidade) || 0}
-                                      </td>
-                                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                                        {formatCurrency(toNum(item.valorUnitario) || 0)}
-                                      </td>
-                                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                                        {formatCurrency(toNum(item.desconto) || 0)}
-                                      </td>
-                                      <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>
-                                        {formatCurrency(totalItem)}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        {/* Fornecedores (modo fechado) */}
-                        {cat.modoPreco === "fechado" && (cat.fornecedores?.length || 0) > 0 && (
-                          <div className="space-y-3 mt-3">
-                            {fornecedoresOrdenados.map((f: any, fIdx: number) => {
-                              const isEscolhido = !!(escolhido && escolhido.id === f.id);
-                              const isSelecionado = !!(escolhido?.selecionado && escolhido.id === f.id);
-                              const precoMinDoFornecedor = precoMinFornecedor(f);
-                              const isMaisBaratoGlobal = Math.abs(precoMinDoFornecedor - globalMin) < 0.005;
-
-                              const valorBase = toNum(f.valor) - toNum(f.desconto);
-                              const valorEscolhidoOpc =
-                                isEscolhido && escolhido?.opcaoSelecionada
-                                  ? toNum(escolhido.opcaoSelecionada.valor) - toNum(escolhido.opcaoSelecionada.desconto)
-                                  : null;
-                              const valorExibido = valorEscolhidoOpc ?? valorBase;
-
-                              const cardBg = isSelecionado || isMaisBaratoGlobal ? "#F0FAF4" : "#FFFFFF";
-                              const cardBorder =
-                                isSelecionado || isMaisBaratoGlobal ? "2px solid #48bb78" : "1px solid #E5E5E5";
-                              const shadow =
-                                isSelecionado || isMaisBaratoGlobal
-                                  ? "0 2px 8px rgba(72, 187, 120, 0.15)"
-                                  : "0 1px 3px rgba(0,0,0,0.08)";
-
-                              return (
-                                <div
-                                  key={fIdx}
-                                  className="rounded-lg px-3 py-3"
-                                  style={{ backgroundColor: cardBg, border: cardBorder, boxShadow: shadow }}
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1 pr-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                {isMaisBaratoGlobal && (
+                                  <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
+                                )}
+                                {isEscolhido && <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />}
+                                <p
+                                  className={`font-bold ${destaque ? "text-sm" : "text-xs"}`}
+                                  style={{ color: "#000" }}
                                 >
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1 pr-3">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        {isMaisBaratoGlobal && (
-                                          <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
-                                        )}
-                                        {isSelecionado && (
-                                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-                                        )}
-                                        <p
-                                          className={`font-bold ${isSelecionado || isMaisBaratoGlobal ? "text-sm" : "text-xs"}`}
-                                          style={{ color: "#000000" }}
-                                        >
-                                          {f.nome}
-                                        </p>
-                                      </div>
+                                  {f.produtora || "Fornecedor"}
+                                </p>
+                              </div>
 
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        {isSelecionado && (
-                                          <span
-                                            style={{
-                                              fontSize: "10px",
-                                              fontWeight: 700,
-                                              color: "#2F855A",
-                                              background: "#C6F6D5",
-                                              border: "1px solid #48BB78",
-                                              padding: "2px 6px",
-                                              borderRadius: "999px",
-                                            }}
-                                          >
-                                            ✓ SELECIONADO
-                                          </span>
-                                        )}
-                                        {isMaisBaratoGlobal && (
-                                          <span
-                                            style={{
-                                              fontSize: "10px",
-                                              fontWeight: 700,
-                                              color: "#2F855A",
-                                              background: "#E6FFFA",
-                                              border: "1px solid #38B2AC",
-                                              padding: "2px 6px",
-                                              borderRadius: "999px",
-                                            }}
-                                          >
-                                            ★ OPÇÃO MAIS BARATA
-                                          </span>
-                                        )}
-                                      </div>
+                              {f.diretor && (
+                                <p className="text-[10px] mt-1" style={{ color: "#666" }}>
+                                  <span className="font-semibold">Diretor:</span> {f.diretor}
+                                </p>
+                              )}
+                              {f.tratamento && (
+                                <p className="text-[10px] mt-1" style={{ color: "#666" }}>
+                                  <span className="font-semibold">Tratamento:</span> {f.tratamento}
+                                </p>
+                              )}
+                              {f.escopo && (
+                                <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444" }}>
+                                  {f.escopo}
+                                </div>
+                              )}
+                            </div>
 
-                                      {f.diretor && (
-                                        <p className="text-[10px] mt-1" style={{ color: "#666666" }}>
-                                          <span className="font-semibold">Diretor:</span> {f.diretor}
-                                        </p>
-                                      )}
+                            <div className="text-right flex-shrink-0">
+                              <span
+                                className={`font-bold ${destaque ? "text-base" : "text-sm"}`}
+                                style={{ color: destaque ? "#2F855A" : "#000" }}
+                              >
+                                {money(minFornecedor)}
+                              </span>
+                              {toNum(f.desconto) > 0 && (
+                                <p className="text-[9px] mt-1" style={{ color: "#666" }}>
+                                  Desc: {money(toNum(f.desconto))}
+                                </p>
+                              )}
+                            </div>
+                          </div>
 
-                                      {f.escopo && (
-                                        <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444444" }}>
-                                          {(() => {
-                                            const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
-                                            if (elencoMatch) {
-                                              const elenco = elencoMatch[1].trim();
-                                              const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, "").trim();
-                                              return (
-                                                <>
-                                                  {resto && <p className="mb-1.5">{resto}</p>}
-                                                  <div className="bg-gray-50 border-l-2 border-gray-400 pl-2 py-1 mt-1">
-                                                    <p className="font-semibold italic">
-                                                      <span style={{ color: "#666666" }}>Elenco:</span> {elenco}
-                                                    </p>
-                                                  </div>
-                                                </>
-                                              );
-                                            }
-                                            return <p>{f.escopo}</p>;
-                                          })()}
-                                        </div>
-                                      )}
+                          {/* Opções lado a lado (2 colunas) */}
+                          {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
+                            <div style={{ marginTop: 8 }}>
+                              <p className="text-[10px] font-semibold mb-2" style={{ color: "#666" }}>
+                                Opções disponíveis:
+                              </p>
+                              <div className="grid-opts">
+                                {f.opcoes.map((opc, oIdx) => {
+                                  const valorOpc = toNum(opc.valor) - toNum(opc.desconto);
+                                  // Marca a opção escolhida se ela for exatamente a menor e o fornecedor for o escolhido
+                                  const isOpcEscolhida = isEscolhido && Math.abs(valorOpc - minFornecedor) < 0.005;
 
-                                      {f.tratamento && (
-                                        <p className="text-[10px] mt-1" style={{ color: "#666666" }}>
-                                          <span className="font-semibold">Tratamento:</span> {f.tratamento}
-                                        </p>
-                                      )}
-                                    </div>
-
-                                    <div className="text-right flex-shrink-0">
-                                      <span
-                                        className={`font-bold ${isSelecionado || isMaisBaratoGlobal ? "text-base" : "text-sm"}`}
-                                        style={{ color: isSelecionado || isMaisBaratoGlobal ? "#2F855A" : "#000000" }}
-                                      >
-                                        {formatCurrency(valorExibido)}
-                                      </span>
-                                      {toNum(f.desconto) > 0 && (
-                                        <p className="text-[9px] mt-1" style={{ color: "#666666" }}>
-                                          Desc: {formatCurrency(toNum(f.desconto))}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Opções (grade 2 colunas) */}
-                                  {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
-                                    <div style={{ marginTop: "8px", paddingLeft: "8px" }}>
-                                      <p className="text-[10px] font-semibold mb-2" style={{ color: "#666666" }}>
-                                        Opções disponíveis:
-                                      </p>
-                                      <div
-                                        style={{
-                                          display: "grid",
-                                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                                          gap: "8px",
-                                        }}
-                                      >
-                                        {f.opcoes.map((opc: any, opcIdx: number) => {
-                                          const valorOpcao = toNum(opc.valor) - toNum(opc.desconto);
-                                          const isOpcSelecionada =
-                                            isSelecionado &&
-                                            !!escolhido?.opcaoSelecionada &&
-                                            escolhido.opcaoSelecionada === opc;
-                                          return (
-                                            <div
-                                              key={opcIdx}
-                                              className="avoid-break"
+                                  return (
+                                    <div
+                                      key={opc.id || oIdx}
+                                      style={{
+                                        padding: "8px 10px",
+                                        backgroundColor: isOpcEscolhida ? "#F0FAF4" : "#F9F9F9",
+                                        border: isOpcEscolhida ? "1px solid #48BB78" : "1px solid #E5E5E5",
+                                        borderRadius: 6,
+                                        fontSize: 10,
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                        <div style={{ flex: 1 }}>
+                                          <p style={{ fontWeight: 700, marginBottom: 2, color: "#000" }}>
+                                            {opc.nome || `Opção ${oIdx + 1}`}
+                                          </p>
+                                          {opc.escopo && <p style={{ fontSize: 9, color: "#555" }}>{opc.escopo}</p>}
+                                          {isOpcEscolhida && (
+                                            <span
                                               style={{
-                                                padding: "8px 10px",
-                                                backgroundColor: isOpcSelecionada ? "#F0FAF4" : "#F9F9F9",
-                                                border: isOpcSelecionada ? "1px solid #48BB78" : "1px solid #E5E5E5",
-                                                borderRadius: "8px",
-                                                fontSize: "10px",
-                                                breakInside: "avoid",
-                                                pageBreakInside: "avoid",
+                                                display: "inline-block",
+                                                marginTop: 4,
+                                                fontSize: 9,
+                                                fontWeight: 700,
+                                                color: "#2F855A",
+                                                background: "#C6F6D5",
+                                                border: "1px solid #48BB78",
+                                                padding: "1px 6px",
+                                                borderRadius: 999,
                                               }}
                                             >
-                                              <div
-                                                style={{
-                                                  display: "flex",
-                                                  justifyContent: "space-between",
-                                                  alignItems: "start",
-                                                  gap: "8px",
-                                                }}
-                                              >
-                                                <div style={{ flex: 1 }}>
-                                                  <p style={{ fontWeight: 700, marginBottom: "2px", color: "#000000" }}>
-                                                    {opc.nome || `Opção ${opcIdx + 1}`}
-                                                  </p>
-                                                  {opc.escopo && (
-                                                    <p
-                                                      style={{
-                                                        fontSize: "9px",
-                                                        color: "#555555",
-                                                        marginTop: "2px",
-                                                        lineHeight: 1.4,
-                                                      }}
-                                                    >
-                                                      {opc.escopo}
-                                                    </p>
-                                                  )}
-                                                  {isOpcSelecionada && (
-                                                    <span
-                                                      style={{
-                                                        display: "inline-block",
-                                                        marginTop: "4px",
-                                                        fontSize: "9px",
-                                                        fontWeight: 700,
-                                                        color: "#2F855A",
-                                                        background: "#C6F6D5",
-                                                        border: "1px solid #48BB78",
-                                                        padding: "1px 6px",
-                                                        borderRadius: "999px",
-                                                      }}
-                                                    >
-                                                      ✓ OPÇÃO SELECIONADA
-                                                    </span>
-                                                  )}
-                                                </div>
-                                                <div style={{ textAlign: "right", minWidth: "80px" }}>
-                                                  <p style={{ fontWeight: 700, color: "#000000" }}>
-                                                    {formatCurrency(valorOpcao)}
-                                                  </p>
-                                                  {toNum(opc.desconto) > 0 && (
-                                                    <p style={{ fontSize: "8px", color: "#666666" }}>
-                                                      Desc: {formatCurrency(toNum(opc.desconto))}
-                                                    </p>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
+                                              ✓ OPÇÃO ESCOLHIDA
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div style={{ textAlign: "right" }}>
+                                          <p style={{ fontWeight: 700, color: "#000" }}>{money(valorOpc)}</p>
+                                          {toNum(opc.desconto) > 0 && (
+                                            <p style={{ fontSize: 8, color: "#666" }}>
+                                              Desc: {money(toNum(opc.desconto))}
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* PRODUTORAS DE ÁUDIO */}
+                {camp.inclui_audio && audios.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ fontWeight: 700, fontSize: "14px", color: "#000" }}>Produtoras — Áudio</div>
+                    {audios.map((a, idx) => {
+                      const isEscolhido = !!(audioSel && audioSel.id === a.id);
+                      const finalA = finalAudioValue(a);
+                      return (
+                        <div
+                          key={a.id || idx}
+                          className="rounded-lg px-3 py-3"
+                          style={{
+                            backgroundColor: isEscolhido ? "#EEF5FF" : "#FFFFFF",
+                            border: isEscolhido ? "2px solid #3B82F6" : "1px solid #E5E5E5",
+                          }}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="pr-3">
+                              <div className="flex items-center gap-2">
+                                {isEscolhido && <CheckCircle className="h-4 w-4 text-blue-600" />}
+                                <p className="font-bold text-sm" style={{ color: "#000" }}>
+                                  {a.produtora || "Fornecedor de Áudio"}
+                                </p>
+                              </div>
+                              {a.descricao && (
+                                <p className="text-[10px] mt-1" style={{ color: "#444" }}>
+                                  {a.descricao}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <span
+                                className={`font-bold ${isEscolhido ? "text-base" : "text-sm"}`}
+                                style={{ color: "#000" }}
+                              >
+                                {money(finalA)}
+                              </span>
+                              {toNum(a.desconto) > 0 && (
+                                <p className="text-[9px] mt-1" style={{ color: "#666" }}>
+                                  Desc: {money(toNum(a.desconto))}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
 
           {/* Resumo por campanha */}
-          <div
-            className="avoid-break"
-            style={{
-              paddingTop: "16px",
-              marginTop: "24px",
-              borderRadius: "8px",
-              padding: "16px",
-              backgroundColor: "#F5F5F5",
-              borderTop: "3px solid #E6191E",
-              pageBreakInside: "avoid",
-            }}
-          >
-            <div style={{ marginBottom: "8px", fontWeight: 700, fontSize: "14px", color: "#000000" }}>
-              Resumo por Campanha
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
-              {totaisPorCampanha.map((c: any, idx: number) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: "#FFFFFF",
-                    border: "1px solid #E0E0E0",
-                    borderRadius: "8px",
-                    padding: "10px 12px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#333333" }}>{c.nome}</span>
-                  <span style={{ fontSize: "16px", fontWeight: 700, color: "#E6191E" }}>{formatCurrency(c.total)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Observações */}
-          {payload.observacoes && (
+          {totaisPorCampanha.length > 0 && (
             <div
               className="avoid-break"
               style={{
-                marginTop: "20px",
-                padding: "16px",
+                paddingTop: "16px",
+                marginTop: "24px",
                 borderRadius: "8px",
-                backgroundColor: "#FAFAFA",
-                border: "1px solid #E0E0E0",
-                pageBreakInside: "avoid",
+                padding: "16px",
+                backgroundColor: "#F5F5F5",
+                borderTop: "3px solid #E6191E",
               }}
             >
-              <p style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#000000" }}>
-                Observações:
-              </p>
-              <p style={{ fontSize: "11px", lineHeight: "1.6", whiteSpace: "pre-wrap", color: "#555555" }}>
-                {payload.observacoes}
-              </p>
+              <div style={{ marginBottom: 8, fontWeight: 700, fontSize: 14, color: "#000" }}>Resumo por Campanha</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 12 }}>
+                {totaisPorCampanha.map((t) => (
+                  <div
+                    key={t.id}
+                    style={{ background: "#fff", border: "1px solid #E5E5E5", borderRadius: 8, padding: 12 }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600 }}>{t.nome}</span>
+                      <span style={{ fontWeight: 700 }}>{money(t.total)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-
-          {/* Rodapé LGPD */}
-          <div
-            className="avoid-break"
-            style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}
-          >
-            <p style={{ fontSize: "9px", textAlign: "center", lineHeight: "1.6", color: "#888888" }}>
-              Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. Conforme a Lei Geral de
-              Proteção de Dados (LGPD - Lei nº 13.709/2018), todas as informações contidas neste documento são tratadas
-              com segurança e privacidade.
-            </p>
-          </div>
         </div>
       </div>
     </AppLayout>
