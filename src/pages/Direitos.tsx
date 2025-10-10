@@ -1,47 +1,165 @@
 // src/pages/Direitos.tsx
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink, ClipboardPaste, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+type RightRow = {
+  id?: string;
+  client: string | null;
+  product: string | null;
+  title: string | null;
+  contract_signed_production: string | null; // ISO yyyy-mm-dd
+  first_air: string | null; // ISO
+  expire_date: string | null; // ISO
+  link_drive: string | null;
+  status_label: string | null;
+  idempotent_key?: string; // para onConflict
+};
+
+const TODAY = new Date();
+
+function toISODate(d: Date | null) {
+  if (!d || isNaN(d.getTime())) return null;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function addMonths(date: Date, months: number) {
+  const d = new Date(date.getTime());
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  // Ajuste fim de mês
+  if (d.getDate() < day) d.setDate(0);
+  return d;
+}
+
+function parseBrDate(s?: string | null): Date | null {
+  if (!s) return null;
+  const cleaned = s
+    .toString()
+    .trim()
+    .replace(/[^\d\/\-]/g, ""); // remove "11h", etc.
+  if (!cleaned) return null;
+
+  // tenta ISO primeiro
+  if (/^\d{4}\-\d{2}\-\d{2}$/.test(cleaned)) {
+    const d = new Date(cleaned + "T00:00:00");
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // dd/mm/yyyy
+  const m = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (!m) return null;
+  const dd = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10) - 1;
+  let yyyy = parseInt(m[3], 10);
+  if (yyyy < 100) yyyy += 2000;
+  const d = new Date(yyyy, mm, dd);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function monthsFromLabel(validade: string | null | undefined): number | null {
+  if (!validade) return null;
+  const m = validade.toLowerCase().match(/(\d+)\s*mes/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function computeExpireDate(
+  explicitExpireISO: string | null,
+  firstAirISO: string | null,
+  validadeLabel: string | null,
+): string | null {
+  if (explicitExpireISO) return explicitExpireISO;
+  const base = firstAirISO ? new Date(firstAirISO) : null;
+  const months = monthsFromLabel(validadeLabel);
+  if (base && months) return toISODate(addMonths(base, months));
+  return null;
+}
+
+function computeStatus(expireISO: string | null, firstAirISO: string | null, provided?: string | null): string | null {
+  // se veio na planilha, manter (ex: RENOVADO)
+  if (provided && provided.trim()) return provided.trim().toUpperCase();
+
+  if (!expireISO) return null;
+  const exp = new Date(expireISO);
+  const diffDays = Math.floor((exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return "VENCIDO";
+  if (diffDays <= 30) return "A VENCER (30d)";
+
+  // "EM USO" se já começou a veicular e ainda não venceu; senão "DENTRO DO PRAZO"
+  if (firstAirISO) {
+    const first = new Date(firstAirISO);
+    if (!isNaN(first.getTime()) && first <= TODAY) return "EM USO";
+  }
+  return "DENTRO DO PRAZO";
+}
+
+function mkIdemKey(client: string | null, product: string | null, title: string | null, ap?: string | null) {
+  const norm = (v?: string | null) => (v || "").trim().toLowerCase().replace(/\s+/g, " ");
+  // usar AP se existir para diferenciar versões com mesmos nomes
+  return [norm(client), norm(product), norm(title), norm(ap)].join("::");
+}
+
+function getStatusPillColor(status: string | null) {
+  if (!status) return "bg-gray-100 text-gray-700";
+  const s = status.toLowerCase();
+  if (s.includes("vencido")) return "bg-red-100 text-red-700";
+  if (s.includes("vencer")) return "bg-amber-100 text-amber-700";
+  if (s.includes("renovado")) return "bg-blue-100 text-blue-700";
+  if (s.includes("em uso")) return "bg-green-100 text-green-700";
+  return "bg-gray-100 text-gray-700";
+}
+
 export default function Direitos() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const [rights, setRights] = useState<any[]>([]);
+
+  const [rights, setRights] = useState<RightRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [sheetId, setSheetId] = useState("1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw");
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newRight, setNewRight] = useState({
-    client: "",
-    product: "",
-    title: "",
-    contract_signed_production: "",
-    first_air: "",
-    link_drive: "",
-  });
+
+  // IMPORTAR VIA COLAR
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [defaultClient, setDefaultClient] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  // FILTROS
+  const params = new URLSearchParams(location.search);
+  const urlClient = params.get("client") || "";
+  const [clientFilter, setClientFilter] = useState(urlClient);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DUE30" | "EXPIRED">("ALL");
 
   useEffect(() => {
     loadRights();
   }, []);
 
+  useEffect(() => {
+    if (urlClient) setClientFilter(urlClient);
+  }, [urlClient]);
+
   const loadRights = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('rights')
-        .select('*')
-        .order('expire_date', { ascending: true });
-      
-      setRights(data || []);
+      const { data, error } = await supabase.from("rights").select("*").order("expire_date", { ascending: true });
+      if (error) throw error;
+      setRights((data as RightRow[]) || []);
     } catch (error) {
       console.error("Erro ao carregar direitos:", error);
+      toast({ title: "Erro ao carregar", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -52,99 +170,232 @@ export default function Direitos() {
       toast({ title: "Sheet ID obrigatório", variant: "destructive" });
       return;
     }
-
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('rights_sync', {
-        body: { sheetId: sheetId.trim() }
+      const { data, error } = await supabase.functions.invoke("rights_sync", {
+        body: { sheetId: sheetId.trim() },
       });
-
       if (error) throw error;
-
       toast({
         title: "Sincronização concluída!",
-        description: `${data.records || 0} registros sincronizados`
+        description: `${data?.records || 0} registros sincronizados`,
       });
-      
       await loadRights();
     } catch (error: any) {
       console.error("Erro na sincronização:", error);
       toast({
         title: "Erro ao sincronizar",
-        description: error.message || "Erro desconhecido",
-        variant: "destructive"
+        description: error?.message || "Erro desconhecido",
+        variant: "destructive",
       });
     } finally {
       setSyncing(false);
     }
   };
 
-  const addRight = async () => {
-    if (!newRight.client || !newRight.product || !newRight.title) {
-      toast({ title: "Preencha os campos obrigatórios", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('rights').insert([{
-        client: newRight.client,
-        product: newRight.product,
-        title: newRight.title,
-        contract_signed_production: newRight.contract_signed_production || null,
-        first_air: newRight.first_air || null,
-        link_drive: newRight.link_drive || null,
-      }]);
-
-      if (error) throw error;
-
-      toast({ title: "Direito adicionado com sucesso!" });
-      setAddDialogOpen(false);
-      setNewRight({
-        client: "",
-        product: "",
-        title: "",
-        contract_signed_production: "",
-        first_air: "",
-        link_drive: "",
-      });
-      await loadRights();
-    } catch (error: any) {
-      console.error("Erro ao adicionar direito:", error);
-      toast({
-        title: "Erro ao adicionar",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
-
   const exportToCSV = () => {
-    const headers = ["Cliente", "Produto", "Título", "Status", "Vencimento"];
-    const rows = rights.map(r => [
-      r.client,
-      r.product,
-      r.title,
+    const headers = ["Cliente", "Produto", "Título", "Status", "Vencimento", "Primeira Veiculação", "Link"];
+    const rows = rights.map((r) => [
+      r.client || "",
+      r.product || "",
+      r.title || "",
       r.status_label || "—",
-      r.expire_date || "—"
+      r.expire_date || "—",
+      r.first_air || "—",
+      r.link_drive || "",
     ]);
-
-    const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `direitos_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `direitos_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
   };
 
-  const getStatusColor = (status: string | null) => {
-    if (!status) return "bg-gray-100 text-gray-700";
-    const s = status.toLowerCase();
-    if (s.includes("vencido")) return "bg-red-100 text-red-700";
-    if (s.includes("vencer")) return "bg-amber-100 text-amber-700";
-    if (s.includes("renovado")) return "bg-blue-100 text-blue-700";
-    return "bg-green-100 text-green-700";
+  // ======== PARSE + IMPORT POR COLAR ========
+  type ParsedRow = {
+    ap?: string | null;
+    client?: string | null;
+    product?: string | null;
+    title?: string | null;
+    assinatura_elenco?: string | null;
+    assinatura_producao?: string | null;
+    primeira_veiculacao?: string | null;
+    validade?: string | null;
+    data_expira?: string | null;
+    link_copia?: string | null;
+    status?: string | null;
   };
+
+  function normalizeHeader(h: string) {
+    return h
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function parsePastedTable(raw: string): ParsedRow[] {
+    const lines = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (!lines.length) return [];
+
+    // detecta delimitador: TAB preferencial; fallback ';' ou ','
+    const guessDelim = (line: string) => {
+      if (line.includes("\t")) return "\t";
+      if (line.includes(";")) return ";";
+      if (line.includes(",")) return ",";
+      return "\t";
+    };
+    const delim = guessDelim(lines[0]);
+
+    const headerCells = lines[0].split(delim).map((s) => s.trim());
+    const headerMap: Record<number, string> = {};
+    headerCells.forEach((h, idx) => {
+      const n = normalizeHeader(h);
+      if (n.includes("ap")) headerMap[idx] = "ap";
+      else if (n.startsWith("cliente")) headerMap[idx] = "client";
+      else if (n.startsWith("produto")) headerMap[idx] = "product";
+      else if (n.startsWith("titulo")) headerMap[idx] = "title";
+      else if (n.includes("elenco")) headerMap[idx] = "assinatura_elenco";
+      else if (n.includes("producao") || n.includes("produção")) headerMap[idx] = "assinatura_producao";
+      else if (n.includes("primeira") || n.includes("veiculacao")) headerMap[idx] = "primeira_veiculacao";
+      else if (n.includes("validade")) headerMap[idx] = "validade";
+      else if (n.includes("expira")) headerMap[idx] = "data_expira";
+      else if (n.includes("link")) headerMap[idx] = "link_copia";
+      else if (n.includes("status")) headerMap[idx] = "status";
+      else headerMap[idx] = n; // mantém para debug
+    });
+
+    const out: ParsedRow[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cells = lines[i].split(delim).map((s) => s.trim());
+      if (cells.every((c) => c === "")) continue;
+
+      const row: ParsedRow = {};
+      cells.forEach((c, idx) => {
+        const key = headerMap[idx];
+        if (!key) return;
+        (row as any)[key] = c || null;
+      });
+
+      // aplica cliente padrão se não veio na coluna
+      if (!row.client && defaultClient.trim()) row.client = defaultClient.trim();
+
+      out.push(row);
+    }
+    return out;
+  }
+
+  async function handlePasteImport() {
+    setImporting(true);
+    try {
+      const parsed = parsePastedTable(pasteText);
+      if (!parsed.length) {
+        toast({ title: "Nada para importar", variant: "destructive" });
+        return;
+      }
+
+      const buildRecord = (p: ParsedRow): RightRow => {
+        const client = (p.client || defaultClient || "").trim() || null;
+        const product = (p.product || "").trim() || null;
+        const title = (p.title || "").trim() || null;
+
+        const firstAirISO = toISODate(parseBrDate(p.primeira_veiculacao));
+        const explicitExpireISO = toISODate(parseBrDate(p.data_expira));
+        const expireISO = computeExpireDate(explicitExpireISO, firstAirISO, p.validade || null);
+        const status = computeStatus(expireISO, firstAirISO, p.status || null);
+
+        const record: RightRow = {
+          client,
+          product,
+          title,
+          contract_signed_production: toISODate(parseBrDate(p.assinatura_producao)),
+          first_air: firstAirISO,
+          expire_date: expireISO,
+          link_drive: (p.link_copia || "").trim() || null,
+          status_label: status,
+          idempotent_key: mkIdemKey(client, product, title, p.ap || null),
+        };
+        return record;
+      };
+
+      const batch = parsed.map(buildRecord).filter((r) => r.client && r.title); // mínimos
+
+      if (!batch.length) {
+        toast({ title: "Linhas sem mínimo obrigatório (Cliente e Título).", variant: "destructive" });
+        return;
+      }
+
+      // upsert em chunks p/ não estourar payload
+      const chunkSize = 200;
+      let insertedOrUpdated = 0;
+      for (let i = 0; i < batch.length; i += chunkSize) {
+        const chunk = batch.slice(i, i + chunkSize);
+        const { error, count } = await supabase
+          .from("rights")
+          // onConflict exige UNIQUE em idempotent_key (SQL abaixo)
+          .upsert(chunk, { onConflict: "idempotent_key", ignoreDuplicates: false, count: "exact" });
+        if (error) throw error;
+        insertedOrUpdated += count || 0;
+      }
+
+      toast({
+        title: "Importação concluída",
+        description: `${insertedOrUpdated} registro(s) inserido(s)/atualizado(s).`,
+      });
+
+      setPasteOpen(false);
+      setPasteText("");
+      await loadRights();
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "Erro ao importar",
+        description: e?.message || "Verifique o formato da planilha.",
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // ======== DERIVADOS / UI ========
+  const clients = useMemo(() => {
+    const set = new Set<string>();
+    rights.forEach((r) => r.client && set.add(r.client));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [rights]);
+
+  const filtered = useMemo(() => {
+    let list = rights;
+    if (clientFilter) list = list.filter((r) => (r.client || "") === clientFilter);
+    if (statusFilter === "ACTIVE") {
+      list = list.filter((r) => r.expire_date && new Date(r.expire_date) >= TODAY);
+    } else if (statusFilter === "DUE30") {
+      list = list.filter((r) => {
+        if (!r.expire_date) return false;
+        const exp = new Date(r.expire_date);
+        const diffDays = Math.floor((exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 30;
+      });
+    } else if (statusFilter === "EXPIRED") {
+      list = list.filter((r) => r.expire_date && new Date(r.expire_date) < TODAY);
+    }
+    return list;
+  }, [rights, clientFilter, statusFilter]);
+
+  const counts = useMemo(() => {
+    const expired = rights.filter((r) => r.status_label?.toUpperCase().includes("VENCIDO")).length;
+    const due30 = rights.filter((r) => r.status_label?.toUpperCase().includes("VENCER")).length;
+    const inUse = rights.filter((r) => r.status_label?.toUpperCase() === "EM USO").length;
+    return { expired, due30, inUse, total: rights.length };
+  }, [rights]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -162,90 +413,68 @@ export default function Direitos() {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <div className="flex flex-wrap gap-2">
+            {/* Importar colando */}
+            <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Adicionar Direito
+                <Button className="gap-2" variant="default">
+                  <ClipboardPaste className="h-4 w-4" />
+                  Colar da Planilha
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                  <DialogTitle>Adicionar Novo Direito</DialogTitle>
+                  <DialogTitle>Importar colando da planilha</DialogTitle>
                 </DialogHeader>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="client">Cliente *</Label>
-                    <Input
-                      id="client"
-                      value={newRight.client}
-                      onChange={(e) => setNewRight({ ...newRight, client: e.target.value })}
-                      placeholder="Nome do cliente"
-                    />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-3 md:col-span-1">
+                      <Label>Cliente padrão (se não vier na coluna)</Label>
+                      <Input
+                        placeholder="Ex.: BYD"
+                        value={defaultClient}
+                        onChange={(e) => setDefaultClient(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Se a planilha tiver coluna <strong>CLIENTE</strong>, ela prevalece.
+                      </p>
+                    </div>
+                    <div className="col-span-3 md:col-span-2">
+                      <Label>Conteúdo (pode colar direto do Excel / Google Sheets)</Label>
+                      <textarea
+                        className="w-full h-56 rounded-md border p-3 text-sm"
+                        placeholder={`Cole aqui. Cabeçalhos suportados:\nAP | PRODUTO | TITULO | ASSINATURA CONTRATO ELENCO | ASSINATURA CONTRATO DE PRODUÇÃO | PRIMEIRA VEICULAÇÃO | VALIDADE | DATA QUE EXPIRA | LINK CÓPIA | STATUS | CLIENTE`}
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="product">Produto *</Label>
-                    <Input
-                      id="product"
-                      value={newRight.product}
-                      onChange={(e) => setNewRight({ ...newRight, product: e.target.value })}
-                      placeholder="Nome do produto"
-                    />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setPasteOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handlePasteImport} disabled={importing} className="gap-2">
+                      {importing ? (
+                        <RefreshCcw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ClipboardPaste className="h-4 w-4" />
+                      )}
+                      {importing ? "Importando..." : "Importar & Atualizar"}
+                    </Button>
                   </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="title">Título do Filme *</Label>
-                    <Input
-                      id="title"
-                      value={newRight.title}
-                      onChange={(e) => setNewRight({ ...newRight, title: e.target.value })}
-                      placeholder="Nome do filme"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="contract_date">Data de Assinatura</Label>
-                    <Input
-                      id="contract_date"
-                      type="date"
-                      value={newRight.contract_signed_production}
-                      onChange={(e) => setNewRight({ ...newRight, contract_signed_production: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="first_air">Data de Primeira Veiculação</Label>
-                    <Input
-                      id="first_air"
-                      type="date"
-                      value={newRight.first_air}
-                      onChange={(e) => setNewRight({ ...newRight, first_air: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="link_drive">Link do Drive (opcional)</Label>
-                    <Input
-                      id="link_drive"
-                      value={newRight.link_drive}
-                      onChange={(e) => setNewRight({ ...newRight, link_drive: e.target.value })}
-                      placeholder="https://drive.google.com/..."
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 mt-4">
-                  <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={addRight}>
-                    Adicionar
-                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* Adicionar manual */}
+            <AddRightDialog onAdded={loadRights} />
 
             <Button onClick={exportToCSV} variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Exportar CSV
             </Button>
-            
+
+            {/* Sync Sheets */}
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2">
@@ -265,15 +494,9 @@ export default function Direitos() {
                       onChange={(e) => setSheetId(e.target.value)}
                       placeholder="1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Cada aba da planilha representa um cliente
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Cada aba da planilha representa um cliente.</p>
                   </div>
-                  <Button
-                    onClick={syncFromSheets}
-                    disabled={syncing}
-                    className="w-full gap-2"
-                  >
+                  <Button onClick={syncFromSheets} disabled={syncing} className="w-full gap-2">
                     {syncing ? (
                       <>
                         <RefreshCcw className="h-4 w-4 animate-spin" />
@@ -290,8 +513,69 @@ export default function Direitos() {
               </DialogContent>
             </Dialog>
 
-            <Button onClick={loadRights} variant="outline" size="icon">
+            <Button onClick={loadRights} variant="outline" size="icon" title="Recarregar">
               <RefreshCcw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Filtros por cliente */}
+        <div className="flex items-center justify-between mb-4 gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <Button
+              size="sm"
+              variant={clientFilter ? "outline" : "default"}
+              onClick={() => {
+                setClientFilter("");
+                navigate("/direitos");
+              }}
+            >
+              Todos
+            </Button>
+            {clients.map((c) => (
+              <Button
+                key={c}
+                size="sm"
+                variant={clientFilter === c ? "default" : "outline"}
+                onClick={() => {
+                  setClientFilter(c);
+                  navigate(`/direitos?client=${encodeURIComponent(c)}`);
+                }}
+              >
+                {c}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Button
+              size="sm"
+              variant={statusFilter === "ALL" ? "default" : "outline"}
+              onClick={() => setStatusFilter("ALL")}
+            >
+              Todos
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "ACTIVE" ? "default" : "outline"}
+              onClick={() => setStatusFilter("ACTIVE")}
+            >
+              Ativos
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "DUE30" ? "default" : "outline"}
+              onClick={() => setStatusFilter("DUE30")}
+            >
+              A vencer (30d)
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "EXPIRED" ? "default" : "outline"}
+              onClick={() => setStatusFilter("EXPIRED")}
+            >
+              Vencidos
             </Button>
           </div>
         </div>
@@ -300,56 +584,42 @@ export default function Direitos() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Direitos
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Direitos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{rights.length}</div>
+              <div className="text-2xl font-bold">{counts.total}</div>
             </CardContent>
           </Card>
 
           <Card className="border-red-200 bg-red-50/30">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Vencidos
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Vencidos</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-700">
-                {rights.filter(r => r.status_label?.includes("VENCIDO")).length}
-              </div>
+              <div className="text-2xl font-bold text-red-700">{counts.expired}</div>
             </CardContent>
           </Card>
 
           <Card className="border-amber-200 bg-amber-50/30">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                A Vencer (30d)
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">A Vencer (30d)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-700">
-                {rights.filter(r => r.status_label?.includes("VENCER")).length}
-              </div>
+              <div className="text-2xl font-bold text-amber-700">{counts.due30}</div>
             </CardContent>
           </Card>
 
           <Card className="border-green-200 bg-green-50/30">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Em Uso
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Em Uso</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-700">
-                {rights.filter(r => r.status_label === "EM USO").length}
-              </div>
+              <div className="text-2xl font-bold text-green-700">{counts.inUse}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Table */}
+        {/* Tabela */}
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -359,6 +629,7 @@ export default function Direitos() {
                     <th className="px-4 py-3 text-left text-sm font-medium">Cliente</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Produto</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Título</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Primeira Veic.</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Vencimento</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
                   </tr>
@@ -366,19 +637,19 @@ export default function Direitos() {
                 <tbody className="divide-y">
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                         Carregando...
                       </td>
                     </tr>
-                  ) : rights.length === 0 ? (
+                  ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                        Nenhum direito cadastrado. Clique em "Adicionar Direito" para começar.
+                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                        Nenhum direito encontrado para o filtro atual.
                       </td>
                     </tr>
                   ) : (
-                    rights.map((r) => (
-                      <tr key={r.id} className="hover:bg-muted/50">
+                    filtered.map((r) => (
+                      <tr key={r.id || r.idempotent_key} className="hover:bg-muted/50">
                         <td className="px-4 py-3 text-sm">{r.client}</td>
                         <td className="px-4 py-3 text-sm">{r.product}</td>
                         <td className="px-4 py-3 text-sm">
@@ -390,6 +661,7 @@ export default function Direitos() {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-primary hover:text-primary/80"
+                                title="Abrir cópia"
                               >
                                 <ExternalLink className="h-3 w-3" />
                               </a>
@@ -397,13 +669,14 @@ export default function Direitos() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
+                          {r.first_air ? new Date(r.first_air).toLocaleDateString("pt-BR") : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
                           {r.expire_date ? new Date(r.expire_date).toLocaleDateString("pt-BR") : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                              r.status_label
-                            )}`}
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusPillColor(r.status_label)}`}
                           >
                             {r.status_label || "—"}
                           </span>
@@ -418,5 +691,117 @@ export default function Direitos() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// ============ COMPONENTE: Adicionar Direito Manual ============
+function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    client: "",
+    product: "",
+    title: "",
+    contract_signed_production: "",
+    first_air: "",
+    link_drive: "",
+  });
+
+  const addRight = async () => {
+    if (!form.client || !form.product || !form.title) {
+      toast({ title: "Preencha os campos obrigatórios", variant: "destructive" });
+      return;
+    }
+    try {
+      const idem = mkIdemKey(form.client, form.product, form.title, null);
+      const expireISO = null; // manual sem validade; pode ser editado depois
+      const status = computeStatus(expireISO, form.first_air || null, null);
+
+      const { error } = await supabase.from("rights").upsert(
+        [
+          {
+            client: form.client,
+            product: form.product,
+            title: form.title,
+            contract_signed_production: form.contract_signed_production || null,
+            first_air: form.first_air || null,
+            link_drive: form.link_drive || null,
+            expire_date: expireISO,
+            status_label: status,
+            idempotent_key: idem,
+          },
+        ],
+        { onConflict: "idempotent_key", ignoreDuplicates: false },
+      );
+
+      if (error) throw error;
+
+      toast({ title: "Direito salvo!" });
+      setOpen(false);
+      setForm({ client: "", product: "", title: "", contract_signed_production: "", first_air: "", link_drive: "" });
+      await onAdded();
+    } catch (e: any) {
+      toast({ title: "Erro ao salvar", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="gap-2">
+          <Plus className="h-4 w-4" />
+          Adicionar Direito
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Adicionar Novo Direito</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Cliente *</Label>
+            <Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Produto *</Label>
+            <Input value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} />
+          </div>
+          <div className="col-span-2 space-y-2">
+            <Label>Título do Filme *</Label>
+            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Data de Assinatura (Produção)</Label>
+            <Input
+              type="date"
+              value={form.contract_signed_production}
+              onChange={(e) => setForm({ ...form, contract_signed_production: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Primeira Veiculação</Label>
+            <Input
+              type="date"
+              value={form.first_air}
+              onChange={(e) => setForm({ ...form, first_air: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2 space-y-2">
+            <Label>Link do Drive (opcional)</Label>
+            <Input
+              value={form.link_drive}
+              onChange={(e) => setForm({ ...form, link_drive: e.target.value })}
+              placeholder="https://drive.google.com/..."
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={addRight}>Salvar</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
