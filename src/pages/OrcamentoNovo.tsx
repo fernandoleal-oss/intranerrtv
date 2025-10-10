@@ -19,18 +19,18 @@ interface FilmOption {
   id: string;
   nome: string;
   escopo: string;
-  valor: number;
-  desconto: number;
+  valor: number | string;
+  desconto: number | string;
 }
 
 interface QuoteFilm {
   id: string;
   produtora: string;
   escopo: string;
-  valor: number;
+  valor: number | string;
   diretor: string;
   tratamento: string;
-  desconto: number;
+  desconto: number | string;
   tem_opcoes?: boolean;
   opcoes?: FilmOption[];
 }
@@ -39,8 +39,8 @@ interface QuoteAudio {
   id: string;
   produtora: string;
   descricao: string;
-  valor: number;
-  desconto: number;
+  valor: number | string;
+  desconto: number | string;
 }
 
 interface Campaign {
@@ -88,55 +88,68 @@ interface BudgetData {
   observacoes?: string;
 }
 
+/** --- util numérica robusta --- */
 const parseCurrency = (val: string): number => {
-  if (!val) return 0;
-  const clean = val
+  if (val == null || val === "") return 0;
+  const clean = String(val)
     .replace(/[R$\s]/g, "")
     .replace(/\./g, "")
     .replace(",", ".");
-  return parseFloat(clean) || 0;
+  const n = Number(clean);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toNum = (v: unknown): number => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (typeof v === "string") return parseCurrency(v);
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 };
 
 const money = (n: number | undefined) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 
-// ---- helpers de cálculo ----
-const getCheapest = <T extends { valor: number; desconto?: number; tem_opcoes?: boolean; opcoes?: FilmOption[] }>(
+/** retorna o MENOR valor entre base (valor - desconto) e TODAS as opções válidas */
+const lowestQuoteValue = (q: QuoteFilm): number => {
+  const base = toNum(q.valor) - toNum(q.desconto);
+  if (q.tem_opcoes && Array.isArray(q.opcoes)) {
+    const candidateVals = q.opcoes
+      .map((opt) => toNum(opt.valor) - toNum(opt.desconto))
+      .filter((v) => Number.isFinite(v));
+    if (candidateVals.length > 0) {
+      return Math.min(base, Math.min(...candidateVals));
+    }
+  }
+  return base;
+};
+
+/** mesmo helper, mas tolerante para áudio (sem opções) */
+const finalAudioValue = (a: QuoteAudio): number => {
+  return toNum(a.valor) - toNum(a.desconto);
+};
+
+/** --- helpers de cálculo (corrigidos para múltiplas opções) --- */
+const getCheapest = <
+  T extends { valor: number | string; desconto?: number | string; tem_opcoes?: boolean; opcoes?: FilmOption[] },
+>(
   arr: T[],
 ) => {
+  if (!arr || arr.length === 0) return null as any;
   return arr.reduce((min, q) => {
-    // Se tem opções, pega o menor valor entre as opções
-    let qVal = q.valor - (q.desconto || 0);
-    if (q.tem_opcoes && q.opcoes && q.opcoes.length > 0) {
-      const minOptionVal = Math.min(...q.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
-      qVal = minOptionVal;
-    }
-
-    let minVal = min.valor - (min.desconto || 0);
-    if (min.tem_opcoes && min.opcoes && min.opcoes.length > 0) {
-      const minOptionVal = Math.min(...min.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
-      minVal = minOptionVal;
-    }
-
+    const qVal = "opcoes" in q ? lowestQuoteValue(q as unknown as QuoteFilm) : toNum(q.valor) - toNum(q.desconto);
+    const minVal =
+      "opcoes" in min ? lowestQuoteValue(min as unknown as QuoteFilm) : toNum(min.valor) - toNum(min.desconto);
     return qVal < minVal ? q : min;
   });
 };
 
 const calcCampanhaPartes = (camp: Campaign) => {
-  const cheapestFilm = camp.quotes_film.length ? getCheapest(camp.quotes_film) : null;
-  const cheapestAudio = camp.inclui_audio && camp.quotes_audio.length ? getCheapest(camp.quotes_audio) : null;
+  const cheapestFilm = camp.quotes_film.length ? (getCheapest(camp.quotes_film) as QuoteFilm | null) : null;
+  const cheapestAudio =
+    camp.inclui_audio && camp.quotes_audio.length ? (getCheapest(camp.quotes_audio) as QuoteAudio | null) : null;
 
-  // Calcular valor do filme (considerando opções se houver)
-  let filmVal = 0;
-  if (cheapestFilm) {
-    if (cheapestFilm.tem_opcoes && cheapestFilm.opcoes && cheapestFilm.opcoes.length > 0) {
-      filmVal = Math.min(...cheapestFilm.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
-    } else {
-      filmVal = cheapestFilm.valor - (cheapestFilm.desconto || 0);
-    }
-  }
-
-  const audioVal = cheapestAudio ? cheapestAudio.valor - (cheapestAudio.desconto || 0) : 0;
+  const filmVal = cheapestFilm ? lowestQuoteValue(cheapestFilm) : 0;
+  const audioVal = cheapestAudio ? finalAudioValue(cheapestAudio) : 0;
   const subtotal = filmVal + audioVal;
 
   return { filmVal, audioVal, subtotal };
@@ -213,7 +226,6 @@ export default function OrcamentoNovo() {
       }
       return prev;
     });
-    // rodar só 1x
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -279,6 +291,7 @@ export default function OrcamentoNovo() {
                 q.id === quoteId
                   ? {
                       ...q,
+                      tem_opcoes: true, // garante ligado
                       opcoes: [
                         ...(q.opcoes || []),
                         {
@@ -298,12 +311,7 @@ export default function OrcamentoNovo() {
     }));
   };
 
-  const updateOptionInQuote = (
-    campId: string,
-    quoteId: string,
-    optionId: string,
-    updates: Partial<FilmOption>,
-  ) => {
+  const updateOptionInQuote = (campId: string, quoteId: string, optionId: string, updates: Partial<FilmOption>) => {
     setData((prev) => ({
       ...prev,
       campanhas: prev.campanhas?.map((c) =>
@@ -314,7 +322,16 @@ export default function OrcamentoNovo() {
                 q.id === quoteId
                   ? {
                       ...q,
-                      opcoes: q.opcoes?.map((opt) => (opt.id === optionId ? { ...opt, ...updates } : opt)),
+                      opcoes: (q.opcoes || []).map((opt) =>
+                        opt.id === optionId
+                          ? {
+                              ...opt,
+                              ...updates,
+                              valor: toNum(updates.valor ?? opt.valor),
+                              desconto: toNum(updates.desconto ?? opt.desconto),
+                            }
+                          : opt,
+                      ),
                     }
                   : q,
               ),
@@ -332,7 +349,13 @@ export default function OrcamentoNovo() {
           ? {
               ...c,
               quotes_film: c.quotes_film.map((q) =>
-                q.id === quoteId ? { ...q, opcoes: q.opcoes?.filter((opt) => opt.id !== optionId) } : q,
+                q.id === quoteId
+                  ? {
+                      ...q,
+                      opcoes: (q.opcoes || []).filter((opt) => opt.id !== optionId),
+                      // se remover a última, mantém tem_opcoes ligado, mas sem opções
+                    }
+                  : q,
               ),
             }
           : c,
@@ -347,7 +370,17 @@ export default function OrcamentoNovo() {
         c.id === campId
           ? {
               ...c,
-              quotes_film: c.quotes_film.map((q) => (q.id === quoteId ? { ...q, ...updates } : q)),
+              quotes_film: c.quotes_film.map((q) =>
+                q.id === quoteId
+                  ? {
+                      ...q,
+                      ...updates,
+                      // normaliza numéricos se vierem como string
+                      valor: toNum((updates as any)?.valor ?? q.valor),
+                      desconto: toNum((updates as any)?.desconto ?? q.desconto),
+                    }
+                  : q,
+              ),
             }
           : c,
       ),
@@ -387,7 +420,16 @@ export default function OrcamentoNovo() {
         c.id === campId
           ? {
               ...c,
-              quotes_audio: c.quotes_audio.map((q) => (q.id === quoteId ? { ...q, ...updates } : q)),
+              quotes_audio: c.quotes_audio.map((q) =>
+                q.id === quoteId
+                  ? {
+                      ...q,
+                      ...updates,
+                      valor: toNum((updates as any)?.valor ?? q.valor),
+                      desconto: toNum((updates as any)?.desconto ?? q.desconto),
+                    }
+                  : q,
+              ),
             }
           : c,
       ),
@@ -408,7 +450,6 @@ export default function OrcamentoNovo() {
     const camps = data.campanhas || [];
     if (camps.length === 0) return;
 
-    // base por campanha (sempre calculamos)
     const baseCampanhas: TotaisCampanha[] = camps.map((c) => {
       const { filmVal, audioVal, subtotal } = calcCampanhaPartes(c);
       return {
@@ -420,11 +461,10 @@ export default function OrcamentoNovo() {
       };
     });
 
-    // total geral desativado (mantemos 0 apenas para persistência)
     setData((prev) => ({
       ...prev,
       totais_campanhas: baseCampanhas,
-      total: 0,
+      total: 0, // total geral desativado
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.campanhas]);
@@ -664,9 +704,11 @@ export default function OrcamentoNovo() {
             </div>
 
             {(data.campanhas || []).map((camp) => {
-              const cheapestFilm = camp.quotes_film.length ? getCheapest(camp.quotes_film) : null;
+              const cheapestFilm = camp.quotes_film.length ? (getCheapest(camp.quotes_film) as QuoteFilm | null) : null;
               const cheapestAudio =
-                camp.inclui_audio && camp.quotes_audio.length ? getCheapest(camp.quotes_audio) : null;
+                camp.inclui_audio && camp.quotes_audio.length
+                  ? (getCheapest(camp.quotes_audio) as QuoteAudio | null)
+                  : null;
 
               return (
                 <Card key={camp.id} className="border-2 border-border/50">
@@ -710,6 +752,8 @@ export default function OrcamentoNovo() {
                       )}
                       {camp.quotes_film.map((q) => {
                         const isCheapest = cheapestFilm?.id === q.id;
+                        const finalForCard = lowestQuoteValue(q);
+
                         return (
                           <motion.div
                             key={q.id}
@@ -791,78 +835,79 @@ export default function OrcamentoNovo() {
                             {/* Opções múltiplas */}
                             {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
                               <div className="space-y-3 pl-4 border-l-2 border-primary/30">
-                                {q.opcoes.map((opt, idx) => (
-                                  <motion.div
-                                    key={opt.id}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    className="p-3 rounded-md bg-background border border-border space-y-3"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <Input
-                                        value={opt.nome}
-                                        onChange={(e) =>
-                                          updateOptionInQuote(camp.id, q.id, opt.id, { nome: e.target.value })
-                                        }
-                                        placeholder="Nome da opção"
-                                        className="font-medium"
-                                      />
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => removeOptionFromQuote(camp.id, q.id, opt.id)}
-                                        className="text-destructive ml-2"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs">Escopo da Opção</Label>
-                                      <textarea
-                                        className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                                        value={opt.escopo}
-                                        onChange={(e) =>
-                                          updateOptionInQuote(camp.id, q.id, opt.id, { escopo: e.target.value })
-                                        }
-                                        placeholder="Descreva essa opção específica..."
-                                      />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div>
-                                        <Label className="text-xs">Valor (R$)</Label>
+                                {q.opcoes.map((opt) => {
+                                  const optFinal = toNum(opt.valor) - toNum(opt.desconto);
+                                  return (
+                                    <motion.div
+                                      key={opt.id}
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      className="p-3 rounded-md bg-background border border-border space-y-3"
+                                    >
+                                      <div className="flex items-center justify-between">
                                         <Input
-                                          inputMode="decimal"
-                                          value={opt.valor ? String(opt.valor) : ""}
+                                          value={opt.nome}
                                           onChange={(e) =>
-                                            updateOptionInQuote(camp.id, q.id, opt.id, {
-                                              valor: parseCurrency(e.target.value),
-                                            })
+                                            updateOptionInQuote(camp.id, q.id, opt.id, { nome: e.target.value })
                                           }
-                                          placeholder="0,00"
+                                          placeholder="Nome da opção"
+                                          className="font-medium"
                                         />
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => removeOptionFromQuote(camp.id, q.id, opt.id)}
+                                          className="text-destructive ml-2"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                       <div>
-                                        <Label className="text-xs">Desconto (R$)</Label>
-                                        <Input
-                                          inputMode="decimal"
-                                          value={opt.desconto ? String(opt.desconto) : ""}
+                                        <Label className="text-xs">Escopo da Opção</Label>
+                                        <textarea
+                                          className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
+                                          value={opt.escopo}
                                           onChange={(e) =>
-                                            updateOptionInQuote(camp.id, q.id, opt.id, {
-                                              desconto: parseCurrency(e.target.value),
-                                            })
+                                            updateOptionInQuote(camp.id, q.id, opt.id, { escopo: e.target.value })
                                           }
-                                          placeholder="0,00"
+                                          placeholder="Descreva essa opção específica..."
                                         />
                                       </div>
-                                    </div>
-                                    <div className="text-xs text-right">
-                                      <span className="font-semibold">Valor Final: </span>
-                                      <span className="font-bold text-primary">
-                                        {money(opt.valor - (opt.desconto || 0))}
-                                      </span>
-                                    </div>
-                                  </motion.div>
-                                ))}
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <Label className="text-xs">Valor (R$)</Label>
+                                          <Input
+                                            inputMode="decimal"
+                                            value={String(toNum(opt.valor))}
+                                            onChange={(e) =>
+                                              updateOptionInQuote(camp.id, q.id, opt.id, {
+                                                valor: parseCurrency(e.target.value),
+                                              })
+                                            }
+                                            placeholder="0,00"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs">Desconto (R$)</Label>
+                                          <Input
+                                            inputMode="decimal"
+                                            value={String(toNum(opt.desconto))}
+                                            onChange={(e) =>
+                                              updateOptionInQuote(camp.id, q.id, opt.id, {
+                                                desconto: parseCurrency(e.target.value),
+                                              })
+                                            }
+                                            placeholder="0,00"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-right">
+                                        <span className="font-semibold">Valor Final: </span>
+                                        <span className="font-bold text-primary">{money(optFinal)}</span>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
                               </div>
                             )}
 
@@ -873,7 +918,7 @@ export default function OrcamentoNovo() {
                                   <Label>Valor (R$)</Label>
                                   <Input
                                     inputMode="decimal"
-                                    value={q.valor ? String(q.valor) : ""}
+                                    value={String(toNum(q.valor))}
                                     onChange={(e) =>
                                       updateQuoteFilmIn(camp.id, q.id, { valor: parseCurrency(e.target.value) })
                                     }
@@ -884,7 +929,7 @@ export default function OrcamentoNovo() {
                                   <Label>Desconto (R$)</Label>
                                   <Input
                                     inputMode="decimal"
-                                    value={q.desconto ? String(q.desconto) : ""}
+                                    value={String(toNum(q.desconto))}
                                     onChange={(e) =>
                                       updateQuoteFilmIn(camp.id, q.id, { desconto: parseCurrency(e.target.value) })
                                     }
@@ -896,14 +941,10 @@ export default function OrcamentoNovo() {
                             <div className="flex justify-between items-center pt-2 border-t">
                               <div className="text-sm">
                                 <span className="font-semibold">Valor Final: </span>
-                                <span className="text-lg font-bold text-primary">
-                                  {q.tem_opcoes && q.opcoes && q.opcoes.length > 0
-                                    ? money(Math.min(...q.opcoes.map((opt) => opt.valor - (opt.desconto || 0))))
-                                    : money(q.valor - (q.desconto || 0))}
-                                </span>
+                                <span className="text-lg font-bold text-primary">{money(finalForCard)}</span>
                                 {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
                                   <span className="text-xs text-muted-foreground ml-2">
-                                    (menor opção de {q.opcoes.length})
+                                    (menor entre base e {q.opcoes.length} opção{q.opcoes.length > 1 ? "es" : ""})
                                   </span>
                                 )}
                               </div>
@@ -952,6 +993,7 @@ export default function OrcamentoNovo() {
                           )}
                           {camp.quotes_audio.map((q) => {
                             const isCheapest = cheapestAudio?.id === q.id;
+                            const audioFinal = finalAudioValue(q);
                             return (
                               <motion.div
                                 key={q.id}
@@ -992,7 +1034,7 @@ export default function OrcamentoNovo() {
                                     <Label>Valor (R$)</Label>
                                     <Input
                                       inputMode="decimal"
-                                      value={q.valor ? String(q.valor) : ""}
+                                      value={String(toNum(q.valor))}
                                       onChange={(e) =>
                                         updateQuoteAudioIn(camp.id, q.id, { valor: parseCurrency(e.target.value) })
                                       }
@@ -1003,7 +1045,7 @@ export default function OrcamentoNovo() {
                                     <Label>Desconto (R$)</Label>
                                     <Input
                                       inputMode="decimal"
-                                      value={q.desconto ? String(q.desconto) : ""}
+                                      value={String(toNum(q.desconto))}
                                       onChange={(e) =>
                                         updateQuoteAudioIn(camp.id, q.id, { desconto: parseCurrency(e.target.value) })
                                       }
@@ -1014,9 +1056,7 @@ export default function OrcamentoNovo() {
                                 <div className="flex justify-between items-center pt-2 border-t">
                                   <div className="text-sm">
                                     <span className="font-semibold">Valor Final: </span>
-                                    <span className="text-lg font-bold text-blue-600">
-                                      {money(q.valor - (q.desconto || 0))}
-                                    </span>
+                                    <span className="text-lg font-bold text-blue-600">{money(audioFinal)}</span>
                                   </div>
                                   <Button
                                     size="sm"
