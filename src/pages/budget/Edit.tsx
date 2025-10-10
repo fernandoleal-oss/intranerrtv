@@ -1,1161 +1,918 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Save, FileText, Plus, Trash2, AlertCircle } from "lucide-react";
+// src/pages/budget/Pdf.tsx
+import { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
+import { ArrowLeft, Download, Star, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { HeaderBar } from "@/components/HeaderBar";
+import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
-import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge } from "@/components/ui/status-badge";
-
-type BudgetType = "filme" | "audio" | "imagem" | "cc";
-
-interface FilmOption {
-  id: string;
-  nome: string;
-  escopo: string;
-  valor: number;
-  desconto: number;
-  selecionada?: boolean; // opcional para marcar seleção
-}
-
-interface QuoteFilm {
-  id: string;
-  produtora: string;
-  escopo: string;
-  valor: number;
-  diretor: string;
-  tratamento: string;
-  desconto: number;
-  tem_opcoes?: boolean;
-  opcoes?: FilmOption[];
-  selecionado?: boolean; // opcional para marcar seleção
-}
-
-interface QuoteAudio {
-  id: string;
-  produtora: string;
-  descricao: string;
-  valor: number;
-  desconto: number;
-  selecionado?: boolean;
-}
-
-interface Campaign {
-  id: string;
-  nome: string;
-  inclui_audio?: boolean;
-  quotes_film: QuoteFilm[];
-  quotes_audio: QuoteAudio[];
-}
-
-interface TotaisCampanha {
-  campId: string;
-  nome: string;
-  filmVal: number;
-  audioVal: number;
-  subtotal: number; // filme + áudio
-}
-
-interface BudgetRow {
-  id: string;
-  display_id: string;
-  type: BudgetType;
-  status: string;
-}
-
-interface VersionRow {
-  id: string;
-  payload: any | null;
-  versao: number;
-  budgets: BudgetRow | null;
-}
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import logoWE from "@/assets/LOGO-WE-2.png";
 
 interface BudgetData {
   id: string;
   display_id: string;
-  type: BudgetType;
+  type: string;
   status: string;
-  version_id: string;
-  versao: number;
   payload: any;
+  version_id: string;
+  budget_number: string;
 }
 
-const parseCurrency = (val: string): number => {
-  if (!val) return 0;
-  const clean = val
-    .replace(/[R$\s]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  return parseFloat(clean) || 0;
-};
-const money = (n: number | undefined) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
-
-const defaultCampaign = (): Campaign => ({
-  id: crypto.randomUUID(),
-  nome: "Campanha 1",
-  inclui_audio: false,
-  quotes_film: [],
-  quotes_audio: [],
-});
-
-const defaultPayload = () => ({
-  type: "filme" as BudgetType,
-  produtor: "",
-  email: "",
-  cliente: "",
-  produto: "",
-  job: "",
-  midias: "",
-  territorio: "",
-  periodo: "",
-  entregaveis: "",
-  adaptacoes: "",
-  exclusividade_elenco: "nao_aplica" as "orcado" | "nao_orcado" | "nao_aplica",
-  // novo modelo:
-  campanhas: [defaultCampaign()],
-  totais_campanhas: [] as TotaisCampanha[],
-  // compat:
-  quotes_film: [] as QuoteFilm[],
-  quotes_audio: [] as QuoteAudio[],
-  inclui_audio: false,
-  total: 0,
-  pendente_faturamento: false,
-  observacoes: "",
-});
-
-const getCheapest = <T extends { valor: number; desconto?: number; tem_opcoes?: boolean; opcoes?: FilmOption[] }>(
-  arr: T[],
-) =>
-  arr.reduce((min, q) => {
-    let qVal = q.valor - (q.desconto || 0);
-    if (q.tem_opcoes && q.opcoes && q.opcoes.length > 0) {
-      const minOptionVal = Math.min(...q.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
-      qVal = minOptionVal;
-    }
-    let minVal = min.valor - (min.desconto || 0);
-    if (min.tem_opcoes && (min as any).opcoes && (min as any).opcoes.length > 0) {
-      const minOptionVal = Math.min(...(min as any).opcoes.map((opt: FilmOption) => opt.valor - (opt.desconto || 0)));
-      minVal = minOptionVal;
-    }
-    return qVal < minVal ? q : min;
-  });
-
-const calcCampanhaPartes = (camp: Campaign) => {
-  const cheapestFilm = camp.quotes_film.length ? getCheapest(camp.quotes_film) : null;
-  const cheapestAudio = camp.inclui_audio && camp.quotes_audio.length ? getCheapest(camp.quotes_audio) : null;
-
-  let filmVal = 0;
-  if (cheapestFilm) {
-    if (cheapestFilm.tem_opcoes && cheapestFilm.opcoes && cheapestFilm.opcoes.length > 0) {
-      filmVal = Math.min(...cheapestFilm.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
-    } else {
-      filmVal = cheapestFilm.valor - (cheapestFilm.desconto || 0);
-    }
-  }
-  const audioVal = cheapestAudio ? cheapestAudio.valor - (cheapestAudio.desconto || 0) : 0;
-  const subtotal = filmVal + audioVal;
-  return { filmVal, audioVal, subtotal };
-};
-
-// Normaliza payload vindo do banco para o formato esperado pelo editor
-const normalizePayload = (raw: any) => {
-  const base = defaultPayload();
-
-  if (!raw || typeof raw !== "object") return base;
-
-  const merged = { ...base, ...raw };
-
-  // migração: se não houver campanhas, cria com dados legados
-  if (!Array.isArray(merged.campanhas) || merged.campanhas.length === 0) {
-    merged.campanhas = [
-      {
-        ...defaultCampaign(),
-        nome: "Campanha 1",
-        inclui_audio: merged.inclui_audio || false,
-        quotes_film: Array.isArray(merged.quotes_film) ? merged.quotes_film : [],
-        quotes_audio: Array.isArray(merged.quotes_audio) ? merged.quotes_audio : [],
-      },
-    ];
-  }
-
-  // garante estruturas internas
-  merged.campanhas = merged.campanhas.map((c: any) => ({
-    id: c.id || crypto.randomUUID(),
-    nome: c.nome || "Campanha",
-    inclui_audio: !!c.inclui_audio,
-    quotes_film: (Array.isArray(c.quotes_film) ? c.quotes_film : []).map((q: any) => ({
-      id: q.id || crypto.randomUUID(),
-      produtora: q.produtora || q.nome || "",
-      escopo: q.escopo || "",
-      valor: Number.isFinite(q.valor) ? q.valor : 0,
-      diretor: q.diretor || "",
-      tratamento: q.tratamento || "",
-      desconto: Number.isFinite(q.desconto) ? q.desconto : 0,
-      selecionado: !!q.selecionado,
-      tem_opcoes: !!q.tem_opcoes,
-      opcoes: (Array.isArray(q.opcoes) ? q.opcoes : []).map((op: any) => ({
-        id: op.id || crypto.randomUUID(),
-        nome: op.nome || "",
-        escopo: op.escopo || "",
-        valor: Number.isFinite(op.valor) ? op.valor : 0,
-        desconto: Number.isFinite(op.desconto) ? op.desconto : 0,
-        selecionada: !!op.selecionada,
-      })),
-    })),
-    quotes_audio: (Array.isArray(c.quotes_audio) ? c.quotes_audio : []).map((qa: any) => ({
-      id: qa.id || crypto.randomUUID(),
-      produtora: qa.produtora || qa.nome || "",
-      descricao: qa.descricao || qa.escopo || "",
-      valor: Number.isFinite(qa.valor) ? qa.valor : 0,
-      desconto: Number.isFinite(qa.desconto) ? qa.desconto : 0,
-      selecionado: !!qa.selecionado,
-    })),
-  }));
-
-  return merged;
-};
-
-export default function BudgetEdit() {
+export default function BudgetPdf() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
-
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [meta, setMeta] = useState<{ display_id: string; status: string; type: BudgetType } | null>(null);
-  const [versao, setVersao] = useState<number>(1);
-  const [payload, setPayload] = useState<any>(defaultPayload());
-
-  const title = useMemo(() => {
-    if (!meta) return "Editar Orçamento";
-    return `Editar Orçamento — ${meta.display_id} • ${String(meta.type).toUpperCase()}`;
-  }, [meta]);
+  const [generating, setGenerating] = useState(false);
+  const [data, setData] = useState<BudgetData | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = title;
-  }, [title]);
+    const fetchBudget = async () => {
+      if (!id) return;
 
-  // Carrega última versão do orçamento
-  const fetchBudget = useCallback(async () => {
-    if (!id) return;
-
-    setLoading(true);
-    try {
-      const { data: row, error } = await supabase
-        .from("versions")
-        .select(
-          `
-          id,
-          payload,
-          versao,
-          budgets!inner(
+      try {
+        const { data: row, error } = await supabase
+          .from("versions")
+          .select(
+            `
             id,
-            display_id,
-            type,
-            status
+            payload,
+            versao,
+            budgets!inner(
+              id,
+              display_id,
+              type,
+              status,
+              budget_number
+            )
+          `,
           )
-        `,
-        )
-        .eq("budget_id", id)
-        .order("versao", { ascending: false })
-        .limit(1)
-        .maybeSingle<VersionRow>();
+          .eq("budget_id", id)
+          .order("versao", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (error) throw error;
-      if (!row || !row.budgets) {
-        throw new Error("Orçamento não encontrado");
+        if (error) throw error;
+        if (!row) throw new Error("Orçamento não encontrado");
+
+        setData({
+          id: row.budgets!.id,
+          display_id: row.budgets!.display_id,
+          type: row.budgets!.type,
+          status: row.budgets!.status,
+          payload: row.payload || {},
+          version_id: row.id,
+          budget_number: row.budgets!.budget_number || "000",
+        });
+      } catch (err: any) {
+        toast({
+          title: "Erro ao carregar orçamento",
+          description: err.message,
+          variant: "destructive",
+        });
+        navigate("/orcamentos");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBudget();
+  }, [id, navigate]);
+
+  // ====== Geração de PDF COM MARGENS FIXAS ======
+  const handleGeneratePdf = async () => {
+    if (!contentRef.current || !data) return;
+    setGenerating(true);
+
+    try {
+      const element = contentRef.current;
+      const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+      const canvas = await html2canvas(element, {
+        scale,
+        useCORS: true,
+        backgroundColor: "#FFFFFF",
+        logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+      const pageWmm = pdf.internal.pageSize.getWidth(); // 210mm
+      const pageHmm = pdf.internal.pageSize.getHeight(); // 297mm
+
+      // Margens internas (12mm em cada lado)
+      const pageMarginMm = 12;
+      const contentWmm = pageWmm - pageMarginMm * 2; // largura útil = 186mm
+      const contentHmm = pageHmm - pageMarginMm * 2; // altura útil = 273mm
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+
+      // px↔mm com base na LARGURA útil (com margens)
+      const pxPerMm = cw / contentWmm;
+      const pageHPx = Math.ceil(contentHmm * pxPerMm); // altura exata por página
+
+      let y = 0;
+      let pageIndex = 0;
+
+      while (y < ch) {
+        const srcHeight = Math.min(pageHPx, ch - y);
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = cw;
+        pageCanvas.height = srcHeight;
+
+        const ctx = pageCanvas.getContext("2d")!;
+        ctx.imageSmoothingEnabled = true;
+        // @ts-ignore
+        ctx.imageSmoothingQuality = "high";
+
+        ctx.drawImage(canvas, 0, y, cw, srcHeight, 0, 0, cw, srcHeight);
+
+        const img = pageCanvas.toDataURL("image/png");
+
+        if (pageIndex > 0) pdf.addPage();
+
+        // Fundo branco na página
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pageWmm, pageHmm, "F");
+
+        const isLast = y + srcHeight >= ch;
+        const targetHeightMm = isLast ? srcHeight / pxPerMm : contentHmm;
+        const targetWidthMm = contentWmm;
+
+        pdf.addImage(img, "PNG", pageMarginMm, pageMarginMm, targetWidthMm, targetHeightMm);
+
+        y += srcHeight;
+        pageIndex += 1;
       }
 
-      setMeta({
-        display_id: row.budgets.display_id,
-        status: row.budgets.status as string,
-        type: row.budgets.type as BudgetType,
-      });
-      setVersao(row.versao || 1);
+      // Nome do arquivo: cliente_produto_numero.pdf
+      const payload = data.payload || {};
+      const cliente = payload.cliente || "cliente";
+      const produto = payload.produto || "produto";
+      const numero = data.budget_number || "000";
 
-      const norm = normalizePayload(row.payload || {});
-      setPayload(norm);
+      const cleanText = (text: string) =>
+        String(text)
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .replace(/_+/g, "_")
+          .toLowerCase();
+
+      const fileName = `${cleanText(cliente)}_${cleanText(produto)}_${numero}.pdf`;
+
+      pdf.save(fileName);
+      toast({ title: "PDF gerado com sucesso!" });
     } catch (err: any) {
       toast({
-        title: "Erro ao carregar",
-        description: err?.message || "Tente novamente.",
-        variant: "destructive",
-      });
-      navigate("/orcamentos");
-    } finally {
-      setLoading(false);
-    }
-  }, [id, navigate, toast]);
-
-  useEffect(() => {
-    fetchBudget();
-  }, [fetchBudget]);
-
-  // Atualizadores simples
-  const updatePayload = useCallback((updates: Partial<any>) => {
-    setPayload((prev: any) => ({ ...prev, ...updates }));
-  }, []);
-
-  const addCampaign = () => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: [
-        ...(prev.campanhas || []),
-        { ...defaultCampaign(), nome: `Campanha ${(prev.campanhas?.length || 0) + 1}` },
-      ],
-    }));
-  };
-  const updateCampaign = (campId: string, updates: Partial<Campaign>) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) => (c.id === campId ? { ...c, ...updates } : c)),
-    }));
-  };
-
-  const addQuoteFilmTo = (campId: string) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? {
-              ...c,
-              quotes_film: [
-                ...c.quotes_film,
-                {
-                  id: crypto.randomUUID(),
-                  produtora: "",
-                  escopo: "",
-                  valor: 0,
-                  diretor: "",
-                  tratamento: "",
-                  desconto: 0,
-                  tem_opcoes: false,
-                  opcoes: [],
-                } as QuoteFilm,
-              ],
-            }
-          : c,
-      ),
-    }));
-  };
-  const updateQuoteFilmIn = (campId: string, quoteId: string, updates: Partial<QuoteFilm>) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? { ...c, quotes_film: c.quotes_film.map((q) => (q.id === quoteId ? { ...q, ...updates } : q)) }
-          : c,
-      ),
-    }));
-  };
-  const removeQuoteFilmFrom = (campId: string, quoteId: string) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId ? { ...c, quotes_film: c.quotes_film.filter((q) => q.id !== quoteId) } : c,
-      ),
-    }));
-  };
-  const addOptionToQuote = (campId: string, quoteId: string) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? {
-              ...c,
-              quotes_film: c.quotes_film.map((q) =>
-                q.id === quoteId
-                  ? {
-                      ...q,
-                      tem_opcoes: true,
-                      opcoes: [
-                        ...(q.opcoes || []),
-                        {
-                          id: crypto.randomUUID(),
-                          nome: `Opção ${(q.opcoes?.length || 0) + 1}`,
-                          escopo: "",
-                          valor: 0,
-                          desconto: 0,
-                        },
-                      ],
-                    }
-                  : q,
-              ),
-            }
-          : c,
-      ),
-    }));
-  };
-  const updateOptionInQuote = (campId: string, quoteId: string, optionId: string, updates: Partial<FilmOption>) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? {
-              ...c,
-              quotes_film: c.quotes_film.map((q) =>
-                q.id === quoteId
-                  ? { ...q, opcoes: q.opcoes?.map((op) => (op.id === optionId ? { ...op, ...updates } : op)) }
-                  : q,
-              ),
-            }
-          : c,
-      ),
-    }));
-  };
-  const removeOptionFromQuote = (campId: string, quoteId: string, optionId: string) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? {
-              ...c,
-              quotes_film: c.quotes_film.map((q) =>
-                q.id === quoteId ? { ...q, opcoes: q.opcoes?.filter((op) => op.id !== optionId) } : q,
-              ),
-            }
-          : c,
-      ),
-    }));
-  };
-
-  const addQuoteAudioTo = (campId: string) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? {
-              ...c,
-              quotes_audio: [
-                ...c.quotes_audio,
-                { id: crypto.randomUUID(), produtora: "", descricao: "", valor: 0, desconto: 0 },
-              ],
-            }
-          : c,
-      ),
-    }));
-  };
-  const updateQuoteAudioIn = (campId: string, quoteId: string, updates: Partial<QuoteAudio>) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId
-          ? { ...c, quotes_audio: c.quotes_audio.map((q) => (q.id === quoteId ? { ...q, ...updates } : q)) }
-          : c,
-      ),
-    }));
-  };
-  const removeQuoteAudioFrom = (campId: string, quoteId: string) => {
-    setPayload((prev: any) => ({
-      ...prev,
-      campanhas: prev.campanhas.map((c: Campaign) =>
-        c.id === campId ? { ...c, quotes_audio: c.quotes_audio.filter((q) => q.id !== quoteId) } : c,
-      ),
-    }));
-  };
-
-  // Totais por campanha (sem somatório geral)
-  const totaisCamp = useMemo(() => {
-    const camps: Campaign[] = payload.campanhas || [];
-    return camps.map((c) => {
-      const { filmVal, audioVal, subtotal } = calcCampanhaPartes(c);
-      return { campId: c.id, nome: c.nome, filmVal, audioVal, subtotal } as TotaisCampanha;
-    });
-  }, [payload.campanhas]);
-
-  const handleSave = async () => {
-    if (!payload.cliente || !payload.produto) {
-      toast({ title: "Preencha cliente e produto", variant: "destructive" });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // pega última versão para incrementar
-      const { data: last, error: lastErr } = await supabase
-        .from("versions")
-        .select("versao")
-        .eq("budget_id", id)
-        .order("versao", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (lastErr) throw lastErr;
-      const nextVersao = (last?.versao || versao || 0) + 1;
-
-      const { error: vErr } = await supabase.from("versions").insert([
-        {
-          budget_id: id,
-          versao: nextVersao,
-          payload: { ...payload, totais_campanhas: totaisCamp, total: 0 },
-          total_geral: 0,
-        },
-      ]);
-
-      if (vErr) throw vErr;
-
-      toast({ title: "Salvo com sucesso!", description: `Versão ${nextVersao} criada.` });
-      navigate(`/budget/${id}/pdf`);
-    } catch (err: any) {
-      console.error("[edit/save] err:", err);
-      toast({
-        title: "Erro ao salvar",
-        description: err?.message || "Tente novamente",
+        title: "Erro ao gerar PDF",
+        description: err.message,
         variant: "destructive",
       });
     } finally {
-      setSaving(false);
+      setGenerating(false);
     }
+  };
+  // ====== FIM ======
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+  // Helpers numéricos
+  const toNum = (v: any) => {
+    if (typeof v === "number") return isFinite(v) ? v : 0;
+    if (typeof v === "string") {
+      const norm = v.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+      const n = Number(norm);
+      return isFinite(n) ? n : 0;
+    }
+    return Number(v) || 0;
+  };
+
+  const precoMinFornecedor = (f: any) => {
+    const base = toNum(f.valor) - toNum(f.desconto);
+    if (f.tem_opcoes && Array.isArray(f.opcoes) && f.opcoes.length) {
+      const minOpc = f.opcoes.reduce((min: number, opc: any) => {
+        const val = toNum(opc.valor) - toNum(opc.desconto);
+        return val < min ? val : min;
+      }, base);
+      return Math.min(base, minOpc);
+    }
+    return base;
+  };
+
+  const ordenarFornecedores = (fornecedores: any[]) => {
+    if (!fornecedores || fornecedores.length === 0) return [];
+    return [...fornecedores].sort((a, b) => precoMinFornecedor(a) - precoMinFornecedor(b));
+  };
+
+  const getSelecionado = (cat: any) => {
+    for (const f of cat.fornecedores || []) {
+      if (f?.selecionado) {
+        if (f.tem_opcoes && Array.isArray(f.opcoes)) {
+          const opSel = f.opcoes.find((o: any) => o?.selecionada);
+          if (opSel) return { ...f, opcaoSelecionada: opSel, selecionado: true };
+        }
+        return { ...f, selecionado: true };
+      }
+    }
+    // caso só a opção esteja marcada
+    for (const f of cat.fornecedores || []) {
+      if (f.tem_opcoes && Array.isArray(f.opcoes)) {
+        const opSel = f.opcoes.find((o: any) => o?.selecionada);
+        if (opSel) return { ...f, opcaoSelecionada: opSel, selecionado: true };
+      }
+    }
+    return null;
+  };
+
+  const getEscolhido = (cat: any) => {
+    const sel = getSelecionado(cat);
+    if (sel) return sel;
+
+    let best: any = null;
+    let bestVal = Infinity;
+    for (const f of cat.fornecedores || []) {
+      if (f.tem_opcoes && f.opcoes?.length) {
+        for (const opc of f.opcoes) {
+          const val = toNum(opc.valor) - toNum(opc.desconto);
+          if (val < bestVal) {
+            bestVal = val;
+            best = { ...f, opcaoSelecionada: opc };
+          }
+        }
+      } else {
+        const val = toNum(f.valor) - toNum(f.desconto);
+        if (val < bestVal) {
+          bestVal = val;
+          best = f;
+        }
+      }
+    }
+    return best;
+  };
+
+  const calcularSubtotal = (cat: any) => {
+    if (cat.modoPreco === "fechado") {
+      const escolhido = getEscolhido(cat);
+      if (!escolhido) return 0;
+      return escolhido.opcaoSelecionada
+        ? toNum(escolhido.opcaoSelecionada.valor) - toNum(escolhido.opcaoSelecionada.desconto)
+        : toNum(escolhido.valor) - toNum(escolhido.desconto);
+    }
+    return (cat.itens || []).reduce(
+      (sum: number, item: any) => sum + toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto),
+      0,
+    );
+  };
+
+  const calcularTotalCampanha = (campanha: any) => {
+    return (campanha.categorias || [])
+      .filter((c: any) => c.visivel !== false)
+      .filter((c: any) => {
+        if (c.modoPreco === "fechado") {
+          return c.fornecedores && c.fornecedores.length > 0;
+        }
+        return c.itens && c.itens.length > 0;
+      })
+      .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-6 py-8">
-          <LoadingState message="Carregando orçamento..." />
-        </div>
-      </div>
+      <AppLayout>
+        <LoadingState message="Carregando orçamento..." />
+      </AppLayout>
     );
   }
 
-  if (!meta) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-6 py-8">
-          <EmptyState
-            icon={AlertCircle}
-            title="Orçamento não encontrado"
-            description="O orçamento pode ter sido removido."
-            action={{ label: "Voltar", onClick: () => navigate("/orcamentos") }}
-          />
-        </div>
-      </div>
-    );
-  }
+  if (!data) return null;
 
-  const totalQuotesFilme = (payload.campanhas || []).reduce(
-    (acc: number, c: Campaign) => acc + c.quotes_film.length,
-    0,
-  );
+  const payload = data.payload || {};
+  const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
+
+  // Resumo por campanha (sem hooks — evita erro de hooks)
+  const totaisPorCampanha = campanhas.map((camp: any) => ({
+    nome: camp.nome,
+    total: calcularTotalCampanha(camp),
+  }));
 
   return (
-    <div className="min-h-screen bg-background">
-      <HeaderBar
-        title="Editar Orçamento"
-        subtitle={
-          <div className="flex items-center gap-3 flex-wrap">
-            <span>{meta.display_id}</span>
-            <StatusBadge status={meta.status} />
-            <span className="text-sm opacity-70">• {String(meta.type)}</span>
-          </div>
+    <AppLayout>
+      <style>{`
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        @media print {
+          @page { 
+            size: A4 portrait; 
+            margin: 15mm 20mm; 
+          }
+          html, body { 
+            width: 210mm; 
+            background: #FFFFFF !important; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print { display: none !important; }
+          .print-content, .print-content * { 
+            box-shadow: none !important; 
+          }
+          .avoid-break {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
         }
-        backTo="/orcamentos"
-        actions={
-          <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
-              {saving ? (
-                "Salvando..."
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Salvar e Gerar PDF
-                </>
-              )}
-            </Button>
-            <Button variant="outline" onClick={() => navigate(`/budget/${id}/pdf`)} className="gap-2">
-              <FileText className="h-4 w-4" /> Ver PDF
-            </Button>
-          </div>
+
+        .print-content {
+          width: 210mm;
+          min-height: 297mm;
+          padding: 20mm 20mm;
+          margin: 0 auto;
+          background: #FFFFFF;
+          color: #000000;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          box-sizing: border-box;
         }
-      />
 
-      <div className="container-page">
-        {/* Instruções */}
-        <Card className="mb-6 border-blue-200 bg-blue-50/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-700 text-base">
-              <AlertCircle className="h-5 w-5" />
-              Instruções
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-blue-900/70 space-y-1">
-            <p>Campos e layout idênticos ao “Novo Orçamento”, mas já preenchidos com os dados salvos.</p>
-            <p>
-              Ao salvar, criamos uma <b>nova versão</b> e abrimos o PDF.
-            </p>
-          </CardContent>
-        </Card>
+        .avoid-break { 
+          break-inside: avoid !important; 
+          page-break-inside: avoid !important;
+        }
+      `}</style>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Formulário (igual do Novo) */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Identificação</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <Label>Tipo</Label>
-                    <Select value={payload.type} onValueChange={(v) => updatePayload({ type: v as BudgetType })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="filme">Filme</SelectItem>
-                        <SelectItem value="audio">Áudio</SelectItem>
-                        <SelectItem value="imagem">Imagem</SelectItem>
-                        <SelectItem value="cc">Closed Caption</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Produtor</Label>
-                    <Input value={payload.produtor} onChange={(e) => updatePayload({ produtor: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>E-mail</Label>
-                    <Input
-                      type="email"
-                      value={payload.email}
-                      onChange={(e) => updatePayload({ email: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Cliente & Produto</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Cliente *</Label>
-                    <Input
-                      value={payload.cliente}
-                      onChange={(e) => updatePayload({ cliente: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label>Produto *</Label>
-                    <Input
-                      value={payload.produto}
-                      onChange={(e) => updatePayload({ produto: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label>Job</Label>
-                    <Input value={payload.job} onChange={(e) => updatePayload({ job: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Mídias</Label>
-                    <Input value={payload.midias} onChange={(e) => updatePayload({ midias: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Território</Label>
-                    <Input value={payload.territorio} onChange={(e) => updatePayload({ territorio: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Período</Label>
-                    <Input value={payload.periodo} onChange={(e) => updatePayload({ periodo: e.target.value })} />
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
-                  <div>
-                    <Label>Entregáveis</Label>
-                    <Input
-                      value={payload.entregaveis}
-                      onChange={(e) => updatePayload({ entregaveis: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Adaptações</Label>
-                    <Input value={payload.adaptacoes} onChange={(e) => updatePayload({ adaptacoes: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="exclusividade">Exclusividade de Elenco</Label>
-                    <Select
-                      value={payload.exclusividade_elenco}
-                      onValueChange={(v: any) => updatePayload({ exclusividade_elenco: v })}
-                    >
-                      <SelectTrigger id="exclusividade">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="orcado">Orçado</SelectItem>
-                        <SelectItem value="nao_orcado">Não Orçado</SelectItem>
-                        <SelectItem value="nao_aplica">Não se Aplica</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Campanhas */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm text-muted-foreground">Campanhas</h3>
-              <Button size="sm" variant="outline" className="gap-2" onClick={addCampaign}>
-                <Plus className="h-4 w-4" /> Adicionar Campanha
-              </Button>
+      <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
+        <div className="flex items-center justify-between mb-6 no-print">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/budget/${id}`)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-[28px] leading-8 font-semibold">Gerar PDF</h1>
+              <p className="text-muted-foreground">{data.display_id}</p>
             </div>
+          </div>
 
-            {(payload.campanhas || []).map((camp: Campaign) => {
-              // marcador opcional de mais barata no preview local do card
-              const cheapestFilm = camp.quotes_film.length ? getCheapest(camp.quotes_film) : null;
-              const cheapestAudio =
-                camp.inclui_audio && camp.quotes_audio.length ? getCheapest(camp.quotes_audio) : null;
+          <Button onClick={handleGeneratePdf} disabled={generating} className="gap-2">
+            <Download className="h-4 w-4" />
+            {generating ? "Gerando..." : "Baixar PDF"}
+          </Button>
+        </div>
 
-              return (
-                <Card key={camp.id} className="border-2 border-border/50">
-                  <CardHeader className="flex flex-col gap-2">
-                    <div className="grid md:grid-cols-3 gap-3 items-end">
-                      <div className="md:col-span-2">
-                        <Label>Nome da Campanha</Label>
-                        <Input value={camp.nome} onChange={(e) => updateCampaign(camp.id, { nome: e.target.value })} />
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex flex-col">
-                          <Label className="mb-1">Incluir Áudio</Label>
-                          <Switch
-                            checked={camp.inclui_audio || false}
-                            onCheckedChange={(v) => updateCampaign(camp.id, { inclui_audio: v })}
-                          />
+        <div
+          ref={contentRef}
+          className="print-content"
+          style={{
+            width: "210mm",
+            minHeight: "297mm",
+            backgroundColor: "#FFFFFF",
+            color: "#000000",
+            padding: "20mm 20mm",
+            margin: "0 auto",
+            boxSizing: "border-box",
+          }}
+        >
+          {/* Cabeçalho */}
+          <div
+            className="avoid-break flex items-start justify-between mb-8 pb-6"
+            style={{ borderBottom: "3px solid #E6191E" }}
+          >
+            <div className="flex-1">
+              <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
+              <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666666" }}>
+                <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000000", marginBottom: "4px" }}>
+                  WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
+                </p>
+                <p style={{ marginBottom: "2px" }}>CNPJ: 05.265.118/0001-65</p>
+                <p>Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030</p>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>ORÇAMENTO</h1>
+              <p style={{ fontSize: "18px", fontWeight: "700", color: "#000000", marginBottom: "4px" }}>
+                Nº {data.budget_number}
+              </p>
+              <p style={{ fontSize: "11px", color: "#666666", marginBottom: "2px" }}>{data.display_id}</p>
+              <p style={{ fontSize: "12px", color: "#666666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
+            </div>
+          </div>
+
+          {/* Informações do Cliente */}
+          <div
+            className="avoid-break"
+            style={{
+              marginBottom: "24px",
+              padding: "16px",
+              borderRadius: "8px",
+              backgroundColor: "#F5F5F5",
+              border: "1px solid #E0E0E0",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px",
+                fontSize: "13px",
+              }}
+            >
+              <div>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Cliente</p>
+                <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
+              </div>
+              <div>
+                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Produto</p>
+                <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.produto || "-"}</p>
+              </div>
+              {payload.job && (
+                <div>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Job</p>
+                  <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.job}</p>
+                </div>
+              )}
+              {campanhas.length > 0 && campanhas[0].nome && (
+                <div>
+                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>
+                    Campanha (1ª)
+                  </p>
+                  <p style={{ fontWeight: "bold", color: "#000000" }}>{campanhas[0].nome}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {campanhas.map((campanha: any, campIdx: number) => {
+            const categoriasVisiveis = (campanha.categorias || [])
+              .filter((c: any) => c.visivel !== false)
+              .filter((c: any) => {
+                if (c.modoPreco === "fechado") {
+                  return c.fornecedores && c.fornecedores.length > 0;
+                }
+                return c.itens && c.itens.length > 0;
+              });
+
+            if (categoriasVisiveis.length === 0) return null;
+
+            return (
+              <div key={campIdx} className="avoid-break" style={{ marginBottom: "24px", pageBreakInside: "avoid" }}>
+                <div
+                  style={{
+                    borderLeft: "4px solid #E6191E",
+                    padding: "12px 16px",
+                    marginBottom: "12px",
+                    borderRadius: "0 8px 8px 0",
+                    backgroundColor: "#F9F9F9",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000000" }}>{campanha.nome}</h2>
+                    <span style={{ fontSize: "16px", fontWeight: "bold", color: "#E6191E" }}>
+                      {formatCurrency(calcularTotalCampanha(campanha))}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {categoriasVisiveis.map((cat: any, idx: number) => {
+                    const escolhido = getEscolhido(cat);
+                    const subtotal = calcularSubtotal(cat);
+
+                    // preparar ranking/barateza global
+                    const fornecedoresOrdenados = ordenarFornecedores(cat.fornecedores || []);
+                    const globalMin =
+                      fornecedoresOrdenados.length > 0
+                        ? Math.min(...fornecedoresOrdenados.map((f: any) => precoMinFornecedor(f)))
+                        : Infinity;
+
+                    return (
+                      <div
+                        key={idx}
+                        className="avoid-break"
+                        style={{
+                          paddingLeft: "16px",
+                          paddingTop: "8px",
+                          paddingBottom: "8px",
+                          borderRadius: "8px",
+                          backgroundColor: "#FAFAFA",
+                          borderLeft: "3px solid #D0D0D0",
+                          pageBreakInside: "avoid",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <h3 style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>{cat.nome}</h3>
+                          <span style={{ fontWeight: "bold", fontSize: "15px", color: "#000000" }}>
+                            {formatCurrency(subtotal)}
+                          </span>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {camp.inclui_audio ? "Com áudio" : "Sem áudio"}
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
 
-                  <CardContent className="space-y-6">
-                    {/* Cotações Filme */}
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Cotações de Produtoras - Filme</h4>
-                      <Button size="sm" variant="outline" onClick={() => addQuoteFilmTo(camp.id)} className="gap-2">
-                        <Plus className="h-4 w-4" /> Adicionar Cotação (Filme)
-                      </Button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {camp.quotes_film.length === 0 && (
-                        <div className="text-sm text-muted-foreground">Nenhuma cotação de filme.</div>
-                      )}
-
-                      {camp.quotes_film.map((q) => {
-                        const isCheapest = cheapestFilm?.id === q.id;
-                        return (
-                          <div
-                            key={q.id}
-                            className={`border rounded-lg p-4 space-y-3 ${
-                              isCheapest ? "border-green-500 bg-green-50/50 border-2" : "border-border bg-secondary/20"
-                            }`}
+                        {cat.observacao && (
+                          <p
+                            style={{
+                              fontSize: "11px",
+                              marginBottom: "8px",
+                              fontStyle: "italic",
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              color: "#555555",
+                              backgroundColor: "#F0F0F0",
+                            }}
                           >
-                            {isCheapest && (
-                              <div className="mb-3">
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-600 text-white">
-                                  ⭐ MAIS BARATA - FILME
-                                </span>
-                              </div>
-                            )}
+                            {cat.observacao}
+                          </p>
+                        )}
 
-                            <div className="grid md:grid-cols-3 gap-3">
-                              <div>
-                                <Label>Produtora</Label>
-                                <Input
-                                  value={q.produtora}
-                                  onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { produtora: e.target.value })}
-                                />
-                              </div>
-                              <div>
-                                <Label>Diretor (opcional)</Label>
-                                <Input
-                                  value={q.diretor}
-                                  onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { diretor: e.target.value })}
-                                />
-                              </div>
-                              <div>
-                                <Label>Tratamento (opcional)</Label>
-                                <Input
-                                  value={q.tratamento}
-                                  onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { tratamento: e.target.value })}
-                                />
-                              </div>
-                            </div>
+                        {/* Itens itemizados */}
+                        {cat.modoPreco !== "fechado" && cat.itens?.length > 0 && (
+                          <div style={{ marginTop: "12px" }}>
+                            <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse" }}>
+                              <thead>
+                                <tr style={{ backgroundColor: "#F0F0F0", borderBottom: "1px solid #D0D0D0" }}>
+                                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Item</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Qtd</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>
+                                    Valor Unit.
+                                  </th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>
+                                    Desconto
+                                  </th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cat.itens.map((item: any, iIdx: number) => {
+                                  const totalItem =
+                                    toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto);
+                                  return (
+                                    <tr key={iIdx} style={{ borderBottom: "1px solid #E5E5E5" }}>
+                                      <td style={{ padding: "6px 8px" }}>{item.nome || "-"}</td>
+                                      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                                        {toNum(item.quantidade) || 0}
+                                      </td>
+                                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                                        {formatCurrency(toNum(item.valorUnitario) || 0)}
+                                      </td>
+                                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                                        {formatCurrency(toNum(item.desconto) || 0)}
+                                      </td>
+                                      <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>
+                                        {formatCurrency(totalItem)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
-                            <div>
-                              <Label>Escopo Detalhado</Label>
-                              <textarea
-                                className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                                value={q.escopo}
-                                onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { escopo: e.target.value })}
-                              />
-                            </div>
+                        {/* Fornecedores (modo fechado) */}
+                        {cat.modoPreco === "fechado" && (cat.fornecedores?.length || 0) > 0 && (
+                          <div className="space-y-3 mt-3">
+                            {ordenarFornecedores(cat.fornecedores).map((f: any, fIdx: number) => {
+                              const isEscolhido = !!(escolhido && escolhido.id === f.id);
+                              const isSelecionado = !!(escolhido?.selecionado && escolhido.id === f.id);
+                              const precoMinDoFornecedor = precoMinFornecedor(f);
+                              const isMaisBaratoGlobal = Math.abs(precoMinDoFornecedor - globalMin) < 0.005; // tolerância
 
-                            {/* Toggle múltiplas opções */}
-                            <div className="flex items-center gap-3 p-3 rounded-md bg-muted/30 border border-border">
-                              <div className="flex items-center gap-2 flex-1">
-                                <Switch
-                                  checked={q.tem_opcoes || false}
-                                  onCheckedChange={(v) =>
-                                    updateQuoteFilmIn(camp.id, q.id, {
-                                      tem_opcoes: v,
-                                      opcoes: v ? q.opcoes || [] : [],
-                                    })
-                                  }
-                                />
-                                <div>
-                                  <Label className="text-sm font-medium">Múltiplas Opções</Label>
-                                  <p className="text-xs text-muted-foreground">
-                                    Adicione diferentes opções com valores distintos
-                                  </p>
-                                </div>
-                              </div>
-                              {q.tem_opcoes && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => addOptionToQuote(camp.id, q.id)}
-                                  className="gap-1"
+                              // Valor exibido no card do fornecedor:
+                              const valorBase = toNum(f.valor) - toNum(f.desconto);
+                              const valorEscolhidoOpc =
+                                isEscolhido && escolhido?.opcaoSelecionada
+                                  ? toNum(escolhido.opcaoSelecionada.valor) - toNum(escolhido.opcaoSelecionada.desconto)
+                                  : null;
+                              const valorExibido = valorEscolhidoOpc ?? valorBase;
+
+                              const cardBg = isSelecionado || isMaisBaratoGlobal ? "#F0FAF4" : "#FFFFFF";
+                              const cardBorder =
+                                isSelecionado || isMaisBaratoGlobal ? "2px solid #48bb78" : "1px solid #E5E5E5";
+                              const shadow =
+                                isSelecionado || isMaisBaratoGlobal
+                                  ? "0 2px 8px rgba(72, 187, 120, 0.15)"
+                                  : "0 1px 3px rgba(0,0,0,0.08)";
+
+                              return (
+                                <div
+                                  key={fIdx}
+                                  className="rounded-lg px-3 py-3"
+                                  style={{
+                                    backgroundColor: cardBg,
+                                    border: cardBorder,
+                                    boxShadow: shadow,
+                                  }}
                                 >
-                                  <Plus className="h-3 w-3" /> Nova Opção
-                                </Button>
-                              )}
-                            </div>
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1 pr-3">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        {isMaisBaratoGlobal && (
+                                          <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
+                                        )}
+                                        {isSelecionado && (
+                                          <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                                        )}
+                                        <p
+                                          className={`font-bold ${isSelecionado || isMaisBaratoGlobal ? "text-sm" : "text-xs"}`}
+                                          style={{ color: "#000000" }}
+                                        >
+                                          {f.nome}
+                                        </p>
+                                      </div>
 
-                            {/* Opções */}
-                            {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
-                              <div className="space-y-3 pl-4 border-l-2 border-primary/30">
-                                {q.opcoes.map((opt) => (
-                                  <div
-                                    key={opt.id}
-                                    className="p-3 rounded-md bg-background border border-border space-y-3"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <Input
-                                        value={opt.nome}
-                                        onChange={(e) =>
-                                          updateOptionInQuote(camp.id, q.id, opt.id, { nome: e.target.value })
-                                        }
-                                        placeholder="Nome da opção"
-                                        className="font-medium"
-                                      />
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => removeOptionFromQuote(camp.id, q.id, opt.id)}
-                                        className="text-destructive ml-2"
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        {isSelecionado && (
+                                          <span
+                                            style={{
+                                              fontSize: "10px",
+                                              fontWeight: 700,
+                                              color: "#2F855A",
+                                              background: "#C6F6D5",
+                                              border: "1px solid #48BB78",
+                                              padding: "2px 6px",
+                                              borderRadius: "999px",
+                                            }}
+                                          >
+                                            ✓ SELECIONADO
+                                          </span>
+                                        )}
+                                        {isMaisBaratoGlobal && (
+                                          <span
+                                            style={{
+                                              fontSize: "10px",
+                                              fontWeight: 700,
+                                              color: "#2F855A",
+                                              background: "#E6FFFA",
+                                              border: "1px solid #38B2AC",
+                                              padding: "2px 6px",
+                                              borderRadius: "999px",
+                                            }}
+                                          >
+                                            ★ OPÇÃO MAIS BARATA
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {f.diretor && (
+                                        <p className="text-[10px] mt-1" style={{ color: "#666666" }}>
+                                          <span className="font-semibold">Diretor:</span> {f.diretor}
+                                        </p>
+                                      )}
+
+                                      {f.escopo && (
+                                        <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444444" }}>
+                                          {(() => {
+                                            const elencoMatch = f.escopo.match(/elenco:([^\.]+)/i);
+                                            if (elencoMatch) {
+                                              const elenco = elencoMatch[1].trim();
+                                              const resto = f.escopo.replace(/elenco:[^\.]+\.?/i, "").trim();
+                                              return (
+                                                <>
+                                                  {resto && <p className="mb-1.5">{resto}</p>}
+                                                  <div className="bg-gray-50 border-l-2 border-gray-400 pl-2 py-1 mt-1">
+                                                    <p className="font-semibold italic">
+                                                      <span style={{ color: "#666666" }}>Elenco:</span> {elenco}
+                                                    </p>
+                                                  </div>
+                                                </>
+                                              );
+                                            }
+                                            return <p>{f.escopo}</p>;
+                                          })()}
+                                        </div>
+                                      )}
+
+                                      {f.tratamento && (
+                                        <p className="text-[10px] mt-1" style={{ color: "#666666" }}>
+                                          <span className="font-semibold">Tratamento:</span> {f.tratamento}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    <div className="text-right flex-shrink-0">
+                                      <span
+                                        className={`font-bold ${isSelecionado || isMaisBaratoGlobal ? "text-base" : "text-sm"}`}
+                                        style={{ color: isSelecionado || isMaisBaratoGlobal ? "#2F855A" : "#000000" }}
                                       >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs">Escopo da Opção</Label>
-                                      <textarea
-                                        className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                                        value={opt.escopo}
-                                        onChange={(e) =>
-                                          updateOptionInQuote(camp.id, q.id, opt.id, { escopo: e.target.value })
-                                        }
-                                      />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div>
-                                        <Label className="text-xs">Valor (R$)</Label>
-                                        <Input
-                                          inputMode="decimal"
-                                          value={String(opt.valor ?? "")}
-                                          onChange={(e) =>
-                                            updateOptionInQuote(camp.id, q.id, opt.id, {
-                                              valor: parseCurrency(e.target.value),
-                                            })
-                                          }
-                                          placeholder="0,00"
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label className="text-xs">Desconto (R$)</Label>
-                                        <Input
-                                          inputMode="decimal"
-                                          value={String(opt.desconto ?? "")}
-                                          onChange={(e) =>
-                                            updateOptionInQuote(camp.id, q.id, opt.id, {
-                                              desconto: parseCurrency(e.target.value),
-                                            })
-                                          }
-                                          placeholder="0,00"
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="text-xs text-right">
-                                      <span className="font-semibold">Valor Final: </span>
-                                      <span className="font-bold text-primary">
-                                        {money((opt.valor || 0) - (opt.desconto || 0))}
+                                        {formatCurrency(valorExibido)}
                                       </span>
+                                      {toNum(f.desconto) > 0 && (
+                                        <p className="text-[9px] mt-1" style={{ color: "#666666" }}>
+                                          Desc: {formatCurrency(toNum(f.desconto))}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            )}
 
-                            {/* Valores simples (sem opções) */}
-                            {!q.tem_opcoes && (
-                              <div className="grid md:grid-cols-2 gap-3">
-                                <div>
-                                  <Label>Valor (R$)</Label>
-                                  <Input
-                                    inputMode="decimal"
-                                    value={String(q.valor ?? "")}
-                                    onChange={(e) =>
-                                      updateQuoteFilmIn(camp.id, q.id, { valor: parseCurrency(e.target.value) })
-                                    }
-                                    placeholder="0,00"
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Desconto (R$)</Label>
-                                  <Input
-                                    inputMode="decimal"
-                                    value={String(q.desconto ?? "")}
-                                    onChange={(e) =>
-                                      updateQuoteFilmIn(camp.id, q.id, { desconto: parseCurrency(e.target.value) })
-                                    }
-                                    placeholder="0,00"
-                                  />
-                                </div>
-                              </div>
-                            )}
+                                  {/* Opções múltiplas do fornecedor — agora em GRID 2x, cards lado a lado */}
+                                  {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
+                                    <div style={{ marginTop: "8px", paddingLeft: "8px" }}>
+                                      <p className="text-[10px] font-semibold mb-2" style={{ color: "#666666" }}>
+                                        Opções disponíveis:
+                                      </p>
 
-                            <div className="flex justify-between items-center pt-2 border-t">
-                              <div className="text-sm">
-                                <span className="font-semibold">Valor Final: </span>
-                                <span className="text-lg font-bold text-primary">
-                                  {q.tem_opcoes && q.opcoes && q.opcoes.length > 0
-                                    ? money(Math.min(...q.opcoes.map((o) => (o.valor || 0) - (o.desconto || 0))))
-                                    : money((q.valor || 0) - (q.desconto || 0))}
-                                </span>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => removeQuoteFilmFrom(camp.id, q.id)}
-                                className="text-destructive gap-1"
-                              >
-                                <Trash2 className="h-3 w-3" /> Remover
-                              </Button>
-                            </div>
+                                      <div
+                                        style={{
+                                          display: "grid",
+                                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                                          gap: "8px",
+                                        }}
+                                      >
+                                        {f.opcoes.map((opc: any, opcIdx: number) => {
+                                          const valorOpcao = toNum(opc.valor) - toNum(opc.desconto);
+                                          const isOpcSelecionada =
+                                            isSelecionado &&
+                                            !!escolhido?.opcaoSelecionada &&
+                                            escolhido.opcaoSelecionada === opc;
+
+                                          return (
+                                            <div
+                                              key={opcIdx}
+                                              className="avoid-break"
+                                              style={{
+                                                padding: "8px 10px",
+                                                backgroundColor: isOpcSelecionada ? "#F0FAF4" : "#F9F9F9",
+                                                border: isOpcSelecionada ? "1px solid #48BB78" : "1px solid #E5E5E5",
+                                                borderRadius: "8px",
+                                                fontSize: "10px",
+                                                breakInside: "avoid",
+                                                pageBreakInside: "avoid",
+                                              }}
+                                            >
+                                              <div
+                                                style={{
+                                                  display: "flex",
+                                                  justifyContent: "space-between",
+                                                  alignItems: "start",
+                                                  gap: "8px",
+                                                }}
+                                              >
+                                                <div style={{ flex: 1 }}>
+                                                  <p style={{ fontWeight: 700, marginBottom: "2px", color: "#000000" }}>
+                                                    {opc.nome || `Opção ${opcIdx + 1}`}
+                                                  </p>
+                                                  {opc.escopo && (
+                                                    <p
+                                                      style={{
+                                                        fontSize: "9px",
+                                                        color: "#555555",
+                                                        marginTop: "2px",
+                                                        lineHeight: 1.4,
+                                                      }}
+                                                    >
+                                                      {opc.escopo}
+                                                    </p>
+                                                  )}
+                                                  {isOpcSelecionada && (
+                                                    <span
+                                                      style={{
+                                                        display: "inline-block",
+                                                        marginTop: "4px",
+                                                        fontSize: "9px",
+                                                        fontWeight: 700,
+                                                        color: "#2F855A",
+                                                        background: "#C6F6D5",
+                                                        border: "1px solid #48BB78",
+                                                        padding: "1px 6px",
+                                                        borderRadius: "999px",
+                                                      }}
+                                                    >
+                                                      ✓ OPÇÃO SELECIONADA
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <div style={{ textAlign: "right", minWidth: "80px" }}>
+                                                  <p style={{ fontWeight: 700, color: "#000000" }}>
+                                                    {formatCurrency(valorOpcao)}
+                                                  </p>
+                                                  {toNum(opc.desconto) > 0 && (
+                                                    <p style={{ fontSize: "8px", color: "#666666" }}>
+                                                      Desc: {formatCurrency(toNum(opc.desconto))}
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Áudio */}
-                    <div className="border-t pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">Produtora de Áudio</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {camp.inclui_audio ? "Adicione cotações de áudio" : "Ative o áudio para incluir cotações"}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => addQuoteAudioTo(camp.id)}
-                          className="gap-2"
-                          disabled={!camp.inclui_audio}
-                        >
-                          <Plus className="h-4 w-4" /> Adicionar Áudio
-                        </Button>
+                        )}
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
 
-                      {camp.inclui_audio && (
-                        <div className="space-y-4 mt-4">
-                          {camp.quotes_audio.length === 0 && (
-                            <div className="text-sm text-muted-foreground">Nenhuma cotação de áudio.</div>
-                          )}
-                          {camp.quotes_audio.map((qa) => (
-                            <div key={qa.id} className="border rounded-lg p-4 space-y-3 border-border bg-blue-50/30">
-                              <div className="grid md:grid-cols-2 gap-3">
-                                <div>
-                                  <Label>Produtora</Label>
-                                  <Input
-                                    value={qa.produtora}
-                                    onChange={(e) => updateQuoteAudioIn(camp.id, qa.id, { produtora: e.target.value })}
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Descrição/Escopo</Label>
-                                  <textarea
-                                    className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                                    value={qa.descricao}
-                                    onChange={(e) => updateQuoteAudioIn(camp.id, qa.id, { descricao: e.target.value })}
-                                  />
-                                </div>
-                              </div>
-                              <div className="grid md:grid-cols-2 gap-3">
-                                <div>
-                                  <Label>Valor (R$)</Label>
-                                  <Input
-                                    inputMode="decimal"
-                                    value={String(qa.valor ?? "")}
-                                    onChange={(e) =>
-                                      updateQuoteAudioIn(camp.id, qa.id, { valor: parseCurrency(e.target.value) })
-                                    }
-                                    placeholder="0,00"
-                                  />
-                                </div>
-                                <div>
-                                  <Label>Desconto (R$)</Label>
-                                  <Input
-                                    inputMode="decimal"
-                                    value={String(qa.desconto ?? "")}
-                                    onChange={(e) =>
-                                      updateQuoteAudioIn(camp.id, qa.id, { desconto: parseCurrency(e.target.value) })
-                                    }
-                                    placeholder="0,00"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex justify-between items-center pt-2 border-t">
-                                <div className="text-sm">
-                                  <span className="font-semibold">Valor Final: </span>
-                                  <span className="text-lg font-bold text-blue-600">
-                                    {money((qa.valor || 0) - (qa.desconto || 0))}
-                                  </span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => removeQuoteAudioFrom(camp.id, qa.id)}
-                                  className="text-destructive gap-1"
-                                >
-                                  <Trash2 className="h-3 w-3" /> Remover
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          {/* Resumo por campanha */}
+          <div
+            className="avoid-break"
+            style={{
+              paddingTop: "16px",
+              marginTop: "24px",
+              borderRadius: "8px",
+              padding: "16px",
+              backgroundColor: "#F5F5F5",
+              borderTop: "3px solid #E6191E",
+              pageBreakInside: "avoid",
+            }}
+          >
+            <div style={{ marginBottom: "8px", fontWeight: 700, fontSize: "14px", color: "#000000" }}>
+              Resumo por Campanha
+            </div>
 
-            {/* Faturamento / Obs */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Faturamento</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="pendente"
-                      checked={!!payload.pendente_faturamento}
-                      onCheckedChange={(checked) => updatePayload({ pendente_faturamento: Boolean(checked) })}
-                    />
-                    <div>
-                      <Label htmlFor="pendente" className="cursor-pointer">
-                        Pendente de faturamento
-                      </Label>
-                      <p className="text-xs text-muted-foreground">Marcador será exibido no PDF</p>
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Observações</Label>
-                    <Input
-                      value={payload.observacoes}
-                      onChange={(e) => updatePayload({ observacoes: e.target.value })}
-                      placeholder="Ex.: incluir em outubro"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "10px",
+              }}
+            >
+              {totaisPorCampanha.map((c: any, idx: number) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: "#FFFFFF",
+                    border: "1px solid #E0E0E0",
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#333333" }}>{c.nome}</span>
+                  <span style={{ fontSize: "16px", fontWeight: 700, color: "#E6191E" }}>{formatCurrency(c.total)}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Preview (igual) */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" /> Preview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {payload.pendente_faturamento && (
-                    <div className="rounded-md border border-yellow-600 bg-yellow-50 text-yellow-800 text-xs px-3 py-2">
-                      <strong>PENDENTE DE FATURAMENTO</strong>
-                    </div>
-                  )}
-
-                  <div className="text-sm space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Cliente:</span>
-                      <span className="font-medium">{payload.cliente || "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Produto:</span>
-                      <span className="font-medium">{payload.produto || "—"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Cotações (Filme):</span>
-                      <span className="font-medium">{totalQuotesFilme}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Campanhas:</span>
-                      <span className="font-medium">{payload.campanhas?.length || 0}</span>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4 space-y-3 text-sm">
-                    <div className="text-xs font-semibold mb-2 text-primary">💡 Totais por Campanha</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
-                      {(totaisCamp || []).map((t) => (
-                        <div key={t.campId} className="rounded-lg border p-3 space-y-2">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{t.nome}</span>
-                            <span className="font-mono">{money(t.subtotal)}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="flex justify-between">
-                              <span>Filme:</span>
-                              <span className="font-mono">{money(t.filmVal)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Áudio:</span>
-                              <span className="font-mono">{money(t.audioVal)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* sem total geral */}
-                  </div>
-                </CardContent>
-              </Card>
+          {/* Observações */}
+          {payload.observacoes && (
+            <div
+              className="avoid-break"
+              style={{
+                marginTop: "20px",
+                padding: "16px",
+                borderRadius: "8px",
+                backgroundColor: "#FAFAFA",
+                border: "1px solid #E0E0E0",
+                pageBreakInside: "avoid",
+              }}
+            >
+              <p style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#000000" }}>
+                Observações:
+              </p>
+              <p
+                style={{
+                  fontSize: "11px",
+                  lineHeight: "1.6",
+                  whiteSpace: "pre-wrap",
+                  color: "#555555",
+                }}
+              >
+                {payload.observacoes}
+              </p>
             </div>
+          )}
+
+          {/* Rodapé LGPD */}
+          <div
+            className="avoid-break"
+            style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}
+          >
+            <p
+              style={{
+                fontSize: "9px",
+                textAlign: "center",
+                lineHeight: "1.6",
+                color: "#888888",
+              }}
+            >
+              Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. Conforme a Lei Geral de
+              Proteção de Dados (LGPD - Lei nº 13.709/2018), todas as informações contidas neste documento são tratadas
+              com segurança e privacidade.
+            </p>
           </div>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
