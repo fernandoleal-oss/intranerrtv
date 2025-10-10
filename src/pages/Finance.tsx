@@ -149,8 +149,8 @@ export default function Finance() {
     const lines = allEvents.map((e) =>
       [
         ym(e.ref_month),
-        `"${(e.cliente ?? "").replaceAll('"', '""')}"`,
-        `"${(e.fornecedor ?? "").replaceAll('"', '""')}"`,
+        `"${(e.cliente ?? "").replace(/"/g, '""')}"`,
+        `"${(e.fornecedor ?? "").replace(/"/g, '""')}"`,
         (e.total_cents ?? 0) / 100,
         (e.valor_fornecedor_cents ?? 0) / 100,
       ].join(","),

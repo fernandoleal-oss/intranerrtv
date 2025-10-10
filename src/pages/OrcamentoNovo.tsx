@@ -15,6 +15,14 @@ import { HeaderBar } from "@/components/HeaderBar";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
+interface FilmOption {
+  id: string;
+  nome: string;
+  escopo: string;
+  valor: number;
+  desconto: number;
+}
+
 interface QuoteFilm {
   id: string;
   produtora: string;
@@ -23,6 +31,8 @@ interface QuoteFilm {
   diretor: string;
   tratamento: string;
   desconto: number;
+  tem_opcoes?: boolean;
+  opcoes?: FilmOption[];
 }
 
 interface QuoteAudio {
@@ -91,10 +101,23 @@ const money = (n: number | undefined) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 
 // ---- helpers de cálculo ----
-const getCheapest = <T extends { valor: number; desconto?: number }>(arr: T[]) => {
+const getCheapest = <T extends { valor: number; desconto?: number; tem_opcoes?: boolean; opcoes?: FilmOption[] }>(
+  arr: T[],
+) => {
   return arr.reduce((min, q) => {
-    const qVal = q.valor - (q.desconto || 0);
-    const minVal = min.valor - (min.desconto || 0);
+    // Se tem opções, pega o menor valor entre as opções
+    let qVal = q.valor - (q.desconto || 0);
+    if (q.tem_opcoes && q.opcoes && q.opcoes.length > 0) {
+      const minOptionVal = Math.min(...q.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
+      qVal = minOptionVal;
+    }
+
+    let minVal = min.valor - (min.desconto || 0);
+    if (min.tem_opcoes && min.opcoes && min.opcoes.length > 0) {
+      const minOptionVal = Math.min(...min.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
+      minVal = minOptionVal;
+    }
+
     return qVal < minVal ? q : min;
   });
 };
@@ -103,7 +126,16 @@ const calcCampanhaPartes = (camp: Campaign) => {
   const cheapestFilm = camp.quotes_film.length ? getCheapest(camp.quotes_film) : null;
   const cheapestAudio = camp.inclui_audio && camp.quotes_audio.length ? getCheapest(camp.quotes_audio) : null;
 
-  const filmVal = cheapestFilm ? cheapestFilm.valor - (cheapestFilm.desconto || 0) : 0;
+  // Calcular valor do filme (considerando opções se houver)
+  let filmVal = 0;
+  if (cheapestFilm) {
+    if (cheapestFilm.tem_opcoes && cheapestFilm.opcoes && cheapestFilm.opcoes.length > 0) {
+      filmVal = Math.min(...cheapestFilm.opcoes.map((opt) => opt.valor - (opt.desconto || 0)));
+    } else {
+      filmVal = cheapestFilm.valor - (cheapestFilm.desconto || 0);
+    }
+  }
+
   const audioVal = cheapestAudio ? cheapestAudio.valor - (cheapestAudio.desconto || 0) : 0;
   const subtotal = filmVal + audioVal;
 
@@ -226,8 +258,82 @@ export default function OrcamentoNovo() {
                   diretor: "",
                   tratamento: "",
                   desconto: 0,
+                  tem_opcoes: false,
+                  opcoes: [],
                 },
               ],
+            }
+          : c,
+      ),
+    }));
+  };
+
+  const addOptionToQuote = (campId: string, quoteId: string) => {
+    setData((prev) => ({
+      ...prev,
+      campanhas: prev.campanhas?.map((c) =>
+        c.id === campId
+          ? {
+              ...c,
+              quotes_film: c.quotes_film.map((q) =>
+                q.id === quoteId
+                  ? {
+                      ...q,
+                      opcoes: [
+                        ...(q.opcoes || []),
+                        {
+                          id: crypto.randomUUID(),
+                          nome: `Opção ${(q.opcoes?.length || 0) + 1}`,
+                          escopo: "",
+                          valor: 0,
+                          desconto: 0,
+                        },
+                      ],
+                    }
+                  : q,
+              ),
+            }
+          : c,
+      ),
+    }));
+  };
+
+  const updateOptionInQuote = (
+    campId: string,
+    quoteId: string,
+    optionId: string,
+    updates: Partial<FilmOption>,
+  ) => {
+    setData((prev) => ({
+      ...prev,
+      campanhas: prev.campanhas?.map((c) =>
+        c.id === campId
+          ? {
+              ...c,
+              quotes_film: c.quotes_film.map((q) =>
+                q.id === quoteId
+                  ? {
+                      ...q,
+                      opcoes: q.opcoes?.map((opt) => (opt.id === optionId ? { ...opt, ...updates } : opt)),
+                    }
+                  : q,
+              ),
+            }
+          : c,
+      ),
+    }));
+  };
+
+  const removeOptionFromQuote = (campId: string, quoteId: string, optionId: string) => {
+    setData((prev) => ({
+      ...prev,
+      campanhas: prev.campanhas?.map((c) =>
+        c.id === campId
+          ? {
+              ...c,
+              quotes_film: c.quotes_film.map((q) =>
+                q.id === quoteId ? { ...q, opcoes: q.opcoes?.filter((opt) => opt.id !== optionId) } : q,
+              ),
             }
           : c,
       ),
@@ -410,6 +516,10 @@ export default function OrcamentoNovo() {
             </p>
             <p>
               • <b>Campanhas</b>: Adicione 1+ campanhas. Cada campanha pode ter cotações de filme e áudio.
+            </p>
+            <p>
+              • <b>Múltiplas Opções</b>: Ative para adicionar diferentes opções de filmagem por fornecedor (ex: "Opção
+              A: 2 dias", "Opção B: 3 dias"). O sistema considera a opção mais barata.
             </p>
             <p>
               • <b>Mais Barata</b>: Em cada campanha, o sistema usa a produtora mais barata (filme e áudio).
@@ -650,36 +760,152 @@ export default function OrcamentoNovo() {
                                 placeholder="Descreva o escopo completo da produtora..."
                               />
                             </div>
-                            <div className="grid md:grid-cols-2 gap-3">
-                              <div>
-                                <Label>Valor (R$)</Label>
-                                <Input
-                                  inputMode="decimal"
-                                  value={q.valor ? String(q.valor) : ""}
-                                  onChange={(e) =>
-                                    updateQuoteFilmIn(camp.id, q.id, { valor: parseCurrency(e.target.value) })
-                                  }
-                                  placeholder="0,00"
+
+                            {/* Toggle para múltiplas opções */}
+                            <div className="flex items-center gap-3 p-3 rounded-md bg-muted/30 border border-border">
+                              <div className="flex items-center gap-2 flex-1">
+                                <Switch
+                                  checked={q.tem_opcoes || false}
+                                  onCheckedChange={(v) => updateQuoteFilmIn(camp.id, q.id, { tem_opcoes: v })}
                                 />
+                                <div>
+                                  <Label className="text-sm font-medium">Múltiplas Opções</Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Adicione diferentes opções de filmagem com valores distintos
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <Label>Desconto (R$)</Label>
-                                <Input
-                                  inputMode="decimal"
-                                  value={q.desconto ? String(q.desconto) : ""}
-                                  onChange={(e) =>
-                                    updateQuoteFilmIn(camp.id, q.id, { desconto: parseCurrency(e.target.value) })
-                                  }
-                                  placeholder="0,00"
-                                />
-                              </div>
+                              {q.tem_opcoes && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => addOptionToQuote(camp.id, q.id)}
+                                  className="gap-1"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Nova Opção
+                                </Button>
+                              )}
                             </div>
+
+                            {/* Opções múltiplas */}
+                            {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
+                              <div className="space-y-3 pl-4 border-l-2 border-primary/30">
+                                {q.opcoes.map((opt, idx) => (
+                                  <motion.div
+                                    key={opt.id}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    className="p-3 rounded-md bg-background border border-border space-y-3"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <Input
+                                        value={opt.nome}
+                                        onChange={(e) =>
+                                          updateOptionInQuote(camp.id, q.id, opt.id, { nome: e.target.value })
+                                        }
+                                        placeholder="Nome da opção"
+                                        className="font-medium"
+                                      />
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => removeOptionFromQuote(camp.id, q.id, opt.id)}
+                                        className="text-destructive ml-2"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs">Escopo da Opção</Label>
+                                      <textarea
+                                        className="w-full min-h-[60px] px-3 py-2 text-sm rounded-md border border-input bg-background"
+                                        value={opt.escopo}
+                                        onChange={(e) =>
+                                          updateOptionInQuote(camp.id, q.id, opt.id, { escopo: e.target.value })
+                                        }
+                                        placeholder="Descreva essa opção específica..."
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <Label className="text-xs">Valor (R$)</Label>
+                                        <Input
+                                          inputMode="decimal"
+                                          value={opt.valor ? String(opt.valor) : ""}
+                                          onChange={(e) =>
+                                            updateOptionInQuote(camp.id, q.id, opt.id, {
+                                              valor: parseCurrency(e.target.value),
+                                            })
+                                          }
+                                          placeholder="0,00"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">Desconto (R$)</Label>
+                                        <Input
+                                          inputMode="decimal"
+                                          value={opt.desconto ? String(opt.desconto) : ""}
+                                          onChange={(e) =>
+                                            updateOptionInQuote(camp.id, q.id, opt.id, {
+                                              desconto: parseCurrency(e.target.value),
+                                            })
+                                          }
+                                          placeholder="0,00"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="text-xs text-right">
+                                      <span className="font-semibold">Valor Final: </span>
+                                      <span className="font-bold text-primary">
+                                        {money(opt.valor - (opt.desconto || 0))}
+                                      </span>
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Valores principais (quando não tem opções) */}
+                            {!q.tem_opcoes && (
+                              <div className="grid md:grid-cols-2 gap-3">
+                                <div>
+                                  <Label>Valor (R$)</Label>
+                                  <Input
+                                    inputMode="decimal"
+                                    value={q.valor ? String(q.valor) : ""}
+                                    onChange={(e) =>
+                                      updateQuoteFilmIn(camp.id, q.id, { valor: parseCurrency(e.target.value) })
+                                    }
+                                    placeholder="0,00"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Desconto (R$)</Label>
+                                  <Input
+                                    inputMode="decimal"
+                                    value={q.desconto ? String(q.desconto) : ""}
+                                    onChange={(e) =>
+                                      updateQuoteFilmIn(camp.id, q.id, { desconto: parseCurrency(e.target.value) })
+                                    }
+                                    placeholder="0,00"
+                                  />
+                                </div>
+                              </div>
+                            )}
                             <div className="flex justify-between items-center pt-2 border-t">
                               <div className="text-sm">
                                 <span className="font-semibold">Valor Final: </span>
                                 <span className="text-lg font-bold text-primary">
-                                  {money(q.valor - (q.desconto || 0))}
+                                  {q.tem_opcoes && q.opcoes && q.opcoes.length > 0
+                                    ? money(Math.min(...q.opcoes.map((opt) => opt.valor - (opt.desconto || 0))))
+                                    : money(q.valor - (q.desconto || 0))}
                                 </span>
+                                {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    (menor opção de {q.opcoes.length})
+                                  </span>
+                                )}
                               </div>
                               <Button
                                 size="sm"
