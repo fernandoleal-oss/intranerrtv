@@ -13,6 +13,8 @@ import {
   ArrowLeftRight,
   XCircle,
   CalendarSearch,
+  ClipboardPaste,
+  Trash2,
 } from "lucide-react";
 import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 import { GoogleSheetsSync } from "@/components/finance/GoogleSheetsSync";
@@ -27,6 +29,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 
 type ClientSummary = { client: string; total: number; count: number };
 type SupplierSummary = { supplier: string; total: number; count: number };
@@ -86,7 +90,7 @@ function generateAllowedMonths(minYM: string, maxYM: string) {
     list.push(cur);
     cur = addMonths(cur, 1);
   }
-  return list.reverse(); // mais recentes primeiro
+  return list.reverse();
 }
 
 function summarizeClients(rows: Event[]): ClientSummary[] {
@@ -138,17 +142,237 @@ function computeKPIs(curRows: Event[], prevRows: Event[]): KPIs {
   return { receita, despesa, resultado, margem, varReceitaPct, varDespesaPct };
 }
 
+/* ============================= */
+/* ======= PASTE PARSER =========*/
+/* ============================= */
+
+type DetectedMapping = {
+  idxCliente?: number;
+  idxFornecedor?: number;
+  idxTotal?: number;
+  idxValorFornecedor?: number;
+  idxRef?: number;
+  idxMes?: number;
+  idxAno?: number;
+  // possíveis colunas auxiliares:
+  idxHonorario?: number;
+  idxHonorarioAgencia?: number;
+};
+
+const PT_MONTHS: Record<string, number> = {
+  jan: 1,
+  janeiro: 1,
+  fev: 2,
+  fevereiro: 2,
+  mar: 3,
+  março: 3,
+  marco: 3,
+  abr: 4,
+  abril: 4,
+  mai: 5,
+  maio: 5,
+  jun: 6,
+  junho: 6,
+  jul: 7,
+  julho: 7,
+  ago: 8,
+  agosto: 8,
+  set: 9,
+  setembro: 9,
+  out: 10,
+  outubro: 10,
+  nov: 11,
+  novembro: 11,
+  dez: 12,
+  dezembro: 12,
+};
+
+function normalize(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function guessDelimiter(lines: string[]) {
+  const cands = ["\t", ";", ",", "|"];
+  let best = "\t";
+  let bestScore = 0;
+  for (const d of cands) {
+    const counts = lines.slice(0, 5).map((l) => (l ? l.split(d).length : 0));
+    const score = counts.reduce((a, b) => a + b, 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = d;
+    }
+  }
+  return best;
+}
+
+function parseCurrencyBrOrEn(v: string | undefined): number {
+  if (!v) return 0;
+  const raw = v
+    .replace(/\s/g, "")
+    .replace(/[R$\u00A0]/g, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".")
+    .replace(/[^\d.-]/g, "");
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function asYMFromText(text: string): string | null {
+  const t = normalize(text);
+  // padrões: YYYY-MM, YYYY/MM, MM/YYYY, DD/MM/YYYY, ago/2025, agosto 2025, 2025-08-01
+  const m1 = t.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/); // YYYY-MM or YYYY/MM
+  if (m1) return `${m1[1]}-${String(Number(m1[2])).padStart(2, "0")}`;
+
+  const m2 = t.match(/\b(0?[1-9]|1[0-2])[-/](20\d{2})\b/); // MM/YYYY
+  if (m2) return `${m2[2]}-${String(Number(m2[1])).padStart(2, "0")}`;
+
+  const m3 = t.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/); // DD/MM/YYYY
+  if (m3) return `${m3[3]}-${String(Number(m3[2])).padStart(2, "0")}`;
+
+  // nomes PT
+  for (const k of Object.keys(PT_MONTHS)) {
+    const re = new RegExp(`\\b${k}\\b[^\\d]*\\b(20\\d{2})\\b`, "i");
+    const m = t.match(re);
+    if (m) {
+      const mm = String(PT_MONTHS[k]).padStart(2, "0");
+      return `${m[1]}-${mm}`;
+    }
+  }
+  return null;
+}
+
+function detectMapping(headers: string[]): DetectedMapping {
+  const map: DetectedMapping = {};
+  const cols = headers.map((h) => normalize(h));
+
+  const find = (alts: string[]) => {
+    const idx = cols.findIndex((c) => alts.some((a) => c === a || c.includes(a)));
+    return idx >= 0 ? idx : undefined;
+  };
+
+  map.idxCliente = find(["cliente", "client", "conta", "brand", "marca"]);
+  map.idxFornecedor = find(["fornecedor", "supplier", "vendor"]);
+  map.idxTotal = find(["total", "valor total", "total geral"]);
+  map.idxValorFornecedor = find([
+    "valor do fornecedor",
+    "valor fornecedor",
+    "custo fornecedor",
+    "fornecedor valor",
+    "custo",
+  ]);
+  map.idxHonorario = find(["honorario", "honorário"]);
+  map.idxHonorarioAgencia = find(["honorario agencia", "honorário agencia", "honorario da agencia"]);
+
+  // referência temporal
+  map.idxRef = find(["ref_month", "ref", "competencia", "competência", "periodo", "período", "mes/ano", "mes-ano"]);
+  map.idxMes = find(["mes", "mês", "month"]);
+  map.idxAno = find(["ano", "year"]);
+
+  return map;
+}
+
+function assembleYM(row: string[], map: DetectedMapping): string | null {
+  if (map.idxRef !== undefined) {
+    const ymText = row[map.idxRef] ?? "";
+    const ymd = asYMFromText(ymText);
+    if (ymd) return ymd;
+  }
+  if (map.idxMes !== undefined && map.idxAno !== undefined) {
+    const mesRaw = normalize(row[map.idxMes] ?? "");
+    const anoRaw = row[map.idxAno] ?? "";
+    let m = Number(mesRaw);
+    if (!m || m < 1 || m > 12) {
+      // tentar por nome
+      m = PT_MONTHS[mesRaw] || 0;
+    }
+    const y = Number(anoRaw);
+    if (m >= 1 && m <= 12 && y >= 2000) {
+      return `${y}-${String(m).padStart(2, "0")}`;
+    }
+  }
+  // checar se tem alguma célula com data
+  for (const cell of row) {
+    const ymd = asYMFromText(cell ?? "");
+    if (ymd) return ymd;
+  }
+  return null;
+}
+
+function rowsToEvents(rows: string[][], map: DetectedMapping, fallbackYM: string | null) {
+  const events: Event[] = [];
+  let ymDetected: string | null = null;
+  for (const row of rows) {
+    if (row.every((c) => !c || !String(c).trim())) continue;
+
+    const cliente = (map.idxCliente !== undefined ? row[map.idxCliente] : "") || null;
+    const fornecedor = (map.idxFornecedor !== undefined ? row[map.idxFornecedor] : "") || null;
+
+    const vFornecedor = parseCurrencyBrOrEn(
+      map.idxValorFornecedor !== undefined ? row[map.idxValorFornecedor] : undefined,
+    );
+
+    let total = parseCurrencyBrOrEn(map.idxTotal !== undefined ? row[map.idxTotal] : undefined);
+
+    if (!total) {
+      const hon = parseCurrencyBrOrEn(map.idxHonorario !== undefined ? row[map.idxHonorario] : undefined);
+      const honAg = parseCurrencyBrOrEn(
+        map.idxHonorarioAgencia !== undefined ? row[map.idxHonorarioAgencia] : undefined,
+      );
+      total = vFornecedor + hon + honAg;
+    }
+
+    let thisYM = assembleYM(row, map) || fallbackYM;
+    if (!ymDetected && thisYM) ymDetected = thisYM;
+
+    if (!thisYM) {
+      // sem mês válido, descarta linha
+      continue;
+    }
+
+    events.push({
+      cliente,
+      fornecedor,
+      ref_month: `${thisYM}-01`,
+      total_cents: Math.round((total || 0) * 100),
+      valor_fornecedor_cents: Math.round((vFornecedor || 0) * 100),
+    });
+  }
+  return { events, ymDetected };
+}
+
+/* ============================= */
+/* ========== PAGE ============= */
+/* ============================= */
+
 export default function Finance() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const canEdit = canEditFinance(user?.email);
 
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Novo: seleção de mês e comparação
+  // seleção e comparação
   const [selectDialogOpen, setSelectDialogOpen] = useState<boolean>(false);
   const [selectedYM, setSelectedYM] = useState<string | null>(null);
   const [compareYM, setCompareYM] = useState<string | null>(null);
+
+  // paste dialog
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pastePreview, setPastePreview] = useState<{
+    mapping: DetectedMapping | null;
+    ym: string | null;
+    rowsCount: number;
+    totalSum: number;
+    fornecedorSum: number;
+  } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
   const maxYM = nowYM();
@@ -159,7 +383,6 @@ export default function Finance() {
   }, []);
 
   useEffect(() => {
-    // Ao entrar, força escolha do mês/ano, caso ainda não haja seleção
     if (!selectedYM) {
       setSelectDialogOpen(true);
     }
@@ -182,7 +405,7 @@ export default function Finance() {
     }
   }
 
-  // Filtragem por mês selecionado / mês de comparação
+  // filtragem por mês
   const curRows = useMemo(
     () => (selectedYM ? allEvents.filter((r) => ym(r.ref_month) === selectedYM) : []),
     [allEvents, selectedYM],
@@ -205,22 +428,17 @@ export default function Finance() {
     return allEvents.filter((r) => ym(r.ref_month) === prevYM);
   }, [allEvents, compareYM]);
 
-  // KPIs (modo simples: compara com mês anterior; modo comparação: cada lado mostra seu “vs mês anterior”)
   const kpisSelected = useMemo<KPIs>(() => computeKPIs(curRows, prevForSelectedRows), [curRows, prevForSelectedRows]);
-
   const kpisCompare = useMemo<KPIs>(
     () => computeKPIs(compareRows, prevForCompareRows),
     [compareRows, prevForCompareRows],
   );
 
-  // Summaries por mês
   const topClientsSelected = useMemo(() => summarizeClients(curRows), [curRows]);
   const topSuppliersSelected = useMemo(() => summarizeSuppliers(curRows), [curRows]);
-
   const topClientsCompare = useMemo(() => summarizeClients(compareRows), [compareRows]);
   const topSuppliersCompare = useMemo(() => summarizeSuppliers(compareRows), [compareRows]);
 
-  // CSV (exporta SOMENTE o mês atual selecionado; mais útil na prática)
   function handleExportCSV() {
     if (!selectedYM) return;
     const header = ["ref_month", "cliente", "fornecedor", "total", "valor_fornecedor"].join(",");
@@ -244,6 +462,136 @@ export default function Finance() {
   }
 
   const comparisonActive = !!compareYM;
+
+  /* ===== Paste handling ===== */
+  function handlePasteAnalyze() {
+    const text = pasteText.trim();
+    if (!text) {
+      setPastePreview(null);
+      return;
+    }
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) {
+      setPastePreview(null);
+      return;
+    }
+    const delim = guessDelimiter(lines);
+    const headerCells = lines[0].split(delim).map((c) => c.trim());
+    const mapping = detectMapping(headerCells);
+
+    const body = lines.slice(1).map((l) => l.split(delim));
+    // tentar detectar YM por linha; se vários, pegar o mais frequente
+    const ymCount: Record<string, number> = {};
+    for (const row of body) {
+      const ymMaybe = assembleYM(row, mapping);
+      if (ymMaybe) ymCount[ymMaybe] = (ymCount[ymMaybe] ?? 0) + 1;
+    }
+    let detectedYM: string | null = null;
+    let maxC = 0;
+    for (const k of Object.keys(ymCount)) {
+      if (ymCount[k] > maxC) {
+        maxC = ymCount[k];
+        detectedYM = k;
+      }
+    }
+
+    const { events } = rowsToEvents(body, mapping, detectedYM);
+
+    // agregados
+    const rowsCount = events.length;
+    const totalSum = events.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100;
+    const fornecedorSum = events.reduce((a, e) => a + (e.valor_fornecedor_cents ?? 0), 0) / 100;
+
+    const ymFinal = detectedYM;
+    setPastePreview({
+      mapping,
+      ym: ymFinal,
+      rowsCount,
+      totalSum,
+      fornecedorSum,
+    });
+  }
+
+  async function handlePasteConfirm() {
+    if (!pastePreview || !pastePreview.mapping) return;
+
+    let ymImport = pastePreview.ym;
+    if (!ymImport) {
+      toast({
+        title: "Mês/ano não detectado",
+        description:
+          "Não consegui identificar o mês/ano da tabela. Escolha o mês na barra superior e tente novamente, ou inclua uma coluna de competência.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!betweenInclusive(ymImport, MIN_YM, nowYM())) {
+      toast({
+        title: "Período bloqueado",
+        description: `Somente meses a partir de ${toPTMonthLabel(MIN_YM)} são aceitos.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Reparse completo para garantir consistência
+    const lines = pasteText
+      .trim()
+      .split(/\r?\n/)
+      .filter((l) => l.trim().length > 0);
+    const delim = guessDelimiter(lines);
+    const headerCells = lines[0].split(delim).map((c) => c.trim());
+    const mapping = detectMapping(headerCells);
+    const body = lines.slice(1).map((l) => l.split(delim));
+    const { events } = rowsToEvents(body, mapping, ymImport);
+
+    if (events.length === 0) {
+      toast({
+        title: "Nada para importar",
+        description: "Não identifiquei linhas válidas após a análise.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Confirmação destrutiva: sobrescrever mês
+    const ok = window.confirm(
+      `Isso vai apagar ${toPTMonthLabel(ymImport)} e inserir ${events.length} itens.\n` +
+        `Receita total: ${formatBRL(events.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100)}\n` +
+        `Fornecedor: ${formatBRL(events.reduce((a, e) => a + (e.valor_fornecedor_cents ?? 0), 0) / 100)}\n\n` +
+        `Deseja continuar?`,
+    );
+    if (!ok) return;
+
+    try {
+      // Apagar mês
+      const del = await supabase.from("finance_events").delete().like("ref_month", `${ymImport}%`);
+      if (del.error) throw del.error;
+
+      // Inserir
+      const ins = await supabase.from("finance_events").insert(events);
+      if (ins.error) throw ins.error;
+
+      toast({
+        title: "Importação concluída",
+        description: `Substituí ${toPTMonthLabel(ymImport)} com ${events.length} itens.`,
+      });
+
+      setPasteOpen(false);
+      setPasteText("");
+      setPastePreview(null);
+      setSelectedYM(ymImport);
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      toast({
+        title: "Erro ao importar",
+        description: e?.message ?? "Falha desconhecida ao gravar no banco.",
+        variant: "destructive",
+      });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -273,7 +621,6 @@ export default function Finance() {
                 className="gap-2"
                 disabled={!selectedYM}
                 onClick={() => {
-                  // Ativa diálogo reutilizando o mesmo seletor, mas agora para comparação
                   setCompareYM(null);
                   setSelectDialogOpen(true);
                 }}
@@ -293,8 +640,19 @@ export default function Finance() {
               Exportar CSV (mês atual)
             </Button>
 
-            {/* Ferramentas de edição */}
-            <FinancialEditActions canEdit={canEdit} onImportOpen={() => setShowImportModal(true)} onSync={loadData} />
+            {canEdit && (
+              <>
+                <Button variant="default" className="gap-2" onClick={() => setPasteOpen(true)}>
+                  <ClipboardPaste className="h-4 w-4" />
+                  Zerar e colar do Excel
+                </Button>
+                <FinancialEditActions
+                  canEdit={canEdit}
+                  onImportOpen={() => setShowImportModal(true)}
+                  onSync={loadData}
+                />
+              </>
+            )}
           </div>
         }
       />
@@ -314,7 +672,6 @@ export default function Finance() {
 
         {selectedYM && !comparisonActive && (
           <>
-            {/* KPIs - Modo simples */}
             <KPICards
               receita={kpisSelected.receita}
               despesa={kpisSelected.despesa}
@@ -324,7 +681,6 @@ export default function Finance() {
               varDespesaPct={kpisSelected.varDespesaPct}
             />
 
-            {/* Aviso de permissão */}
             {!canEdit && (
               <Card className="mb-6 border-amber-200 bg-amber-50">
                 <CardContent className="pt-6">
@@ -335,7 +691,6 @@ export default function Finance() {
               </Card>
             )}
 
-            {/* Top Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <TopClientsCard clients={topClientsSelected} loading={loading} />
               <TopSuppliersCard suppliers={topSuppliersSelected} loading={loading} />
@@ -345,7 +700,6 @@ export default function Finance() {
 
         {selectedYM && comparisonActive && (
           <>
-            {/* Grid de comparação lado a lado */}
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6 mb-6">
               <div>
                 <Card className="mb-4">
@@ -396,7 +750,6 @@ export default function Finance() {
               </div>
             </div>
 
-            {/* Cartão de Diferenças */}
             <Card className="border-indigo-200 bg-indigo-50/40">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-indigo-900">
@@ -421,7 +774,7 @@ export default function Finance() {
 
       <ImportSpreadsheetModal open={showImportModal} onOpenChange={setShowImportModal} onImportComplete={loadData} />
 
-      {/* Dialog Seleção de Mês / Comparação (reutilizável) */}
+      {/* Diálogo de seleção de mês / comparação */}
       <MonthSelectDialog
         open={selectDialogOpen}
         onOpenChange={(o) => setSelectDialogOpen(o)}
@@ -433,16 +786,10 @@ export default function Finance() {
         helper="Apenas meses a partir de ago/2025 estão disponíveis."
         onConfirm={(value) => {
           if (!value) return;
-
-          // Decisão: se ainda não há mês principal, define-o.
-          // Caso já exista mês principal e NÃO há compare ativo, define comparação.
-          // Se já existe comparação, assume que o usuário quer trocar o mês principal.
           if (!selectedYM) {
             setSelectedYM(value);
           } else if (!compareYM) {
-            // Impede comparar com o mesmo mês
             if (value === selectedYM) {
-              // se o usuário escolheu o mesmo, apenas fecha sem setar comparação
               setCompareYM(null);
             } else {
               setCompareYM(value);
@@ -454,6 +801,130 @@ export default function Finance() {
         }}
         exclude={selectedYM ? [selectedYM] : []}
       />
+
+      {/* Diálogo de "Zerar e colar do Excel" */}
+      <Dialog
+        open={pasteOpen}
+        onOpenChange={(o) => {
+          setPasteOpen(o);
+          if (!o) {
+            setPastePreview(null);
+            setPasteText("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">Zerar mês e colar a tabela do Excel</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Cole aqui a tabela copiada do Excel/Sheets (aceita tabulação, “;”, “,” ou “|”). O sistema tenta detectar
+              as colunas e o mês/ano automaticamente. Antes de gravar, você confirma.
+            </p>
+
+            <Textarea
+              className="h-56"
+              placeholder={`Exemplo de cabeçalhos aceitos: CLIENTE\tFORNECEDOR\tTOTAL\tVALOR DO FORNECEDOR\tCOMPETÊNCIA\n...`}
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              onBlur={handlePasteAnalyze}
+            />
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="gap-2" onClick={handlePasteAnalyze}>
+                <CalendarSearch className="h-4 w-4" />
+                Analisar formatação
+              </Button>
+              <Button
+                variant="ghost"
+                className="gap-2"
+                onClick={() => {
+                  setPasteText("");
+                  setPastePreview(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Limpar
+              </Button>
+            </div>
+
+            {pastePreview && (
+              <Card className="border-slate-200 bg-slate-50/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Pré-visualização detectada</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                      <span className="text-muted-foreground">Mês/Ano:</span>{" "}
+                      <span
+                        className={
+                          pastePreview.ym && betweenInclusive(pastePreview.ym, MIN_YM, nowYM())
+                            ? "text-emerald-700"
+                            : "text-rose-700"
+                        }
+                      >
+                        {pastePreview.ym ? toPTMonthLabel(pastePreview.ym) : "não identificado"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Linhas válidas:</span> {pastePreview.rowsCount}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Receita (soma):</span> {formatBRL(pastePreview.totalSum)}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Fornecedor (soma):</span>{" "}
+                      {formatBRL(pastePreview.fornecedorSum)}
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Mapeamento:
+                    <ul className="list-disc ml-5 mt-1 space-y-1">
+                      <li>
+                        Cliente → {pastePreview.mapping?.idxCliente !== undefined ? "detectado" : "não encontrado"}
+                      </li>
+                      <li>
+                        Fornecedor →{" "}
+                        {pastePreview.mapping?.idxFornecedor !== undefined ? "detectado" : "não encontrado"}
+                      </li>
+                      <li>
+                        Total →{" "}
+                        {pastePreview.mapping?.idxTotal !== undefined
+                          ? "detectado"
+                          : "tentarei somar honorários + fornecedor"}
+                      </li>
+                      <li>
+                        Valor do fornecedor →{" "}
+                        {pastePreview.mapping?.idxValorFornecedor !== undefined ? "detectado" : "não encontrado"}
+                      </li>
+                      <li>
+                        Competência/Mês →{" "}
+                        {pastePreview.mapping?.idxRef !== undefined ||
+                        (pastePreview.mapping?.idxMes !== undefined && pastePreview.mapping?.idxAno !== undefined)
+                          ? "detectado"
+                          : "não encontrado"}
+                      </li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPasteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handlePasteConfirm} disabled={!pastePreview || !pastePreview.rowsCount}>
+              Confirmar e substituir mês
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -621,7 +1092,7 @@ function FinancialEditActions({
     <>
       <Button variant="outline" className="gap-2" onClick={onImportOpen}>
         <FileSpreadsheet className="h-4 w-4" />
-        Importar/Colar Planilha
+        Importar/Colar Planilha (arquivo)
       </Button>
       <GoogleSheetsSync onSyncComplete={onSync} />
       <ExcelImportDialog onImportComplete={onSync} />
