@@ -150,7 +150,7 @@ function splitIntoRecords(text: string): string[] {
     const hasCurrency = CURRENCY_RE.test(accum);
 
     // Heurística de término de registro:
-    // precisa ter ao menos 2 colunas e conter algum valor em R$.
+    // precisa ter ao menos 2 colunas (cliente + algo) e conter algum valor em R$.
     if (hasCurrency && tabCount >= 2) {
       records.push(accum);
       buf = "";
@@ -160,56 +160,6 @@ function splitIntoRecords(text: string): string[] {
   }
   if (buf.trim().length > 0) records.push(buf);
   return records;
-}
-
-/** Converte records tabulados em eventos (cliente, total).
- * total = último valor monetário da linha; mês/ano = fallbackSelectedYM (ou detectado no texto). */
-function recordsToEvents(
-  records: string[],
-  fallbackSelectedYM: string | null,
-): { events: EventRevenue[]; ymDetected: string | null } {
-  const events: EventRevenue[] = [];
-  let ymDetected: string | null = null;
-
-  for (const rec of records) {
-    const cells = rec
-      .split(/\t+/)
-      .map((c) => c.trim())
-      .filter((c) => c.length > 0);
-    if (cells.length < 2) continue;
-
-    const cliente = (cells[0] ?? "") || null;
-
-    // total: procura do fim pro começo o último token com R$
-    let total: number | null = null;
-    for (let i = cells.length - 1; i >= 0; i--) {
-      const cell = cells[i];
-      if (CURRENCY_RE.test(cell)) {
-        const n = parseCurrencyBrOrEn(cell);
-        if (!isNaN(n)) {
-          total = n;
-          break;
-        }
-      }
-    }
-    if (total === null) continue;
-
-    // tenta achar um mês/ano em qualquer célula (YYYY-MM, MM/YYYY, nome do mês + ano)
-    if (!ymDetected) {
-      const guess = guessYMFromCells(cells);
-      if (guess) ymDetected = guess;
-    }
-
-    const ymFinal = storeRefMonth(ymDetected || fallbackSelectedYM || "");
-    if (!ymFinal) continue;
-
-    events.push({
-      cliente,
-      ref_month: ymFinal,
-      total_cents: Math.round(total * 100),
-    });
-  }
-  return { events, ymDetected };
 }
 
 /** Detecta YM no conteúdo das células (YYYY-MM, MM/YYYY, nomes PT). */
@@ -241,8 +191,7 @@ function guessYMFromCells(cells: string[]): string | null {
     dez: 12,
     dezembro: 12,
   };
-  const cellText = cells.join(" ");
-  const t = normalize(cellText);
+  const t = normalize(cells.join(" "));
 
   const m1 = t.match(/\b(20\d{2})[-/](0?[1-9]|1[0-2])\b/);
   if (m1) return `${m1[1]}-${String(Number(m1[2])).padStart(2, "0")}`;
@@ -253,12 +202,63 @@ function guessYMFromCells(cells: string[]): string | null {
   const m3 = t.match(/\b(0?[1-9]|[12]\d|3[01])[-/](0?[1-9]|1[0-2])[-/](20\d{2})\b/);
   if (m3) return `${m3[3]}-${String(Number(m3[2])).padStart(2, "0")}`;
 
-  for (const k of Object.keys(PT_MONTHS)) {
+  for (const [k, v] of Object.entries(PT_MONTHS)) {
     const re = new RegExp(`\\b${k}\\b[^\\d]*\\b(20\\d{2})\\b`, "i");
     const m = t.match(re);
-    if (m) return `${m[1]}-${String(PT_MONTHS[k]).padStart(2, "0")}`;
+    if (m) return `${m[1]}-${String(v).padStart(2, "0")}`;
   }
   return null;
+}
+
+/** Converte records tabulados em eventos (cliente, total).
+ * total = último valor monetário da linha;
+ * mês/ano = fallbackSelectedYM (ou detectado no texto). */
+function recordsToEvents(
+  records: string[],
+  fallbackSelectedYM: string | null,
+): { events: EventRevenue[]; ymDetected: string | null } {
+  const events: EventRevenue[] = [];
+  let ymDetected: string | null = null;
+
+  for (const rec of records) {
+    const cells = rec
+      .split(/\t+/)
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0);
+    if (cells.length < 2) continue;
+
+    const cliente = (cells[0] ?? "") || null;
+
+    // total: procura do fim pro começo o último token com R$
+    let total: number | null = null;
+    for (let i = cells.length - 1; i >= 0; i--) {
+      const cell = cells[i];
+      if (CURRENCY_RE.test(cell)) {
+        const n = parseCurrencyBrOrEn(cell);
+        if (!isNaN(n)) {
+          total = n;
+          break;
+        }
+      }
+    }
+    if (total === null) continue;
+
+    // tenta achar um mês/ano em qualquer célula
+    if (!ymDetected) {
+      const guess = guessYMFromCells(cells);
+      if (guess) ymDetected = guess;
+    }
+
+    const ymFinal = storeRefMonth(ymDetected || fallbackSelectedYM || "");
+    if (!ymFinal) continue;
+
+    events.push({
+      cliente,
+      ref_month: ymFinal,
+      total_cents: Math.round(total * 100),
+    });
+  }
+  return { events, ymDetected };
 }
 
 /* deduplicação por cliente + mês + total */
@@ -369,14 +369,12 @@ export default function Finance() {
       return;
     }
 
-    // 1) separamos registros robustamente
     const records = splitIntoRecords(text);
     if (records.length === 0) {
       setPastePreview(null);
       return;
     }
 
-    // 2) transformamos em eventos usando mês detectado OU o mês atualmente selecionado
     const { events, ymDetected } = recordsToEvents(records, selectedYM ?? null);
 
     const rowsCount = events.length;
@@ -419,12 +417,13 @@ export default function Finance() {
       return;
     }
 
-    // Dedup
-    const uniqueMap = new Map<string, EventRevenue>();
-    for (const e of events) uniqueMap.set(dedupKey(e), e);
-    let uniqueEvents = Array.from(uniqueMap.values());
-    // força ref_month = "YYYY-MM"
-    uniqueEvents = uniqueEvents.map((e) => ({ ...e, ref_month: storeRefMonth(ymImport!) }));
+    // Dedup e normalização do mês
+    const uniq = new Map<string, EventRevenue>();
+    for (const e of events) {
+      const key = [(e.cliente ?? "").trim().toUpperCase(), ym(e.ref_month), e.total_cents ?? 0].join("|");
+      uniq.set(key, e);
+    }
+    let uniqueEvents = Array.from(uniq.values()).map((e) => ({ ...e, ref_month: storeRefMonth(ymImport!) }));
 
     const ok = window.confirm(
       `Isso vai substituir ${toPTMonthLabel(ymImport)} por ${uniqueEvents.length} itens.\n` +
@@ -434,17 +433,26 @@ export default function Finance() {
     if (!ok) return;
 
     try {
-      // 1) Apaga por faixa (cobre coluna DATE)
+      // --- APAGA O MÊS SEM USAR LIKE ---
+      // 1) Apaga por faixa (cobre DATE e TEXT no formato YYYY-MM-DD)
       const start = `${ymImport}-01`;
       const end = `${nextYM(ymImport)}-01`;
       const delRange = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
       if (delRange.error) throw delRange.error;
 
-      // 2) Apaga por LIKE (cobre TEXT 'YYYY-MM' ou 'YYYY-MM-DD')
-      const delLike = await supabase.from("finance_events").delete().like("ref_month", `${ymImport}%`);
-      if (delLike.error) throw delLike.error;
+      // 2) Apaga por igualdade a 'YYYY-MM' (cobre quando ref_month é TEXT puro)
+      try {
+        const delEq = await supabase.from("finance_events").delete().eq("ref_month", ymImport);
+        if (delEq.error) {
+          const msg = String(delEq.error.message || "");
+          const isTypeErr = /invalid input syntax for type date|cannot cast|operator does not exist/i.test(msg);
+          if (!isTypeErr) throw delEq.error; // ignora erro se a coluna for DATE
+        }
+      } catch (_) {
+        /* ignore casting/type errors */
+      }
 
-      // 3) Insere (mês limpo, então sem conflito no índice)
+      // 3) Insere o faturamento do mês
       const ins = await supabase.from("finance_events").insert(uniqueEvents);
       if (ins.error) throw ins.error;
 
