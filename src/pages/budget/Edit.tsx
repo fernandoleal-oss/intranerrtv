@@ -38,14 +38,14 @@ function isUUID(v?: string) {
 }
 
 /**
- * Normaliza o payload do modelo novo (campanhas + quotes_*)
- * para o formato que o BudgetForm entende (categorias/fornecedores).
- * Não altera o objeto no banco; apenas adapta em memória.
+ * Normaliza payload do modelo novo (campanhas + quotes_*)
+ * para o formato de categorias/fornecedores que o BudgetForm entende.
+ * Não altera o objeto no banco; só adapta em memória.
  */
 function normalizePayloadForLegacyForm(payload: any) {
   if (!payload) return payload;
 
-  // Se já houver categorias (modelo antigo), retorna como está
+  // Se já houver categorias (modelo antigo) ou campanhas já com categorias, mantém
   if (Array.isArray(payload?.categorias) || payload?.campanhas?.[0]?.categorias) {
     return payload;
   }
@@ -110,7 +110,7 @@ function normalizePayloadForLegacyForm(payload: any) {
     };
   }
 
-  // Fallback: retorna como veio
+  // Fallback
   return payload;
 }
 
@@ -224,7 +224,6 @@ export default function BudgetEdit() {
   }, [id, fetchBudget]);
 
   const handleSaveClick = () => {
-    // Dispara um evento global para o BudgetForm salvar.
     if (data?.id) {
       window.dispatchEvent(
         new CustomEvent("budget:save", {
@@ -237,6 +236,9 @@ export default function BudgetEdit() {
       });
     }
   };
+
+  // ⚠️ HOOKS SEMPRE NO TOPO: calculamos o payload normalizado independentemente de loading/data
+  const normalizedPayload = useMemo(() => normalizePayloadForLegacyForm(data?.payload), [data?.payload]);
 
   if (loading) {
     return (
@@ -269,9 +271,6 @@ export default function BudgetEdit() {
       </div>
     );
   }
-
-  // Normaliza o payload para o formato esperado pelo BudgetForm (categorias/fornecedores)
-  const normalizedPayload = useMemo(() => normalizePayloadForLegacyForm(data.payload), [data.payload]);
 
   return (
     <BudgetProvider>
@@ -338,7 +337,7 @@ export default function BudgetEdit() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.06 }}
           >
-            <BudgetForm budgetId={data.id} versionId={data.version_id} initialPayload={normalizedPayload} />
+            <BudgetForm budgetId={data.id} versionId={data.version_id} initialPayload={normalizedPayload ?? {}} />
           </motion.div>
         </div>
       </div>
