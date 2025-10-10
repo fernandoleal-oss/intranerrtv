@@ -37,81 +37,21 @@ function isUUID(v?: string) {
   return !!v?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 }
 
-/**
- * Normaliza payload do modelo novo (campanhas + quotes_*)
- * para o formato de categorias/fornecedores que o BudgetForm entende.
- * Não altera o objeto no banco; só adapta em memória.
- */
-function normalizePayloadForLegacyForm(payload: any) {
-  if (!payload) return payload;
-
-  // Se já houver categorias (modelo antigo) ou campanhas já com categorias, mantém
-  if (Array.isArray(payload?.categorias) || payload?.campanhas?.[0]?.categorias) {
-    return payload;
+// checksum baratinho pra usar em "key"
+function checksum(obj: any) {
+  try {
+    const s = JSON.stringify(obj ?? {});
+    let h = 0,
+      i = 0,
+      len = s.length;
+    while (i < len) {
+      h = (h << 5) - h + s.charCodeAt(i++) /*|0*/;
+      h |= 0;
+    }
+    return String(h);
+  } catch {
+    return "0";
   }
-
-  // Modelo novo: campanhas com quotes_film / quotes_audio
-  if (Array.isArray(payload?.campanhas)) {
-    const categoriasFromCampanhas = payload.campanhas.flatMap((c: any) => {
-      const catFilme =
-        (c.quotes_film || []).length > 0
-          ? [
-              {
-                nome: `Produção de Filme — ${c.nome || ""}`.trim(),
-                modoPreco: "fechado",
-                fornecedores: (c.quotes_film || []).map((q: any) => ({
-                  id: q.id,
-                  nome: q.produtora || "Fornecedor",
-                  diretor: q.diretor,
-                  tratamento: q.tratamento,
-                  escopo: q.escopo,
-                  valor: q.valor,
-                  desconto: q.desconto,
-                  tem_opcoes: !!q.tem_opcoes && Array.isArray(q.opcoes) && q.opcoes.length > 0,
-                  opcoes: (q.opcoes || []).map((op: any) => ({
-                    id: op.id,
-                    nome: op.nome,
-                    escopo: op.escopo,
-                    valor: op.valor,
-                    desconto: op.desconto,
-                  })),
-                })),
-                visivel: true,
-              },
-            ]
-          : [];
-
-      const catAudio =
-        c.inclui_audio && (c.quotes_audio || []).length > 0
-          ? [
-              {
-                nome: `Áudio — ${c.nome || ""}`.trim(),
-                modoPreco: "fechado",
-                fornecedores: (c.quotes_audio || []).map((q: any) => ({
-                  id: q.id,
-                  nome: q.produtora || "Produtora de Áudio",
-                  escopo: q.descricao,
-                  valor: q.valor,
-                  desconto: q.desconto,
-                  tem_opcoes: false,
-                  opcoes: [],
-                })),
-                visivel: true,
-              },
-            ]
-          : [];
-
-      return [...catFilme, ...catAudio];
-    });
-
-    return {
-      ...payload,
-      categorias: categoriasFromCampanhas,
-    };
-  }
-
-  // Fallback
-  return payload;
 }
 
 export default function BudgetEdit() {
@@ -145,6 +85,7 @@ export default function BudgetEdit() {
       payload: row.payload || {},
       version_id: row.id,
     };
+    // OBS: se o seu BudgetForm exige outro formato, adapte aqui.
   };
 
   const fetchBudget = useCallback(
@@ -237,8 +178,8 @@ export default function BudgetEdit() {
     }
   };
 
-  // ⚠️ HOOKS SEMPRE NO TOPO: calculamos o payload normalizado independentemente de loading/data
-  const normalizedPayload = useMemo(() => normalizePayloadForLegacyForm(data?.payload), [data?.payload]);
+  // ✅ chave que força o remount do BudgetForm quando o payload/versão mudarem
+  const formKey = useMemo(() => (data ? `${data.version_id}:${checksum(data.payload)}` : "initial"), [data]);
 
   if (loading) {
     return (
@@ -332,12 +273,17 @@ export default function BudgetEdit() {
 
           {/* Form Content */}
           <motion.div
-            key={data.version_id} // garante re-render ao trocar versão
+            key={data.version_id} // re-render de animação quando muda versão
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.06 }}
           >
-            <BudgetForm budgetId={data.id} versionId={data.version_id} initialPayload={normalizedPayload ?? {}} />
+            <BudgetForm
+              key={formKey} // 🔑 força remontagem ao chegar/alterar payload
+              budgetId={data.id}
+              versionId={data.version_id}
+              initialPayload={data.payload || {}} // passa exatamente o que foi salvo
+            />
           </motion.div>
         </div>
       </div>
