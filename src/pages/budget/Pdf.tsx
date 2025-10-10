@@ -221,13 +221,44 @@ export default function BudgetPdf() {
 
   const getMaisBarato = (cat: any) => {
     const ordenados = ordenarFornecedores(cat.fornecedores);
-    return ordenados[0] || null;
+    if (!ordenados || ordenados.length === 0) return null;
+    
+    // Considerar opções múltiplas ao calcular o mais barato
+    let maisBarato = ordenados[0];
+    let menorValor = (maisBarato.valor || 0) - (maisBarato.desconto || 0);
+    
+    for (const f of ordenados) {
+      // Se tem opções, verificar a opção mais barata
+      if (f.tem_opcoes && f.opcoes && f.opcoes.length > 0) {
+        for (const opc of f.opcoes) {
+          const valorOpcao = (opc.valor || 0) - (opc.desconto || 0);
+          if (valorOpcao < menorValor) {
+            menorValor = valorOpcao;
+            maisBarato = { ...f, opcaoSelecionada: opc };
+          }
+        }
+      } else {
+        const valorF = (f.valor || 0) - (f.desconto || 0);
+        if (valorF < menorValor) {
+          menorValor = valorF;
+          maisBarato = f;
+        }
+      }
+    }
+    
+    return maisBarato;
   };
 
   const calcularSubtotal = (cat: any) => {
     if (cat.modoPreco === "fechado") {
       const maisBarato = getMaisBarato(cat);
       if (!maisBarato) return 0;
+      
+      // Se tem opção selecionada, usar o valor dela
+      if (maisBarato.opcaoSelecionada) {
+        return (maisBarato.opcaoSelecionada.valor || 0) - (maisBarato.opcaoSelecionada.desconto || 0);
+      }
+      
       return (maisBarato.valor || 0) - (maisBarato.desconto || 0);
     }
     return (cat.itens || []).reduce(
@@ -477,10 +508,49 @@ export default function BudgetPdf() {
                           </p>
                         )}
 
+                        {/* Itens itemizados */}
+                        {cat.modoPreco !== "fechado" && cat.itens?.length > 0 && (
+                          <div style={{ marginTop: "12px" }}>
+                            <table style={{ width: "100%", fontSize: "10px", borderCollapse: "collapse" }}>
+                              <thead>
+                                <tr style={{ backgroundColor: "#F0F0F0", borderBottom: "1px solid #D0D0D0" }}>
+                                  <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Item</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Qtd</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Valor Unit.</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Desconto</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cat.itens.map((item: any, iIdx: number) => {
+                                  const totalItem = (item.quantidade || 0) * (item.valorUnitario || 0) - (item.desconto || 0);
+                                  return (
+                                    <tr key={iIdx} style={{ borderBottom: "1px solid #E5E5E5" }}>
+                                      <td style={{ padding: "6px 8px" }}>{item.nome || "-"}</td>
+                                      <td style={{ padding: "6px 8px", textAlign: "center" }}>{item.quantidade || 0}</td>
+                                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                                        {formatCurrency(item.valorUnitario || 0)}
+                                      </td>
+                                      <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                                        {formatCurrency(item.desconto || 0)}
+                                      </td>
+                                      <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>
+                                        {formatCurrency(totalItem)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* Fornecedores (modo fechado) */}
                         {cat.modoPreco === "fechado" && cat.fornecedores?.length > 0 && (
                           <div className="space-y-3 mt-3">
                             {ordenarFornecedores(cat.fornecedores).map((f: any, fIdx: number) => {
-                              const isMaisBarato = maisBarato === f || maisBarato?.id === f.id;
+                              const isMaisBarato = maisBarato === f || maisBarato?.id === f.id || 
+                                (maisBarato?.opcaoSelecionada && maisBarato.id === f.id);
                               const valorFinal = (f.valor || 0) - (f.desconto || 0);
 
                               return (
@@ -540,6 +610,11 @@ export default function BudgetPdf() {
                                           })()}
                                         </div>
                                       )}
+                                      {f.tratamento && (
+                                        <p className="text-[10px] mt-1" style={{ color: "#666666" }}>
+                                          <span className="font-semibold">Tratamento:</span> {f.tratamento}
+                                        </p>
+                                      )}
                                     </div>
                                     <div className="text-right flex-shrink-0">
                                       <span
@@ -548,8 +623,62 @@ export default function BudgetPdf() {
                                       >
                                         {formatCurrency(valorFinal)}
                                       </span>
+                                      {f.desconto > 0 && (
+                                        <p className="text-[9px] mt-1" style={{ color: "#666666" }}>
+                                          Desc: {formatCurrency(f.desconto)}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
+
+                                  {/* Opções múltiplas do fornecedor */}
+                                  {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
+                                    <div style={{ marginTop: "8px", paddingLeft: "12px" }}>
+                                      <p className="text-[10px] font-semibold mb-2" style={{ color: "#666666" }}>
+                                        Opções disponíveis:
+                                      </p>
+                                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                        {f.opcoes.map((opc: any, opcIdx: number) => {
+                                          const valorOpcao = (opc.valor || 0) - (opc.desconto || 0);
+                                          return (
+                                            <div
+                                              key={opcIdx}
+                                              style={{
+                                                padding: "6px 10px",
+                                                backgroundColor: "#F9F9F9",
+                                                border: "1px solid #E5E5E5",
+                                                borderRadius: "6px",
+                                                fontSize: "10px",
+                                              }}
+                                            >
+                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                                                <div style={{ flex: 1 }}>
+                                                  <p style={{ fontWeight: "600", marginBottom: "2px", color: "#000000" }}>
+                                                    {opc.nome || `Opção ${opcIdx + 1}`}
+                                                  </p>
+                                                  {opc.escopo && (
+                                                    <p style={{ fontSize: "9px", color: "#555555", marginTop: "2px" }}>
+                                                      {opc.escopo}
+                                                    </p>
+                                                  )}
+                                                </div>
+                                                <div style={{ textAlign: "right", marginLeft: "8px" }}>
+                                                  <p style={{ fontWeight: "700", color: "#000000" }}>
+                                                    {formatCurrency(valorOpcao)}
+                                                  </p>
+                                                  {opc.desconto > 0 && (
+                                                    <p style={{ fontSize: "8px", color: "#666666" }}>
+                                                      Desc: {formatCurrency(opc.desconto)}
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
