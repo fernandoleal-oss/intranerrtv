@@ -289,6 +289,78 @@ export default function BudgetEdit() {
             <BudgetForm
               budgetId={data.id}
               versionId={data.version_id}
+              // ... imports e código existentes
+
+function normalizePayloadForLegacyForm(payload: any) {
+  // Se já tem categorias, mantém
+  if (Array.isArray(payload?.categorias) || payload?.campanhas?.[0]?.categorias) return payload;
+
+  // Se veio no novo modelo, injeta categorias derivadas de quotes_film/quotes_audio
+  if (Array.isArray(payload?.campanhas)) {
+    const categoriasFromCampanhas = payload.campanhas.flatMap((c: any) => {
+      const catFilme =
+        (c.quotes_film || []).length > 0
+          ? [{
+              nome: `Produção de Filme — ${c.nome || ""}`.trim(),
+              modoPreco: "fechado",
+              fornecedores: (c.quotes_film || []).map((q: any) => ({
+                id: q.id,
+                nome: q.produtora || "Fornecedor",
+                diretor: q.diretor,
+                tratamento: q.tratamento,
+                escopo: q.escopo,
+                valor: q.valor,
+                desconto: q.desconto,
+                tem_opcoes: !!q.tem_opcoes && Array.isArray(q.opcoes) && q.opcoes.length > 0,
+                opcoes: (q.opcoes || []).map((op: any) => ({
+                  id: op.id,
+                  nome: op.nome,
+                  escopo: op.escopo,
+                  valor: op.valor,
+                  desconto: op.desconto,
+                })),
+              })),
+              visivel: true,
+            }]
+          : [];
+
+      const catAudio =
+        c.inclui_audio && (c.quotes_audio || []).length > 0
+          ? [{
+              nome: `Áudio — ${c.nome || ""}`.trim(),
+              modoPreco: "fechado",
+              fornecedores: (c.quotes_audio || []).map((q: any) => ({
+                id: q.id,
+                nome: q.produtora || "Produtora de Áudio",
+                escopo: q.descricao,
+                valor: q.valor,
+                desconto: q.desconto,
+                tem_opcoes: false,
+                opcoes: [],
+              })),
+              visivel: true,
+            }]
+          : [];
+
+      return [...catFilme, ...catAudio];
+    });
+
+    return {
+      ...payload,
+      categorias: categoriasFromCampanhas,
+    };
+  }
+
+  return payload;
+}
+
+// ... dentro do componente BudgetEdit, lá no return, onde renderiza <BudgetForm ... />
+<BudgetForm
+  budgetId={data.id}
+  versionId={data.version_id}
+  initialPayload={normalizePayloadForLegacyForm(data.payload)}
+/>
+
               initialPayload={data.payload}
             />
           </motion.div>
