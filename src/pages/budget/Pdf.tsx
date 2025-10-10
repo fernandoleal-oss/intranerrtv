@@ -8,7 +8,9 @@ import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import logoWE from "@/assets/LOGO-WE-2.png";
+
+// Import de asset robusto para Vite (evita quebra em algumas CDNs)
+const logoWE = new URL("@/assets/LOGO-WE-2.png", import.meta.url).href;
 
 interface BudgetData {
   id: string;
@@ -282,8 +284,7 @@ export default function BudgetPdf() {
         : toNum(escolhido.valor) - toNum(escolhido.desconto);
     }
     return (cat.itens || []).reduce(
-      (sum: number, item: any) =>
-        sum + toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto),
+      (sum: number, item: any) => sum + toNum(item.quantidade) * toNum(item.valorUnitario) - toNum(item.desconto),
       0,
     );
   };
@@ -404,7 +405,14 @@ export default function BudgetPdf() {
             style={{ borderBottom: "3px solid #E6191E" }}
           >
             <div className="flex-1">
-              <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
+              <img
+                src={logoWE}
+                alt="Logo WE"
+                style={{ height: "50px", marginBottom: "12px" }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
               <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666666" }}>
                 <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000000", marginBottom: "4px" }}>
                   WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
@@ -562,8 +570,12 @@ export default function BudgetPdf() {
                                 <tr style={{ backgroundColor: "#F0F0F0", borderBottom: "1px solid #D0D0D0" }}>
                                   <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: "600" }}>Item</th>
                                   <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: "600" }}>Qtd</th>
-                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Valor Unit.</th>
-                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Desconto</th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>
+                                    Valor Unit.
+                                  </th>
+                                  <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>
+                                    Desconto
+                                  </th>
                                   <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: "600" }}>Total</th>
                                 </tr>
                               </thead>
@@ -574,7 +586,9 @@ export default function BudgetPdf() {
                                   return (
                                     <tr key={iIdx} style={{ borderBottom: "1px solid #E5E5E5" }}>
                                       <td style={{ padding: "6px 8px" }}>{item.nome || "-"}</td>
-                                      <td style={{ padding: "6px 8px", textAlign: "center" }}>{toNum(item.quantidade) || 0}</td>
+                                      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                                        {toNum(item.quantidade) || 0}
+                                      </td>
                                       <td style={{ padding: "6px 8px", textAlign: "right" }}>
                                         {formatCurrency(toNum(item.valorUnitario) || 0)}
                                       </td>
@@ -599,12 +613,9 @@ export default function BudgetPdf() {
                               const isEscolhido = !!(escolhido && escolhido.id === f.id);
                               const isSelecionado = !!(escolhido?.selecionado && escolhido.id === f.id);
                               const precoMinDoFornecedor = precoMinFornecedor(f);
-                              const isMaisBaratoGlobal =
-                                Math.abs(precoMinDoFornecedor - globalMin) < 0.005; // tolerância
+                              const isMaisBaratoGlobal = Math.abs(precoMinDoFornecedor - globalMin) < 0.005; // tolerância
 
                               // Valor exibido no card:
-                              // - se for o escolhido e tiver opção selecionada, mostra a opção
-                              // - caso contrário, mostra o valor base do fornecedor
                               const valorBase = toNum(f.valor) - toNum(f.desconto);
                               const valorEscolhidoOpc =
                                 isEscolhido && escolhido?.opcaoSelecionada
@@ -740,7 +751,9 @@ export default function BudgetPdf() {
                                         {f.opcoes.map((opc: any, opcIdx: number) => {
                                           const valorOpcao = toNum(opc.valor) - toNum(opc.desconto);
                                           const isOpcSelecionada =
-                                            isSelecionado && !!escolhido?.opcaoSelecionada && escolhido.opcaoSelecionada === opc;
+                                            isSelecionado &&
+                                            !!escolhido?.opcaoSelecionada &&
+                                            escolhido.opcaoSelecionada === opc;
                                           return (
                                             <div
                                               key={opcIdx}
@@ -753,10 +766,16 @@ export default function BudgetPdf() {
                                               }}
                                             >
                                               <div
-                                                style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}
+                                                style={{
+                                                  display: "flex",
+                                                  justifyContent: "space-between",
+                                                  alignItems: "start",
+                                                }}
                                               >
                                                 <div style={{ flex: 1 }}>
-                                                  <p style={{ fontWeight: "600", marginBottom: "2px", color: "#000000" }}>
+                                                  <p
+                                                    style={{ fontWeight: "600", marginBottom: "2px", color: "#000000" }}
+                                                  >
                                                     {opc.nome || `Opção ${opcIdx + 1}`}
                                                   </p>
                                                   {opc.escopo && (
@@ -830,4 +849,81 @@ export default function BudgetPdf() {
             </div>
 
             <div
-              styl
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "10px",
+              }}
+            >
+              {totaisPorCampanha.map((c: any, idx: number) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: "#FFFFFF",
+                    border: "1px solid #E0E0E0",
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#333333" }}>{c.nome}</span>
+                  <span style={{ fontSize: "16px", fontWeight: 700, color: "#E6191E" }}>{formatCurrency(c.total)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Observações */}
+          {payload.observacoes && (
+            <div
+              className="avoid-break"
+              style={{
+                marginTop: "20px",
+                padding: "16px",
+                borderRadius: "8px",
+                backgroundColor: "#FAFAFA",
+                border: "1px solid #E0E0E0",
+                pageBreakInside: "avoid",
+              }}
+            >
+              <p style={{ fontSize: "13px", fontWeight: "bold", marginBottom: "8px", color: "#000000" }}>
+                Observações:
+              </p>
+              <p
+                style={{
+                  fontSize: "11px",
+                  lineHeight: "1.6",
+                  whiteSpace: "pre-wrap",
+                  color: "#555555",
+                }}
+              >
+                {payload.observacoes}
+              </p>
+            </div>
+          )}
+
+          {/* Rodapé LGPD */}
+          <div
+            className="avoid-break"
+            style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}
+          >
+            <p
+              style={{
+                fontSize: "9px",
+                textAlign: "center",
+                lineHeight: "1.6",
+                color: "#888888",
+              }}
+            >
+              Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. Conforme a Lei Geral de
+              Proteção de Dados (LGPD - Lei nº 13.709/2018), todas as informações contidas neste documento são tratadas
+              com segurança e privacidade.
+            </p>
+          </div>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
