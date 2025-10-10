@@ -124,7 +124,7 @@ export default function BudgetPdf() {
 
   // ===== NORMALIZAÇÃO (novo modelo -> categorias/fornecedores) =====
   const normalizeCampanhas = (payload: any): CampanhaPDF[] => {
-    // Caso 1: já veio no modelo antigo (categorias)
+    // Já no modelo antigo?
     if (Array.isArray(payload?.campanhas) && payload.campanhas[0]?.categorias) {
       return payload.campanhas as CampanhaPDF[];
     }
@@ -132,7 +132,7 @@ export default function BudgetPdf() {
       return [{ nome: payload?.nome || "Campanha Única", categorias: payload.categorias }];
     }
 
-    // Caso 2: novo modelo com quotes_film / quotes_audio
+    // Novo modelo: campanhas com quotes_film / quotes_audio
     if (Array.isArray(payload?.campanhas)) {
       return payload.campanhas.map((c: any) => {
         const catFilme: Categoria = {
@@ -183,7 +183,7 @@ export default function BudgetPdf() {
       });
     }
 
-    // Fallback (vazio)
+    // Fallback
     const categorias: Categoria[] = (payload?.categorias || []).map((x: any) => x);
     return [{ nome: "Campanha Única", categorias }];
   };
@@ -206,7 +206,6 @@ export default function BudgetPdf() {
 
   const getSelecionado = (cat: Categoria) => {
     for (const f of cat.fornecedores || []) {
-      // suporte a flags futuras
       if ((f as any)?.selecionado) {
         if (f.tem_opcoes && f.opcoes?.length) {
           const opSel = (f.opcoes as any[]).find((o) => (o as any)?.selecionada);
@@ -270,7 +269,7 @@ export default function BudgetPdf() {
       .filter((c: any) => (c.modoPreco === "fechado" ? c.fornecedores?.length > 0 : c.itens?.length > 0))
       .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
 
-  // ===== Hooks sempre antes dos returns =====
+  // ===== Hooks sempre no topo =====
   const payload = data?.payload || {};
   const campanhasPDF: CampanhaPDF[] = useMemo(() => normalizeCampanhas(payload), [JSON.stringify(payload)]);
 
@@ -371,7 +370,6 @@ export default function BudgetPdf() {
     }
   };
 
-  // ===== Early returns =====
   if (loading) {
     return (
       <AppLayout>
@@ -467,7 +465,14 @@ export default function BudgetPdf() {
               border: "1px solid #E0E0E0",
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px", fontSize: "13px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px",
+                fontSize: "13px",
+              }}
+            >
               <div>
                 <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: "600", color: "#666666" }}>Cliente</p>
                 <p style={{ fontWeight: "bold", color: "#000000" }}>{payload.cliente || "-"}</p>
@@ -750,12 +755,22 @@ export default function BudgetPdf() {
                                               >
                                                 <div style={{ flex: 1 }}>
                                                   <p
-                                                    style={{ fontWeight: "600", marginBottom: "2px", color: "#000000" }}
+                                                    style={{
+                                                      fontWeight: "600",
+                                                      marginBottom: "2px",
+                                                      color: "#000000",
+                                                    }}
                                                   >
                                                     {opc.nome || `Opção ${opcIdx + 1}`}
                                                   </p>
                                                   {opc.escopo && (
-                                                    <p style={{ fontSize: "9px", color: "#555555", marginTop: "2px" }}>
+                                                    <p
+                                                      style={{
+                                                        fontSize: "9px",
+                                                        color: "#555555",
+                                                        marginTop: "2px",
+                                                      }}
+                                                    >
                                                       {opc.escopo}
                                                     </p>
                                                   )}
@@ -823,7 +838,13 @@ export default function BudgetPdf() {
             <div style={{ marginBottom: "8px", fontWeight: 700, fontSize: "14px", color: "#000000" }}>
               Resumo por Campanha
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "10px",
+              }}
+            >
               {totaisPorCampanha.map((c: any, idx: number) => (
                 <div
                   key={idx}
@@ -849,7 +870,14 @@ export default function BudgetPdf() {
             className="avoid-break"
             style={{ marginTop: "24px", paddingTop: "16px", borderTop: "2px solid #E6191E" }}
           >
-            <p style={{ fontSize: "9px", textAlign: "center", lineHeight: "1.6", color: "#888888" }}>
+            <p
+              style={{
+                fontSize: "9px",
+                textAlign: "center",
+                lineHeight: "1.6",
+                color: "#888888",
+              }}
+            >
               Este orçamento é confidencial e destinado exclusivamente ao cliente mencionado. Conforme a Lei Geral de
               Proteção de Dados (LGPD - Lei nº 13.709/2018), todas as informações contidas neste documento são tratadas
               com segurança e privacidade.
