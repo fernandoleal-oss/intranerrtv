@@ -6,26 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink, ClipboardPaste, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// ===== Types =====
 type RightRow = {
   id?: string;
   client: string | null;
   product: string | null;
   title: string | null;
-  contract_signed_production: string | null; // ISO yyyy-mm-dd
+  contract_signed_production: string | null; // ISO
   first_air: string | null; // ISO
   expire_date: string | null; // ISO
   link_drive: string | null;
   status_label: string | null;
-  idempotent_key?: string; // para onConflict
+  idempotent_key?: string; // pode não existir no schema (fallback trata)
 };
 
 const TODAY = new Date();
 
+// ===== Utils =====
 function toISODate(d: Date | null) {
   if (!d || isNaN(d.getTime())) return null;
   const yyyy = d.getFullYear();
@@ -38,8 +39,7 @@ function addMonths(date: Date, months: number) {
   const d = new Date(date.getTime());
   const day = d.getDate();
   d.setMonth(d.getMonth() + months);
-  // Ajuste fim de mês
-  if (d.getDate() < day) d.setDate(0);
+  if (d.getDate() < day) d.setDate(0); // ajuste fim de mês
   return d;
 }
 
@@ -48,11 +48,12 @@ function parseBrDate(s?: string | null): Date | null {
   const cleaned = s
     .toString()
     .trim()
-    .replace(/[^\d\/\-]/g, ""); // remove "11h", etc.
+    .replace(/11h|12h|10h|9h|8h|7h|6h|5h|4h|3h|2h|1h/gi, "") // remove “11h” etc.
+    .replace(/[^\d\/\-]/g, "");
   if (!cleaned) return null;
 
-  // tenta ISO primeiro
-  if (/^\d{4}\-\d{2}\-\d{2}$/.test(cleaned)) {
+  // ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
     const d = new Date(cleaned + "T00:00:00");
     return isNaN(d.getTime()) ? null : d;
   }
@@ -87,17 +88,15 @@ function computeExpireDate(
 }
 
 function computeStatus(expireISO: string | null, firstAirISO: string | null, provided?: string | null): string | null {
-  // se veio na planilha, manter (ex: RENOVADO)
   if (provided && provided.trim()) return provided.trim().toUpperCase();
-
   if (!expireISO) return null;
+
   const exp = new Date(expireISO);
   const diffDays = Math.floor((exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) return "VENCIDO";
   if (diffDays <= 30) return "A VENCER (30d)";
 
-  // "EM USO" se já começou a veicular e ainda não venceu; senão "DENTRO DO PRAZO"
   if (firstAirISO) {
     const first = new Date(firstAirISO);
     if (!isNaN(first.getTime()) && first <= TODAY) return "EM USO";
@@ -107,11 +106,10 @@ function computeStatus(expireISO: string | null, firstAirISO: string | null, pro
 
 function mkIdemKey(client: string | null, product: string | null, title: string | null, ap?: string | null) {
   const norm = (v?: string | null) => (v || "").trim().toLowerCase().replace(/\s+/g, " ");
-  // usar AP se existir para diferenciar versões com mesmos nomes
   return [norm(client), norm(product), norm(title), norm(ap)].join("::");
 }
 
-function getStatusPillColor(status: string | null) {
+function pill(status: string | null) {
   if (!status) return "bg-gray-100 text-gray-700";
   const s = status.toLowerCase();
   if (s.includes("vencido")) return "bg-red-100 text-red-700";
@@ -121,6 +119,7 @@ function getStatusPillColor(status: string | null) {
   return "bg-gray-100 text-gray-700";
 }
 
+// ===== Página =====
 export default function Direitos() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -128,19 +127,20 @@ export default function Direitos() {
 
   const [rights, setRights] = useState<RightRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [sheetId, setSheetId] = useState("1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw");
 
-  // IMPORTAR VIA COLAR
+  const [sheetId, setSheetId] = useState("1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw");
+  const [syncing, setSyncing] = useState(false);
+
+  // import via colar
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [defaultClient, setDefaultClient] = useState("");
   const [importing, setImporting] = useState(false);
 
-  // FILTROS
+  // filtros
   const params = new URLSearchParams(location.search);
-  const urlClient = params.get("client") || "";
-  const [clientFilter, setClientFilter] = useState(urlClient);
+  const initialClient = params.get("client") || "";
+  const [clientFilter, setClientFilter] = useState(initialClient);
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DUE30" | "EXPIRED">("ALL");
 
   useEffect(() => {
@@ -148,24 +148,24 @@ export default function Direitos() {
   }, []);
 
   useEffect(() => {
-    if (urlClient) setClientFilter(urlClient);
-  }, [urlClient]);
+    if (initialClient) setClientFilter(initialClient);
+  }, [initialClient]);
 
-  const loadRights = async () => {
+  async function loadRights() {
     setLoading(true);
     try {
       const { data, error } = await supabase.from("rights").select("*").order("expire_date", { ascending: true });
       if (error) throw error;
       setRights((data as RightRow[]) || []);
-    } catch (error) {
-      console.error("Erro ao carregar direitos:", error);
+    } catch (e) {
+      console.error(e);
       toast({ title: "Erro ao carregar", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const syncFromSheets = async () => {
+  async function syncFromSheets() {
     if (!sheetId.trim()) {
       toast({ title: "Sheet ID obrigatório", variant: "destructive" });
       return;
@@ -178,22 +178,22 @@ export default function Direitos() {
       if (error) throw error;
       toast({
         title: "Sincronização concluída!",
-        description: `${data?.records || 0} registros sincronizados`,
+        description: `${data?.records || 0} registros sincronizados.`,
       });
       await loadRights();
-    } catch (error: any) {
-      console.error("Erro na sincronização:", error);
+    } catch (e: any) {
+      console.error(e);
       toast({
         title: "Erro ao sincronizar",
-        description: error?.message || "Erro desconhecido",
+        description: e?.message || "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
       setSyncing(false);
     }
-  };
+  }
 
-  const exportToCSV = () => {
+  function exportToCSV() {
     const headers = ["Cliente", "Produto", "Título", "Status", "Vencimento", "Primeira Veiculação", "Link"];
     const rows = rights.map((r) => [
       r.client || "",
@@ -211,9 +211,9 @@ export default function Direitos() {
     a.href = url;
     a.download = `direitos_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
-  };
+  }
 
-  // ======== PARSE + IMPORT POR COLAR ========
+  // ===== Parse da planilha colada =====
   type ParsedRow = {
     ap?: string | null;
     client?: string | null;
@@ -237,44 +237,97 @@ export default function Direitos() {
       .trim();
   }
 
+  function guessDelimiter(line: string): "tab" | "semicolon" | "comma" | "spaces" {
+    if (line.includes("\t")) return "tab";
+    if (line.includes(";")) return "semicolon";
+    if (line.includes(",")) return "comma";
+    return "spaces"; // 2+ spaces
+  }
+
+  function splitSmart(line: string, mode: ReturnType<typeof guessDelimiter>): string[] {
+    if (mode === "tab") return line.split("\t").map((s) => s.trim());
+    if (mode === "semicolon") return line.split(";").map((s) => s.trim());
+    if (mode === "comma") return line.split(",").map((s) => s.trim());
+    // fallback: 2+ spaces
+    return line.split(/\s{2,}/).map((s) => s.trim());
+  }
+
+  function lineLooksLikeHeader(cells: string[]) {
+    const joined = cells.join(" ").toLowerCase();
+    return [
+      "ap",
+      "cliente",
+      "produto",
+      "título",
+      "titulo",
+      "assinatura",
+      "elenco",
+      "produção",
+      "producao",
+      "primeira",
+      "veiculação",
+      "veiculacao",
+      "validade",
+      "expira",
+      "link",
+      "status",
+    ].some((k) => joined.includes(k));
+  }
+
   function parsePastedTable(raw: string): ParsedRow[] {
     const lines = raw
-      .split(/\r?\n/)
+      .replace(/\r/g, "")
+      .split("\n")
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
 
     if (!lines.length) return [];
 
-    // detecta delimitador: TAB preferencial; fallback ';' ou ','
-    const guessDelim = (line: string) => {
-      if (line.includes("\t")) return "\t";
-      if (line.includes(";")) return ";";
-      if (line.includes(",")) return ",";
-      return "\t";
-    };
-    const delim = guessDelim(lines[0]);
+    const mode = guessDelimiter(lines[0]);
+    let startIdx = 1;
+    let headerCells = splitSmart(lines[0], mode);
+    let headerIsReal = lineLooksLikeHeader(headerCells);
 
-    const headerCells = lines[0].split(delim).map((s) => s.trim());
+    // se a primeira linha NÃO parece cabeçalho, cria mapeamento posicional padrão
+    if (!headerIsReal) {
+      // padrão para: AP | PRODUTO | TITULO | ASS. ELENCO | ASS. PRODUÇÃO | PRIMEIRA VEIC. | VALIDADE | DATA EXPIRA | LINK | STATUS | (CLIENTE opcional)
+      headerCells = [
+        "AP",
+        "PRODUTO",
+        "TITULO",
+        "ASSINATURA CONTRATO ELENCO",
+        "ASSINATURA CONTRATO DE PRODUÇÃO",
+        "PRIMEIRA VEICULAÇÃO",
+        "VALIDADE",
+        "DATA QUE EXPIRA",
+        "LINK CÓPIA",
+        "STATUS",
+        "CLIENTE",
+      ];
+      startIdx = 0; // primeira linha já é dado
+    }
+
     const headerMap: Record<number, string> = {};
     headerCells.forEach((h, idx) => {
       const n = normalizeHeader(h);
-      if (n.includes("ap")) headerMap[idx] = "ap";
+      if (n === "ap") headerMap[idx] = "ap";
       else if (n.startsWith("cliente")) headerMap[idx] = "client";
       else if (n.startsWith("produto")) headerMap[idx] = "product";
-      else if (n.startsWith("titulo")) headerMap[idx] = "title";
+      else if (n.startsWith("titulo") || n.startsWith("título")) headerMap[idx] = "title";
       else if (n.includes("elenco")) headerMap[idx] = "assinatura_elenco";
       else if (n.includes("producao") || n.includes("produção")) headerMap[idx] = "assinatura_producao";
-      else if (n.includes("primeira") || n.includes("veiculacao")) headerMap[idx] = "primeira_veiculacao";
+      else if (n.includes("primeira") || n.includes("veiculacao") || n.includes("veiculação"))
+        headerMap[idx] = "primeira_veiculacao";
       else if (n.includes("validade")) headerMap[idx] = "validade";
       else if (n.includes("expira")) headerMap[idx] = "data_expira";
       else if (n.includes("link")) headerMap[idx] = "link_copia";
       else if (n.includes("status")) headerMap[idx] = "status";
-      else headerMap[idx] = n; // mantém para debug
+      else headerMap[idx] = n;
     });
 
     const out: ParsedRow[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cells = lines[i].split(delim).map((s) => s.trim());
+    for (let i = startIdx; i < lines.length; i++) {
+      const cells = splitSmart(lines[i], mode);
       if (cells.every((c) => c === "")) continue;
 
       const row: ParsedRow = {};
@@ -284,12 +337,32 @@ export default function Direitos() {
         (row as any)[key] = c || null;
       });
 
-      // aplica cliente padrão se não veio na coluna
       if (!row.client && defaultClient.trim()) row.client = defaultClient.trim();
-
       out.push(row);
     }
     return out;
+  }
+
+  // Upsert com fallback (idempotent_key → client,product,title)
+  async function upsertWithFallback(batch: RightRow[]) {
+    // 1) tenta com idempotent_key
+    try {
+      const { error } = await supabase
+        .from("rights")
+        .upsert(batch, { onConflict: "idempotent_key", ignoreDuplicates: false, count: "exact" });
+      if (error) throw error;
+      return;
+    } catch (e: any) {
+      const msg = (e?.message || "").toLowerCase();
+      const hint = msg.includes("idempotent_key") || msg.includes("column") || msg.includes("does not exist");
+      if (!hint) throw e; // outro erro (RLS, etc.)
+      // 2) refaz sem a coluna e conflitando pela trinca
+      const slim = batch.map(({ idempotent_key, ...rest }) => rest);
+      const { error: e2 } = await supabase
+        .from("rights")
+        .upsert(slim, { onConflict: "client,product,title", ignoreDuplicates: false, count: "exact" });
+      if (e2) throw e2;
+    }
   }
 
   async function handlePasteImport() {
@@ -301,7 +374,7 @@ export default function Direitos() {
         return;
       }
 
-      const buildRecord = (p: ParsedRow): RightRow => {
+      const build = (p: ParsedRow): RightRow => {
         const client = (p.client || defaultClient || "").trim() || null;
         const product = (p.product || "").trim() || null;
         const title = (p.title || "").trim() || null;
@@ -311,7 +384,7 @@ export default function Direitos() {
         const expireISO = computeExpireDate(explicitExpireISO, firstAirISO, p.validade || null);
         const status = computeStatus(expireISO, firstAirISO, p.status || null);
 
-        const record: RightRow = {
+        return {
           client,
           product,
           title,
@@ -322,34 +395,24 @@ export default function Direitos() {
           status_label: status,
           idempotent_key: mkIdemKey(client, product, title, p.ap || null),
         };
-        return record;
       };
 
-      const batch = parsed.map(buildRecord).filter((r) => r.client && r.title); // mínimos
-
+      const batch = parsed.map(build).filter((r) => r.client && r.title);
       if (!batch.length) {
-        toast({ title: "Linhas sem mínimo obrigatório (Cliente e Título).", variant: "destructive" });
+        toast({ title: "Linhas sem Cliente/Título.", variant: "destructive" });
         return;
       }
 
-      // upsert em chunks p/ não estourar payload
+      // chunk para payload grande
       const chunkSize = 200;
-      let insertedOrUpdated = 0;
+      let total = 0;
       for (let i = 0; i < batch.length; i += chunkSize) {
         const chunk = batch.slice(i, i + chunkSize);
-        const { error, count } = await supabase
-          .from("rights")
-          // onConflict exige UNIQUE em idempotent_key (SQL abaixo)
-          .upsert(chunk, { onConflict: "idempotent_key", ignoreDuplicates: false, count: "exact" });
-        if (error) throw error;
-        insertedOrUpdated += count || 0;
+        await upsertWithFallback(chunk);
+        total += chunk.length;
       }
 
-      toast({
-        title: "Importação concluída",
-        description: `${insertedOrUpdated} registro(s) inserido(s)/atualizado(s).`,
-      });
-
+      toast({ title: "Importação concluída", description: `${total} registro(s) processado(s).` });
       setPasteOpen(false);
       setPasteText("");
       await loadRights();
@@ -365,7 +428,7 @@ export default function Direitos() {
     }
   }
 
-  // ======== DERIVADOS / UI ========
+  // ===== Derivados / UI =====
   const clients = useMemo(() => {
     const set = new Set<string>();
     rights.forEach((r) => r.client && set.add(r.client));
@@ -440,10 +503,10 @@ export default function Direitos() {
                       </p>
                     </div>
                     <div className="col-span-3 md:col-span-2">
-                      <Label>Conteúdo (pode colar direto do Excel / Google Sheets)</Label>
+                      <Label>Conteúdo (cole direto do Excel / Google Sheets)</Label>
                       <textarea
                         className="w-full h-56 rounded-md border p-3 text-sm"
-                        placeholder={`Cole aqui. Cabeçalhos suportados:\nAP | PRODUTO | TITULO | ASSINATURA CONTRATO ELENCO | ASSINATURA CONTRATO DE PRODUÇÃO | PRIMEIRA VEICULAÇÃO | VALIDADE | DATA QUE EXPIRA | LINK CÓPIA | STATUS | CLIENTE`}
+                        placeholder={`Aceita com ou sem cabeçalho.\nCabeçalhos suportados:\nAP | PRODUTO | TITULO | ASSINATURA CONTRATO ELENCO | ASSINATURA CONTRATO DE PRODUÇÃO | PRIMEIRA VEICULAÇÃO | VALIDADE | DATA QUE EXPIRA | LINK CÓPIA | STATUS | CLIENTE`}
                         value={pasteText}
                         onChange={(e) => setPasteText(e.target.value)}
                       />
@@ -519,7 +582,7 @@ export default function Direitos() {
           </div>
         </div>
 
-        {/* Filtros por cliente */}
+        {/* Filtros */}
         <div className="flex items-center justify-between mb-4 gap-3">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             <Button
@@ -580,7 +643,7 @@ export default function Direitos() {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Cards resumo */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader>
@@ -676,7 +739,7 @@ export default function Direitos() {
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusPillColor(r.status_label)}`}
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pill(r.status_label)}`}
                           >
                             {r.status_label || "—"}
                           </span>
@@ -694,7 +757,7 @@ export default function Direitos() {
   );
 }
 
-// ============ COMPONENTE: Adicionar Direito Manual ============
+// ============ Adicionar Direito Manual ============
 function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -707,41 +770,65 @@ function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
     link_drive: "",
   });
 
-  const addRight = async () => {
+  const save = async () => {
     if (!form.client || !form.product || !form.title) {
       toast({ title: "Preencha os campos obrigatórios", variant: "destructive" });
       return;
     }
     try {
       const idem = mkIdemKey(form.client, form.product, form.title, null);
-      const expireISO = null; // manual sem validade; pode ser editado depois
+      const expireISO = null;
       const status = computeStatus(expireISO, form.first_air || null, null);
 
-      const { error } = await supabase.from("rights").upsert(
-        [
-          {
-            client: form.client,
-            product: form.product,
-            title: form.title,
-            contract_signed_production: form.contract_signed_production || null,
-            first_air: form.first_air || null,
-            link_drive: form.link_drive || null,
-            expire_date: expireISO,
-            status_label: status,
-            idempotent_key: idem,
-          },
-        ],
-        { onConflict: "idempotent_key", ignoreDuplicates: false },
-      );
-
-      if (error) throw error;
+      // tenta com idempotent_key; se faltar, usa trinca
+      try {
+        const { error } = await supabase.from("rights").upsert(
+          [
+            {
+              client: form.client,
+              product: form.product,
+              title: form.title,
+              contract_signed_production: form.contract_signed_production || null,
+              first_air: form.first_air || null,
+              link_drive: form.link_drive || null,
+              expire_date: expireISO,
+              status_label: status,
+              idempotent_key: idem,
+            },
+          ],
+          { onConflict: "idempotent_key", ignoreDuplicates: false },
+        );
+        if (error) throw error;
+      } catch (e: any) {
+        const msg = (e?.message || "").toLowerCase();
+        if (msg.includes("idempotent_key") || msg.includes("does not exist")) {
+          const { error: e2 } = await supabase.from("rights").upsert(
+            [
+              {
+                client: form.client,
+                product: form.product,
+                title: form.title,
+                contract_signed_production: form.contract_signed_production || null,
+                first_air: form.first_air || null,
+                link_drive: form.link_drive || null,
+                expire_date: expireISO,
+                status_label: status,
+              },
+            ],
+            { onConflict: "client,product,title", ignoreDuplicates: false },
+          );
+          if (e2) throw e2;
+        } else {
+          throw e;
+        }
+      }
 
       toast({ title: "Direito salvo!" });
       setOpen(false);
       setForm({ client: "", product: "", title: "", contract_signed_production: "", first_air: "", link_drive: "" });
       await onAdded();
-    } catch (e: any) {
-      toast({ title: "Erro ao salvar", description: e?.message, variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar", description: err?.message, variant: "destructive" });
     }
   };
 
@@ -799,7 +886,7 @@ function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={addRight}>Salvar</Button>
+          <Button onClick={save}>Salvar</Button>
         </div>
       </DialogContent>
     </Dialog>
