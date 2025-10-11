@@ -67,8 +67,8 @@ export default function Login() {
 
     // Validar domínio
     const domain = formData.email.split("@")[1]?.toLowerCase();
-    if (domain !== "we.com.br" && domain !== "grupowe.com.br") {
-      alert("Acesso negado. Apenas e-mails @we.com.br e @grupowe.com.br são permitidos.");
+    if (domain !== "we.com.br" && domain !== "gmail.com") {
+      alert("Acesso negado. Apenas e-mails @we.com.br e @gmail.com são permitidos.");
       return;
     }
 
