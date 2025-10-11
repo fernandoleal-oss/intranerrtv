@@ -8,6 +8,8 @@ import { useAuth } from "@/components/AuthProvider";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
+import { CalendarBlock } from "@/components/CalendarBlock";
+import { NavBarDemo } from "@/components/NavBarDemo";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -92,8 +94,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Navbar */}
+      <NavBarDemo />
+      
       {/* Header */}
-      <header className="border-b sticky top-0 z-10 glass-effect">
+      <header className="border-b sticky top-0 z-10 glass-effect mt-20">
         <div className="container-page">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
@@ -195,6 +200,23 @@ export default function Home() {
             </motion.div>
           ))}
         </div>
+
+        {/* Calendário */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-12 max-w-6xl mx-auto"
+        >
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle>Calendário</CardTitle>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <CalendarBlock />
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Clube de Criação */}
         {clubeNews.length > 0 && (

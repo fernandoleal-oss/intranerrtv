@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Film, Music, Image as ImageIcon, FileText, Eye, Edit, Trash2, Search } from "lucide-react";
+import { Plus, Film, Music, Image as ImageIcon, FileText, Eye, Edit, Trash2, Search, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { HeaderBar } from "@/components/HeaderBar";
+import { NavBarDemo } from "@/components/NavBarDemo";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -119,8 +120,81 @@ export default function Orcamentos() {
     return variants[status] || "secondary";
   };
 
+  // Pricing cards summary
+  type BudgetSummary = {
+    plano: "Startup" | "Growth" | "Enterprise";
+    headline: string;
+    sub: string;
+    priceLabel: string;
+    bullets: string[];
+    cta: { label: string; action?: () => void };
+  };
+
+  const dados = useMemo(() => {
+    if (filtered.length === 0) return null;
+    const total = filtered.reduce((sum, b) => sum + (b.total || 0), 0);
+    return {
+      total,
+      count: filtered.length,
+      rascunhos: filtered.filter(b => b.status === "rascunho").length,
+      aprovados: filtered.filter(b => b.status === "aprovado").length,
+    };
+  }, [filtered]);
+
+  const fmtBRL = (n?: number) =>
+    typeof n === "number"
+      ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      : "—";
+
+  const cards: BudgetSummary[] = useMemo(() => {
+    return [
+      {
+        plano: "Startup",
+        headline: dados ? `${dados.count} Orçamentos` : "Nenhum orçamento",
+        sub: dados 
+          ? `${dados.rascunhos} rascunhos • ${dados.aprovados} aprovados`
+          : "Crie seu primeiro orçamento para começar",
+        priceLabel: dados ? `${fmtBRL(dados.total)} / total` : "Aguardando valores",
+        bullets: [
+          `Total de orçamentos: ${dados?.count || 0}`,
+          `Status rascunho: ${dados?.rascunhos || 0}`,
+          `Status aprovado: ${dados?.aprovados || 0}`,
+          "Filtros por tipo e busca",
+        ],
+        cta: { label: "Ver todos", action: () => {} },
+      },
+      {
+        plano: "Growth",
+        headline: "Criar novo orçamento",
+        sub: "Escolha entre orçamento do zero ou com template",
+        priceLabel: "Rápido e organizado",
+        bullets: [
+          "Importe da planilha (idempotente)",
+          "Adicione fornecedores e versões",
+          "Calcule honorários automaticamente",
+          "Validação por campos obrigatórios",
+        ],
+        cta: { label: "Novo orçamento", action: () => navigate("/orcamentos/novo") },
+      },
+      {
+        plano: "Enterprise",
+        headline: "Relatórios & Exportação",
+        sub: "Pronto para envio ao atendimento/cliente",
+        priceLabel: "Gere PDF a qualquer momento",
+        bullets: [
+          "PDF de faturamento bonito",
+          "Quebras de página automáticas",
+          "Sumário por cliente/fornecedor",
+          "Status e timeline do orçamento",
+        ],
+        cta: { label: "Ver orçamentos", action: () => {} },
+      },
+    ];
+  }, [dados, navigate]);
+
   return (
     <div className="min-h-screen bg-background">
+      <NavBarDemo />
       <HeaderBar
         title="Orçamentos"
         subtitle="Gerenciar e criar novos orçamentos"
@@ -140,6 +214,44 @@ export default function Orcamentos() {
       />
 
       <div className="container-page">
+        {/* Pricing Cards Summary */}
+        <section className="mb-8">
+          <div className="text-center mb-8">
+            <span className="inline-flex items-center px-3 py-1 text-xs rounded-full border">Orçamentos</span>
+            <h1 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight">
+              Gerencie seus orçamentos
+            </h1>
+            <p className="mt-3 text-muted-foreground">
+              Visualize, crie e exporte orçamentos de produção
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {cards.map((c, i) => (
+              <Card key={i} className="shadow-sm">
+                <CardHeader>
+                  <CardTitle>{c.headline}</CardTitle>
+                  <CardDescription>{c.sub}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-semibold mb-4">{c.priceLabel}</div>
+                  <ul className="space-y-2">
+                    {c.bullets.map((b, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm">
+                        <Check className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full" onClick={c.cta.action}>{c.cta.label}</Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         {/* Filtros */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4">
           <div className="flex gap-2 flex-wrap">
