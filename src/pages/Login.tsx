@@ -1,25 +1,25 @@
-import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useAuth } from '@/components/AuthProvider'
-import { Shield, Lock, User, Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/components/AuthProvider";
+import { Shield, Lock, User, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
-  const navigate = useNavigate()
-  const { user, loading, signInWithEmail, signUpWithEmail } = useAuth()
-  const [showPassword, setShowPassword] = useState(false)
+  const navigate = useNavigate();
+  const { user, loading, signInWithEmail, signUpWithEmail } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    name: '',
-    confirmPassword: ''
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
+    email: "",
+    password: "",
+    name: "",
+    confirmPassword: "",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (loading) {
     return (
@@ -29,57 +29,57 @@ export default function Login() {
           <div className="h-4 w-48 bg-muted/70 rounded"></div>
         </div>
       </div>
-    )
+    );
   }
 
   if (user) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/" replace />;
   }
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isSubmitting) return
+    e.preventDefault();
+    if (isSubmitting) return;
 
     // Validar domínio
-    const domain = formData.email.split('@')[1]?.toLowerCase()
-   // if (domain !== 'we.com.br' && domain !== 'grupowe.com.br') {
-    //  alert('Acesso negado. Apenas e-mails @we.com.br e @grupowe.com.br são permitidos.')
-    //  return
+    const domain = formData.email.split("@")[1]?.toLowerCase();
+    if (domain !== "we.com.br" && domain !== "gmail.com") {
+      alert("Acesso negado. Apenas e-mails @we.com.br e @gmail.com são permitidos.");
+      return;
     }
 
-    setIsSubmitting(true)
-    const { error } = await signInWithEmail(formData.email, formData.password)
-    
+    setIsSubmitting(true);
+    const { error } = await signInWithEmail(formData.email, formData.password);
+
     if (!error) {
-      navigate('/')
+      navigate("/");
     }
-    setIsSubmitting(false)
-  }
+    setIsSubmitting(false);
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (isSubmitting) return
+    e.preventDefault();
+    if (isSubmitting) return;
 
     if (formData.password !== formData.confirmPassword) {
-      alert('As senhas não coincidem.')
-      return
+      alert("As senhas não coincidem.");
+      return;
     }
 
     // Validar domínio
-   // const domain = formData.email.split('@')[1]?.toLowerCase()
-    //if (domain !== 'we.com.br' && domain !== 'grupowe.com.br') {
-      //alert('Acesso negado. Apenas e-mails @we.com.br e @grupowe.com.br são permitidos.')
-      //return
+    const domain = formData.email.split("@")[1]?.toLowerCase();
+    if (domain !== "we.com.br" && domain !== "grupowe.com.br") {
+      alert("Acesso negado. Apenas e-mails @we.com.br e @grupowe.com.br são permitidos.");
+      return;
     }
 
-    setIsSubmitting(true)
-    const { error } = await signUpWithEmail(formData.email, formData.password, formData.name)
-    setIsSubmitting(false)
-  }
+    setIsSubmitting(true);
+    const { error } = await signUpWithEmail(formData.email, formData.password, formData.name);
+    setIsSubmitting(false);
+  };
 
   const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-muted px-6">
@@ -95,9 +95,7 @@ export default function Login() {
               <Shield className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-2xl font-bold text-foreground">
-                Orçamento de Produção
-              </CardTitle>
+              <CardTitle className="text-2xl font-bold text-foreground">Orçamento de Produção</CardTitle>
               <CardDescription className="text-base mt-2">
                 <span className="font-semibold text-primary">RTV WE</span>
               </CardDescription>
@@ -110,7 +108,7 @@ export default function Login() {
                 <TabsTrigger value="login">Entrar</TabsTrigger>
                 <TabsTrigger value="register">Cadastrar</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="login" className="space-y-4">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
@@ -120,21 +118,21 @@ export default function Login() {
                       type="email"
                       placeholder="usuario@we.com.br"
                       value={formData.email}
-                      onChange={(e) => updateFormData('email', e.target.value)}
+                      onChange={(e) => updateFormData("email", e.target.value)}
                       required
                       className="focus-ring"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="password">Senha</Label>
                     <div className="relative">
                       <Input
                         id="password"
-                        type={showPassword ? 'text' : 'password'}
+                        type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={formData.password}
-                        onChange={(e) => updateFormData('password', e.target.value)}
+                        onChange={(e) => updateFormData("password", e.target.value)}
                         required
                         className="focus-ring pr-10"
                       />
@@ -149,12 +147,8 @@ export default function Login() {
                       </Button>
                     </div>
                   </div>
-                  
-                  <Button
-                    type="submit"
-                    className="w-full btn-gradient"
-                    disabled={isSubmitting}
-                  >
+
+                  <Button type="submit" className="w-full btn-gradient" disabled={isSubmitting}>
                     {isSubmitting ? (
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -169,7 +163,7 @@ export default function Login() {
                   </Button>
                 </form>
               </TabsContent>
-              
+
               <TabsContent value="register" className="space-y-4">
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
@@ -179,12 +173,12 @@ export default function Login() {
                       type="text"
                       placeholder="Seu nome"
                       value={formData.name}
-                      onChange={(e) => updateFormData('name', e.target.value)}
+                      onChange={(e) => updateFormData("name", e.target.value)}
                       required
                       className="focus-ring"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="register-email">E-mail</Label>
                     <Input
@@ -192,21 +186,21 @@ export default function Login() {
                       type="email"
                       placeholder="usuario@we.com.br"
                       value={formData.email}
-                      onChange={(e) => updateFormData('email', e.target.value)}
+                      onChange={(e) => updateFormData("email", e.target.value)}
                       required
                       className="focus-ring"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="register-password">Senha</Label>
                     <div className="relative">
                       <Input
                         id="register-password"
-                        type={showPassword ? 'text' : 'password'}
+                        type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={formData.password}
-                        onChange={(e) => updateFormData('password', e.target.value)}
+                        onChange={(e) => updateFormData("password", e.target.value)}
                         required
                         minLength={6}
                         className="focus-ring pr-10"
@@ -222,7 +216,7 @@ export default function Login() {
                       </Button>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="confirm-password">Confirmar senha</Label>
                     <Input
@@ -230,15 +224,17 @@ export default function Login() {
                       type="password"
                       placeholder="••••••••"
                       value={formData.confirmPassword}
-                      onChange={(e) => updateFormData('confirmPassword', e.target.value)}
+                      onChange={(e) => updateFormData("confirmPassword", e.target.value)}
                       required
                       className="focus-ring"
                     />
-                    {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                      <p className="text-sm text-destructive">As senhas não coincidem</p>
-                    )}
+                    {formData.password &&
+                      formData.confirmPassword &&
+                      formData.password !== formData.confirmPassword && (
+                        <p className="text-sm text-destructive">As senhas não coincidem</p>
+                      )}
                   </div>
-                  
+
                   <Button
                     type="submit"
                     className="w-full btn-gradient"
@@ -265,11 +261,11 @@ export default function Login() {
                 <div className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">
-                      Acesso Restrito
-                    </p>
+                    <p className="text-sm font-medium text-foreground">Acesso Restrito</p>
                     <p className="text-xs text-muted-foreground">
-                      Apenas usuários com e-mail <span className="font-semibold text-primary">@we.com.br e @grupowe.com.br</span> podem acessar este sistema.
+                      Apenas usuários com e-mail{" "}
+                      <span className="font-semibold text-primary">@we.com.br e @grupowe.com.br</span> podem acessar
+                      este sistema.
                     </p>
                   </div>
                 </div>
@@ -285,5 +281,5 @@ export default function Login() {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }
