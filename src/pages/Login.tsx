@@ -43,8 +43,8 @@ export default function Login() {
     // Validar domínio
     const domain = formData.email.split("@")[1]?.toLowerCase();
     if (domain !== "we.com.br" && domain !== "gmail.com") {
-      alert("Acesso negado. Apenas e-mails @we.com.br e @gmail.com são permitidos.");
-      return;
+      // alert("Acesso negado. Apenas e-mails @we.com.br e @gmail.com são permitidos.");
+      // return;
     }
 
     setIsSubmitting(true);
@@ -68,8 +68,8 @@ export default function Login() {
     // Validar domínio
     const domain = formData.email.split("@")[1]?.toLowerCase();
     if (domain !== "we.com.br" && domain !== "gmail.com") {
-      alert("Acesso negado. Apenas e-mails @we.com.br e @gmail.com são permitidos.");
-      return;
+      //alert("Acesso negado. Apenas e-mails @we.com.br e @gmail.com são permitidos.");
+      // return;
     }
 
     setIsSubmitting(true);
