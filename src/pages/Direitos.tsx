@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink, ClipboardPaste, Filter } from "lucide-react";
+import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink, ClipboardPaste, Filter, Eye, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -94,13 +94,15 @@ function computeStatus(expireISO: string | null, firstAirISO: string | null, pro
   const exp = new Date(expireISO);
   const diffDays = Math.floor((exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
 
+  // Se vencido
   if (diffDays < 0) return "VENCIDO";
+  
+  // Se menor de 30 dias para vencer
   if (diffDays <= 30) return "A VENCER (30d)";
 
-  if (firstAirISO) {
-    const first = new Date(firstAirISO);
-    if (!isNaN(first.getTime()) && first <= TODAY) return "EM USO";
-  }
+  // Se data igual ou maior que hoje → EM USO
+  if (exp >= TODAY) return "EM USO";
+
   return "DENTRO DO PRAZO";
 }
 
@@ -403,11 +405,33 @@ export default function Direitos() {
         return;
       }
 
+      // Verificar duplicidades antes de inserir
+      const uniqueMap = new Map<string, RightRow>();
+      let duplicatesCount = 0;
+      
+      for (const row of batch) {
+        const key = mkIdemKey(row.client, row.product, row.title, null);
+        if (uniqueMap.has(key)) {
+          duplicatesCount++;
+        } else {
+          uniqueMap.set(key, row);
+        }
+      }
+
+      const uniqueBatch = Array.from(uniqueMap.values());
+
+      if (duplicatesCount > 0) {
+        toast({ 
+          title: `${duplicatesCount} duplicata(s) removida(s)`, 
+          description: `${uniqueBatch.length} registros únicos serão importados.` 
+        });
+      }
+
       // chunk para payload grande
       const chunkSize = 200;
       let total = 0;
-      for (let i = 0; i < batch.length; i += chunkSize) {
-        const chunk = batch.slice(i, i + chunkSize);
+      for (let i = 0; i < uniqueBatch.length; i += chunkSize) {
+        const chunk = uniqueBatch.slice(i, i + chunkSize);
         await upsertWithFallback(chunk);
         total += chunk.length;
       }
@@ -461,17 +485,19 @@ export default function Direitos() {
   }, [rights]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/")}>
+            <Button variant="ghost" onClick={() => navigate("/")} className="hover:bg-muted">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">Gestão de Direitos</h1>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Gestão de Direitos
+              </h1>
               <p className="text-muted-foreground">Controle de direitos de uso e renovações</p>
             </div>
           </div>
@@ -480,7 +506,7 @@ export default function Direitos() {
             {/* Importar colando */}
             <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2" variant="default">
+                <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" variant="default">
                   <ClipboardPaste className="h-4 w-4" />
                   Colar da Planilha
                 </Button>
@@ -645,56 +671,68 @@ export default function Direitos() {
 
         {/* Cards resumo */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
+          <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Direitos</CardTitle>
+              <CardTitle className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Total de Direitos
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{counts.total}</div>
+              <div className="text-3xl font-bold text-blue-900">{counts.total}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-red-200 bg-red-50/30">
+          <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">Vencidos</CardTitle>
+              <CardTitle className="text-sm font-medium text-red-900 flex items-center gap-2">
+                <ExternalLink className="h-4 w-4" />
+                Vencidos
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-700">{counts.expired}</div>
+              <div className="text-3xl font-bold text-red-900">{counts.expired}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-amber-200 bg-amber-50/30">
+          <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">A Vencer (30d)</CardTitle>
+              <CardTitle className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                <RefreshCcw className="h-4 w-4" />
+                A Vencer (30d)
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-700">{counts.due30}</div>
+              <div className="text-3xl font-bold text-amber-900">{counts.due30}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-green-200 bg-green-50/30">
+          <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-green-100 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">Em Uso</CardTitle>
+              <CardTitle className="text-sm font-medium text-green-900 flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Em Uso
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-700">{counts.inUse}</div>
+              <div className="text-3xl font-bold text-green-900">{counts.inUse}</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Tabela */}
-        <Card>
+        <Card className="shadow-xl">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-muted">
+                <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Cliente</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Produto</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Título</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Primeira Veic.</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Vencimento</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Cliente</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Produto</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Título</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Primeira Veic.</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Vencimento</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">

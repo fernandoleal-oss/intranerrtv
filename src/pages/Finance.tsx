@@ -20,6 +20,7 @@ import { TopClientsCard } from "@/components/finance/TopClientsCard";
 import { FinancialReport } from "@/components/finance/FinancialReport";
 import { AnnualTotalsDialog } from "@/components/finance/AnnualTotalsDialog";
 import { ImportSpreadsheetModal } from "@/components/finance/ImportSpreadsheetModal";
+import { FinanceDashboard } from "@/components/finance/FinanceDashboard";
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -554,13 +555,6 @@ export default function Finance() {
 
         {selectedYM && !comparisonActive && (
           <>
-            <KPICards
-              receita={kpisSelected.receita}
-              varReceitaPct={kpisSelected.varReceitaPct}
-              registros={kpisSelected.registros}
-              ticketMedio={kpisSelected.ticketMedio}
-            />
-
             {!canEdit && (
               <Card className="mb-6 border-amber-200 bg-amber-50">
                 <CardContent className="pt-6">
@@ -571,9 +565,14 @@ export default function Finance() {
               </Card>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <TopClientsCard clients={topClientsSelected} loading={loading} />
-            </div>
+            <FinanceDashboard
+              receita={kpisSelected.receita}
+              varReceitaPct={kpisSelected.varReceitaPct}
+              registros={kpisSelected.registros}
+              ticketMedio={kpisSelected.ticketMedio}
+              topClients={topClientsSelected}
+              monthLabel={toPTMonthLabel(selectedYM)}
+            />
           </>
         )}
 

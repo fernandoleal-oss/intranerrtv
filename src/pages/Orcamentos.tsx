@@ -193,7 +193,7 @@ export default function Orcamentos() {
   }, [dados, navigate]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <NavBarDemo />
       <HeaderBar
         title="Orçamentos"
@@ -205,7 +205,7 @@ export default function Orcamentos() {
               <Plus className="h-4 w-4" />
               Orçamento do Zero
             </Button>
-            <Button onClick={() => navigate("/orcamentos/novo")} className="gap-2">
+            <Button onClick={() => navigate("/orcamentos/novo")} className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
               <Plus className="h-4 w-4" />
               Novo Orçamento
             </Button>
@@ -217,8 +217,10 @@ export default function Orcamentos() {
         {/* Pricing Cards Summary */}
         <section className="mb-8">
           <div className="text-center mb-8">
-            <span className="inline-flex items-center px-3 py-1 text-xs rounded-full border">Orçamentos</span>
-            <h1 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight">
+            <span className="inline-flex items-center px-3 py-1 text-xs rounded-full border bg-gradient-to-r from-blue-100 to-purple-100 text-blue-900">
+              Orçamentos
+            </span>
+            <h1 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Gerencie seus orçamentos
             </h1>
             <p className="mt-3 text-muted-foreground">
@@ -228,24 +230,31 @@ export default function Orcamentos() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {cards.map((c, i) => (
-              <Card key={i} className="shadow-sm">
+              <Card key={i} className="shadow-lg hover:shadow-xl transition-shadow border-2">
                 <CardHeader>
-                  <CardTitle>{c.headline}</CardTitle>
+                  <CardTitle className="text-xl">{c.headline}</CardTitle>
                   <CardDescription>{c.sub}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-semibold mb-4">{c.priceLabel}</div>
+                  <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+                    {c.priceLabel}
+                  </div>
                   <ul className="space-y-2">
                     {c.bullets.map((b, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-sm">
-                        <Check className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                        <Check className="h-4 w-4 mt-0.5 text-green-600 flex-shrink-0" />
                         <span>{b}</span>
                       </li>
                     ))}
                   </ul>
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full" onClick={c.cta.action}>{c.cta.label}</Button>
+                  <Button 
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" 
+                    onClick={c.cta.action}
+                  >
+                    {c.cta.label}
+                  </Button>
                 </CardFooter>
               </Card>
             ))}

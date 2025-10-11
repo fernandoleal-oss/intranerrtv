@@ -55,26 +55,11 @@ export default function Home() {
       path: "/financeiro",
     },
     {
-      title: "Configurar Honorários",
-      description: "Gerenciar honorários por cliente (Admin)",
-      icon: Settings,
-      gradient: "gradient-blue",
-      path: "/honorarios",
-    },
-    {
       title: "Consulta ANCINE",
       description: "Claquetes & registros oficiais",
       icon: Clapperboard,
       gradient: "gradient-yellow",
       path: "/ancine",
-    },
-    {
-      title: "Comparador BYD",
-      description: "Em breve – recurso em configuração",
-      icon: Car,
-      gradient: "gradient-orange",
-      path: "/comparador-byd",
-      disabled: true,
     },
     {
       title: "Gerador de Claquete",
@@ -93,16 +78,16 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Navbar */}
       <NavBarDemo />
       
       {/* Header */}
-      <header className="border-b sticky top-0 z-10 glass-effect mt-20">
+      <header className="border-b sticky top-0 z-10 glass-effect mt-20 bg-gradient-to-r from-blue-50 via-purple-50 to-blue-50">
         <div className="container-page">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 gradient-blue rounded-lg flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
                 <span className="text-white font-bold">WE</span>
               </div>
               <div>
@@ -155,7 +140,7 @@ export default function Home() {
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-3xl font-bold mb-2"
+            className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
           >
             Bem-vindo, {profile?.name || "Usuário"}
           </motion.h2>
@@ -173,16 +158,16 @@ export default function Home() {
               transition={{ delay: index * 0.1 }}
             >
               <Card
-                className={`${section.disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl hover:scale-[1.02]'} transition-all duration-300 group border-border/50 rounded-2xl`}
+                className={`${section.disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-2xl hover:scale-[1.05]'} transition-all duration-300 group border-2 rounded-2xl`}
                 onClick={() => !section.disabled && navigate(section.path)}
               >
                 <CardHeader className="text-center pb-4">
                   <div
-                    className={`w-16 h-16 mx-auto rounded-2xl ${section.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}
+                    className={`w-16 h-16 mx-auto rounded-2xl ${section.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-xl`}
                   >
                     <section.icon className="w-8 h-8 text-white" />
                   </div>
-                  <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                  <CardTitle className="text-lg group-hover:text-primary transition-colors font-bold">
                     {section.title}
                   </CardTitle>
                 </CardHeader>
@@ -190,7 +175,7 @@ export default function Home() {
                   <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{section.description}</p>
                   <Button 
                     variant="outline" 
-                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                    className="w-full group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:text-white transition-all"
                     disabled={section.disabled}
                   >
                     {section.disabled ? 'Em breve' : 'Acessar'}
