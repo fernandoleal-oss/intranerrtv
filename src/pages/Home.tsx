@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   FileText,
   DollarSign,
@@ -13,14 +15,14 @@ import {
   Newspaper,
   ExternalLink,
   Upload,
+  Link as LinkIcon,
+  Trash2,
   Copy,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/AuthProvider";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarBlock } from "@/components/CalendarBlock";
 import { NavBarDemo } from "@/components/NavBarDemo";
 
@@ -34,16 +36,38 @@ type Section = {
   onClick?: () => void;
 };
 
+type UploadItem = {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
+  status: "pending" | "uploading" | "done" | "error";
+  progress: number; // visual
+  path?: string;
+  url?: string;
+  error?: string;
+};
+
 type TransferRow = {
   id: string;
   created_at: string;
   user_id: string | null;
-  files: { name: string; size: number }[];
+  files: { name: string; size: number; path?: string; url?: string }[];
   link: string | null;
   note: string | null;
 };
 
-const TRANSFER_URL = "https://transfer.it/start";
+const SUPABASE_BUCKET = "transfers"; // crie este bucket no Supabase (privado)
+
+function slugify(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -52,13 +76,18 @@ export default function Home() {
   const [clubeNews, setClubeNews] = useState<Array<{ title: string; url: string }>>([]);
   const [selectedNews, setSelectedNews] = useState<{ title: string; url: string } | null>(null);
 
-  // Transfer launcher state (sem iframe)
+  // ====== Transfer (Supabase Storage) ======
   const [transferOpen, setTransferOpen] = useState(false);
-  const [pickedFiles, setPickedFiles] = useState<{ name: string; size: number }[]>([]);
-  const [transferLink, setTransferLink] = useState("");
+  const [items, setItems] = useState<UploadItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [recent, setRecent] = useState<TransferRow[]>([]);
+  const dropRef = useRef<HTMLDivElement | null>(null);
+
+  const userId = (profile as any)?.id || (profile as any)?.user_id || null;
+  const folder = useMemo(() => {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    return `${userId || "anon"}/${stamp}`;
+  }, [userId, transferOpen]); // novo folder a cada abertura
 
   useEffect(() => {
     const fetchClubeNews = async () => {
@@ -74,20 +103,139 @@ export default function Home() {
   }, []);
 
   const loadRecent = async () => {
-    const userId = (profile as any)?.id || (profile as any)?.user_id || null;
-    const { data } = await supabase
+    if (!userId) return;
+    const { data, error } = await supabase
       .from("transfers")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(10);
-    setRecent((data as TransferRow[]) || []);
+      .limit(12);
+    if (!error) setRecent((data as TransferRow[]) || []);
   };
 
   useEffect(() => {
-    if (transferOpen) loadRecent();
+    if (transferOpen) {
+      setItems([]);
+      loadRecent();
+    }
   }, [transferOpen]);
 
+  // Drag & drop handlers
+  useEffect(() => {
+    const el = dropRef.current;
+    if (!el) return;
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onDrop = (e: DragEvent) => {
+      prevent(e);
+      const files = Array.from(e.dataTransfer?.files || []);
+      addFiles(files);
+    };
+    ["dragenter", "dragover", "dragleave", "drop"].forEach((evt) => el.addEventListener(evt, prevent));
+    el.addEventListener("drop", onDrop);
+    return () => {
+      ["dragenter", "dragover", "dragleave", "drop"].forEach((evt) => el.removeEventListener(evt, prevent));
+      el.removeEventListener("drop", onDrop);
+    };
+  }, [dropRef.current]);
+
+  const addFiles = (files: File[]) => {
+    const next = files.map((f) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file: f,
+      name: f.name,
+      size: f.size,
+      status: "pending" as const,
+      progress: 0,
+    }));
+    setItems((prev) => [...prev, ...next]);
+  };
+
+  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    addFiles(list);
+  };
+
+  const removeItem = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const copyAllLinks = async () => {
+    const links = items
+      .filter((i) => i.url)
+      .map((i) => i.url)
+      .join("\n");
+    if (!links) return;
+    await navigator.clipboard.writeText(links);
+  };
+
+  const uploadOne = async (item: UploadItem): Promise<UploadItem> => {
+    let updated = { ...item, status: "uploading" as const, progress: 15 };
+    setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    try {
+      const safeName = `${Date.now()}-${slugify(item.name)}`;
+      const path = `${folder}/${safeName}`;
+
+      // Upload (sem progresso nativo; usamos marcos visuais)
+      const { error: upErr } = await supabase.storage.from(SUPABASE_BUCKET).upload(path, item.file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: item.file.type || "application/octet-stream",
+      });
+      if (upErr) throw upErr;
+      updated.progress = 70;
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...updated } : i)));
+
+      // Tenta signed URL (7 dias). Se falhar, tenta publicUrl.
+      let url: string | undefined;
+      const signed = await supabase.storage.from(SUPABASE_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (!signed.error && signed.data?.signedUrl) {
+        url = signed.data.signedUrl;
+      } else {
+        const pub = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(path);
+        url = pub.data.publicUrl;
+      }
+
+      updated = { ...updated, status: "done", progress: 100, path, url };
+      setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+      return updated;
+    } catch (e: any) {
+      updated = { ...updated, status: "error", progress: 100, error: e?.message || "Falha no upload" };
+      setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+      return updated;
+    }
+  };
+
+  const uploadAll = async () => {
+    // Sobe sequencialmente para não estourar rede/navegador
+    for (const it of items.filter((i) => i.status === "pending")) {
+      // eslint-disable-next-line no-await-in-loop
+      await uploadOne(it);
+    }
+  };
+
+  const saveRegister = async () => {
+    try {
+      setSaving(true);
+      const payload = {
+        user_id: userId,
+        files: items.map((i) => ({ name: i.name, size: i.size, path: i.path, url: i.url })),
+        link: null,
+        note: "supabase-storage",
+      };
+      const { error } = await supabase.from("transfers").insert(payload as any);
+      if (error) throw error;
+      await loadRecent();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ====== Seções do dashboard ======
   const sections: Section[] = [
     {
       title: "Orçamentos",
@@ -131,60 +279,27 @@ export default function Home() {
       gradient: "gradient-indigo",
       path: "/byd-pronta-entrega",
     },
-    // Novo: Transfer launcher (sem iframe)
+    // Novo: Transfer (Supabase)
     {
       title: "Transfer",
-      description: "Abrir Transfer.it e registrar envio",
+      description: "Enviar arquivos (Supabase Storage)",
       icon: Upload,
       gradient: "gradient-pink",
       onClick: () => setTransferOpen(true),
     },
   ];
 
-  const handleCardClick = (section: Section) => {
-    if (section.disabled) return;
-    if (section.onClick) return section.onClick();
-    if (section.path) return navigate(section.path);
-  };
-
-  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = Array.from(e.target.files || []).map((f) => ({ name: f.name, size: f.size }));
-    setPickedFiles(list);
-  };
-
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(TRANSFER_URL);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  };
-
-  const saveTransfer = async () => {
-    if (!pickedFiles.length) return;
-    try {
-      setSaving(true);
-      const userId = (profile as any)?.id || (profile as any)?.user_id || null;
-      const payload = {
-        user_id: userId,
-        files: pickedFiles,
-        link: transferLink || null,
-        note: null,
-      };
-      const { error } = await supabase.from("transfers").insert(payload as any);
-      if (error) throw error;
-      setPickedFiles([]);
-      setTransferLink("");
-      await loadRecent();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
+  const handleCardClick = (s: Section) => {
+    if (s.disabled) return;
+    if (s.onClick) return s.onClick();
+    if (s.path) return navigate(s.path);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <NavBarDemo />
 
+      {/* Header */}
       <header className="border-b sticky top-0 z-10 glass-effect mt-20 bg-gradient-to-r from-blue-50 via-purple-50 to-blue-50">
         <div className="container-page">
           <div className="flex items-center justify-between py-4">
@@ -230,6 +345,7 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Main */}
       <main className="container-page py-12">
         <div className="text-center mb-12">
           <motion.h2
@@ -356,81 +472,138 @@ export default function Home() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal Transfer launcher (sem iframe) */}
+        {/* Modal Transfer (Supabase Storage) */}
         <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-          <DialogContent className="max-w-3xl w-[95vw]">
+          <DialogContent className="max-w-4xl w-[95vw]">
             <DialogHeader>
-              <DialogTitle>Transfer — enviar arquivos</DialogTitle>
+              <DialogTitle>Transfer — enviar arquivos (Supabase Storage)</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-6">
-              {/* Ações principais */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="default" onClick={() => window.open(TRANSFER_URL, "_blank")}>
-                  <ExternalLink className="w-4 h-4 mr-2" /> Abrir Transfer.it
-                </Button>
-                <Button variant="outline" onClick={copyLink}>
-                  <Copy className="w-4 h-4 mr-2" /> {copied ? "Link copiado!" : "Copiar link"}
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  O Transfer.it bloqueia incorporação — use a nova aba para enviar os arquivos.
-                </span>
+              {/* Área de drop/seleção */}
+              <div
+                ref={dropRef}
+                className="border-2 border-dashed rounded-xl p-6 text-center hover:border-primary transition-colors"
+              >
+                <p className="text-sm text-muted-foreground mb-3">
+                  Arraste e solte os arquivos aqui ou selecione abaixo
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <Input type="file" multiple onChange={onPickFiles} />
+                </div>
+                <div className="text-xs text-muted-foreground mt-2">
+                  Pasta do envio: <code className="bg-muted px-1 py-0.5 rounded">{folder}</code>
+                </div>
               </div>
 
-              {/* Captura dos nomes (apenas registro interno) */}
-              <div className="space-y-2">
-                <Label>Arquivos (apenas para registrar nomes)</Label>
-                <Input type="file" multiple onChange={onPickFiles} />
-                {pickedFiles.length > 0 && (
-                  <div className="rounded-md border p-3 text-sm">
-                    <div className="font-medium mb-2">Selecionados ({pickedFiles.length}):</div>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {pickedFiles.map((f, i) => (
-                        <li key={`${f.name}-${i}`}>
-                          {f.name}{" "}
-                          <span className="text-muted-foreground">({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+              {/* Lista de arquivos */}
+              {items.length > 0 && (
+                <div className="rounded-lg border divide-y">
+                  {items.map((it) => (
+                    <div key={it.id} className="p-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="truncate">
+                            <div className="font-medium truncate">{it.name}</div>
+                            <div className="text-xs text-muted-foreground">{(it.size / 1024 / 1024).toFixed(2)} MB</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {it.url && (
+                              <Button size="sm" variant="outline" onClick={() => window.open(it.url!, "_blank")}>
+                                <LinkIcon className="w-4 h-4 mr-1" /> Abrir
+                              </Button>
+                            )}
+                            <Button size="sm" variant="ghost" onClick={() => removeItem(it.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {/* Barra de progresso simples */}
+                        <div className="h-2 w-full bg-muted rounded mt-2 overflow-hidden">
+                          <div
+                            className={`h-full ${it.status === "error" ? "bg-destructive" : it.status === "done" ? "bg-green-500" : "bg-primary"} transition-all`}
+                            style={{ width: `${it.progress}%` }}
+                          />
+                        </div>
+                        <div className="text-[11px] mt-1 text-muted-foreground">
+                          {it.status === "pending" && "Aguardando"}
+                          {it.status === "uploading" && "Enviando..."}
+                          {it.status === "done" && "Concluído"}
+                          {it.status === "error" && (it.error || "Erro no upload")}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Link final do envio */}
-              <div className="space-y-2">
-                <Label>Link do envio (cole aqui depois de gerar no Transfer.it)</Label>
-                <Input
-                  placeholder="https://transfer.it/..."
-                  value={transferLink}
-                  onChange={(e) => setTransferLink(e.target.value)}
-                />
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={saveTransfer} disabled={!pickedFiles.length || saving}>
+              {/* Ações */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={uploadAll}
+                    disabled={items.length === 0 || items.every((i) => i.status !== "pending")}
+                  >
+                    <Upload className="w-4 h-4 mr-2" /> Enviar arquivos
+                  </Button>
+                  <Button variant="outline" onClick={copyAllLinks} disabled={!items.some((i) => i.url)}>
+                    <Copy className="w-4 h-4 mr-2" /> Copiar links
+                  </Button>
+                </div>
+                <Button
+                  onClick={saveRegister}
+                  variant="secondary"
+                  disabled={
+                    !items.length || items.some((i) => i.status === "pending" || i.status === "uploading") || saving
+                  }
+                >
                   {saving ? "Salvando..." : "Salvar registro"}
                 </Button>
               </div>
 
-              {/* Últimos registros */}
+              {/* Últimos envios */}
               {recent.length > 0 && (
                 <div className="space-y-2">
                   <div className="font-medium">Últimos envios</div>
                   <div className="rounded-md border">
-                    <div className="max-h-56 overflow-auto divide-y">
+                    <div className="max-h-60 overflow-auto divide-y">
                       {recent.map((r) => (
-                        <div key={r.id} className="p-3 text-sm flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                        <div key={r.id} className="p-3 text-sm">
+                          <div className="flex items-center justify-between">
                             <div className="font-medium">{new Date(r.created_at).toLocaleString()}</div>
-                            <div className="text-muted-foreground truncate">
-                              {r.files?.map((f) => f.name).join(", ")}
-                            </div>
+                            {r.files?.some((f) => f.url) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const urls = r.files
+                                    ?.map((f) => f.url)
+                                    .filter(Boolean)
+                                    .join("\n");
+                                  if (urls) navigator.clipboard.writeText(urls);
+                                }}
+                              >
+                                <Copy className="w-4 h-4 mr-1" /> Copiar links
+                              </Button>
+                            )}
                           </div>
-                          {r.link && (
-                            <Button size="sm" variant="outline" onClick={() => window.open(r.link as string, "_blank")}>
-                              Abrir
-                            </Button>
-                          )}
+                          <ul className="mt-1 text-muted-foreground list-disc pl-5 space-y-0.5">
+                            {r.files?.map((f, idx) => (
+                              <li key={idx} className="truncate">
+                                {f.name}{" "}
+                                {f.url && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 ml-2"
+                                    onClick={() => window.open(f.url as string, "_blank")}
+                                  >
+                                    Abrir
+                                  </Button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       ))}
                     </div>
