@@ -15,10 +15,12 @@ import {
   Upload,
   Copy,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/AuthProvider";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { CalendarBlock } from "@/components/CalendarBlock";
 import { NavBarDemo } from "@/components/NavBarDemo";
 
@@ -32,6 +34,15 @@ type Section = {
   onClick?: () => void;
 };
 
+type TransferRow = {
+  id: string;
+  created_at: string;
+  user_id: string | null;
+  files: { name: string; size: number }[];
+  link: string | null;
+  note: string | null;
+};
+
 const TRANSFER_URL = "https://transfer.it/start";
 
 export default function Home() {
@@ -41,11 +52,13 @@ export default function Home() {
   const [clubeNews, setClubeNews] = useState<Array<{ title: string; url: string }>>([]);
   const [selectedNews, setSelectedNews] = useState<{ title: string; url: string } | null>(null);
 
-  // Transfer.it modal state
+  // Transfer launcher state (sem iframe)
   const [transferOpen, setTransferOpen] = useState(false);
-  const [transferLoaded, setTransferLoaded] = useState(false);
+  const [pickedFiles, setPickedFiles] = useState<{ name: string; size: number }[]>([]);
+  const [transferLink, setTransferLink] = useState("");
+  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
-  const loadCheckRef = useRef<number | null>(null);
+  const [recent, setRecent] = useState<TransferRow[]>([]);
 
   useEffect(() => {
     const fetchClubeNews = async () => {
@@ -54,26 +67,25 @@ export default function Home() {
         if (error) throw error;
         if (data?.items) setClubeNews(data.items);
       } catch {
-        // seção opcional
         console.log("Clube news not available");
       }
     };
     fetchClubeNews();
   }, []);
 
-  // Simple load watchdog: if iframe doesn't load in ~4s, mostra fallback
+  const loadRecent = async () => {
+    const userId = (profile as any)?.id || (profile as any)?.user_id || null;
+    const { data } = await supabase
+      .from("transfers")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    setRecent((data as TransferRow[]) || []);
+  };
+
   useEffect(() => {
-    if (transferOpen) {
-      setTransferLoaded(false);
-      setCopied(false);
-      if (loadCheckRef.current) window.clearTimeout(loadCheckRef.current);
-      loadCheckRef.current = window.setTimeout(() => {
-        // se onLoad não disparar, mantém loaded = false e mostra aviso
-        setTransferLoaded((prev) => prev);
-      }, 4000);
-    } else {
-      if (loadCheckRef.current) window.clearTimeout(loadCheckRef.current);
-    }
+    if (transferOpen) loadRecent();
   }, [transferOpen]);
 
   const sections: Section[] = [
@@ -83,7 +95,6 @@ export default function Home() {
       icon: FileText,
       gradient: "gradient-orange",
       path: "/orcamentos",
-      disabled: false,
     },
     {
       title: "Direitos",
@@ -120,10 +131,10 @@ export default function Home() {
       gradient: "gradient-indigo",
       path: "/byd-pronta-entrega",
     },
-    // NOVO: Transfer.it
+    // Novo: Transfer launcher (sem iframe)
     {
       title: "Transfer",
-      description: "Envie arquivos grandes via Transfer.it",
+      description: "Abrir Transfer.it e registrar envio",
       icon: Upload,
       gradient: "gradient-pink",
       onClick: () => setTransferOpen(true),
@@ -136,22 +147,44 @@ export default function Home() {
     if (section.path) return navigate(section.path);
   };
 
-  const copyTransferLink = async () => {
+  const onPickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []).map((f) => ({ name: f.name, size: f.size }));
+    setPickedFiles(list);
+  };
+
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(TRANSFER_URL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+
+  const saveTransfer = async () => {
+    if (!pickedFiles.length) return;
     try {
-      await navigator.clipboard.writeText(TRANSFER_URL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setSaving(true);
+      const userId = (profile as any)?.id || (profile as any)?.user_id || null;
+      const payload = {
+        user_id: userId,
+        files: pickedFiles,
+        link: transferLink || null,
+        note: null,
+      };
+      const { error } = await supabase.from("transfers").insert(payload as any);
+      if (error) throw error;
+      setPickedFiles([]);
+      setTransferLink("");
+      await loadRecent();
     } catch (e) {
-      console.error("Clipboard error", e);
+      console.error(e);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      {/* Navbar */}
       <NavBarDemo />
 
-      {/* Header */}
       <header className="border-b sticky top-0 z-10 glass-effect mt-20 bg-gradient-to-r from-blue-50 via-purple-50 to-blue-50">
         <div className="container-page">
           <div className="flex items-center justify-between py-4">
@@ -168,8 +201,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               {profile?.role === "admin" && (
                 <Button variant="outline" size="sm" onClick={() => navigate("/admin")} className="gap-2">
-                  <Settings className="w-4 h-4" />
-                  Admin
+                  <Settings className="w-4 h-4" /> Admin
                 </Button>
               )}
 
@@ -198,7 +230,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main */}
       <main className="container-page py-12">
         <div className="text-center mb-12">
           <motion.h2
@@ -318,60 +349,94 @@ export default function Home() {
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button variant="outline" onClick={() => selectedNews && window.open(selectedNews.url, "_blank")}>
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Abrir no site
+                <ExternalLink className="w-4 h-4 mr-2" /> Abrir no site
               </Button>
               <Button onClick={() => setSelectedNews(null)}>Fechar</Button>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Modal Transfer.it */}
+        {/* Modal Transfer launcher (sem iframe) */}
         <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-          <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-3xl w-[95vw]">
             <DialogHeader>
-              <DialogTitle className="pr-10">Transfer — Enviar arquivos (Transfer.it)</DialogTitle>
+              <DialogTitle>Transfer — enviar arquivos</DialogTitle>
             </DialogHeader>
 
-            {/* Barra de ações */}
-            <div className="flex items-center justify-between gap-2 pb-3 border-b">
-              <div className="text-sm text-muted-foreground">
-                {transferLoaded ? "Carregado" : "Tentando carregar dentro do app…"}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={copyTransferLink}>
-                  <Copy className="w-4 h-4 mr-2" />
-                  {copied ? "Copiado!" : "Copiar link"}
+            <div className="space-y-6">
+              {/* Ações principais */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="default" onClick={() => window.open(TRANSFER_URL, "_blank")}>
+                  <ExternalLink className="w-4 h-4 mr-2" /> Abrir Transfer.it
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => window.open(TRANSFER_URL, "_blank")}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Abrir em nova aba
+                <Button variant="outline" onClick={copyLink}>
+                  <Copy className="w-4 h-4 mr-2" /> {copied ? "Link copiado!" : "Copiar link"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  O Transfer.it bloqueia incorporação — use a nova aba para enviar os arquivos.
+                </span>
+              </div>
+
+              {/* Captura dos nomes (apenas registro interno) */}
+              <div className="space-y-2">
+                <Label>Arquivos (apenas para registrar nomes)</Label>
+                <Input type="file" multiple onChange={onPickFiles} />
+                {pickedFiles.length > 0 && (
+                  <div className="rounded-md border p-3 text-sm">
+                    <div className="font-medium mb-2">Selecionados ({pickedFiles.length}):</div>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {pickedFiles.map((f, i) => (
+                        <li key={`${f.name}-${i}`}>
+                          {f.name}{" "}
+                          <span className="text-muted-foreground">({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Link final do envio */}
+              <div className="space-y-2">
+                <Label>Link do envio (cole aqui depois de gerar no Transfer.it)</Label>
+                <Input
+                  placeholder="https://transfer.it/..."
+                  value={transferLink}
+                  onChange={(e) => setTransferLink(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={saveTransfer} disabled={!pickedFiles.length || saving}>
+                  {saving ? "Salvando..." : "Salvar registro"}
                 </Button>
               </div>
-            </div>
 
-            {/* Iframe */}
-            <div className="flex-1 overflow-auto">
-              <iframe
-                src={TRANSFER_URL}
-                className="w-full h-full min-h-[600px] rounded-md border-0"
-                title="Transfer.it"
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                referrerPolicy="no-referrer"
-                onLoad={() => setTransferLoaded(true)}
-              />
-            </div>
-
-            {/* Fallback sutil se X-Frame-Options bloquear */}
-            {!transferLoaded && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                Se o conteúdo não aparecer, clique em <span className="font-medium">“Abrir em nova aba”</span>. Alguns
-                sites bloqueiam incorporação via iframe por política de segurança.
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button onClick={() => setTransferOpen(false)}>Fechar</Button>
+              {/* Últimos registros */}
+              {recent.length > 0 && (
+                <div className="space-y-2">
+                  <div className="font-medium">Últimos envios</div>
+                  <div className="rounded-md border">
+                    <div className="max-h-56 overflow-auto divide-y">
+                      {recent.map((r) => (
+                        <div key={r.id} className="p-3 text-sm flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-medium">{new Date(r.created_at).toLocaleString()}</div>
+                            <div className="text-muted-foreground truncate">
+                              {r.files?.map((f) => f.name).join(", ")}
+                            </div>
+                          </div>
+                          {r.link && (
+                            <Button size="sm" variant="outline" onClick={() => window.open(r.link as string, "_blank")}>
+                              Abrir
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
