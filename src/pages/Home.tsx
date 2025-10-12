@@ -3,19 +3,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FileText, DollarSign, Eye, LogOut, Settings, Car, Clapperboard, Newspaper, ExternalLink } from "lucide-react";
+import {
+  FileText,
+  DollarSign,
+  Eye,
+  LogOut,
+  Settings,
+  Clapperboard,
+  Newspaper,
+  ExternalLink,
+  Upload,
+  Copy,
+} from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CalendarBlock } from "@/components/CalendarBlock";
 import { NavBarDemo } from "@/components/NavBarDemo";
+
+type Section = {
+  title: string;
+  description: string;
+  icon: any;
+  gradient: string;
+  path?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+};
+
+const TRANSFER_URL = "https://transfer.it/start";
 
 export default function Home() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
+
   const [clubeNews, setClubeNews] = useState<Array<{ title: string; url: string }>>([]);
   const [selectedNews, setSelectedNews] = useState<{ title: string; url: string } | null>(null);
+
+  // Transfer.it modal state
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferLoaded, setTransferLoaded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const loadCheckRef = useRef<number | null>(null);
 
   useEffect(() => {
     const fetchClubeNews = async () => {
@@ -23,15 +53,30 @@ export default function Home() {
         const { data, error } = await supabase.functions.invoke("clube_news");
         if (error) throw error;
         if (data?.items) setClubeNews(data.items);
-      } catch (e) {
-        // Silently fail - news section is optional
+      } catch {
+        // seção opcional
         console.log("Clube news not available");
       }
     };
     fetchClubeNews();
   }, []);
 
-  const sections = [
+  // Simple load watchdog: if iframe doesn't load in ~4s, mostra fallback
+  useEffect(() => {
+    if (transferOpen) {
+      setTransferLoaded(false);
+      setCopied(false);
+      if (loadCheckRef.current) window.clearTimeout(loadCheckRef.current);
+      loadCheckRef.current = window.setTimeout(() => {
+        // se onLoad não disparar, mantém loaded = false e mostra aviso
+        setTransferLoaded((prev) => prev);
+      }, 4000);
+    } else {
+      if (loadCheckRef.current) window.clearTimeout(loadCheckRef.current);
+    }
+  }, [transferOpen]);
+
+  const sections: Section[] = [
     {
       title: "Orçamentos",
       description: "Criar e gerenciar orçamentos de produção",
@@ -75,13 +120,37 @@ export default function Home() {
       gradient: "gradient-indigo",
       path: "/byd-pronta-entrega",
     },
+    // NOVO: Transfer.it
+    {
+      title: "Transfer",
+      description: "Envie arquivos grandes via Transfer.it",
+      icon: Upload,
+      gradient: "gradient-pink",
+      onClick: () => setTransferOpen(true),
+    },
   ];
+
+  const handleCardClick = (section: Section) => {
+    if (section.disabled) return;
+    if (section.onClick) return section.onClick();
+    if (section.path) return navigate(section.path);
+  };
+
+  const copyTransferLink = async () => {
+    try {
+      await navigator.clipboard.writeText(TRANSFER_URL);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (e) {
+      console.error("Clipboard error", e);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Navbar */}
       <NavBarDemo />
-      
+
       {/* Header */}
       <header className="border-b sticky top-0 z-10 glass-effect mt-20 bg-gradient-to-r from-blue-50 via-purple-50 to-blue-50">
         <div className="container-page">
@@ -98,12 +167,7 @@ export default function Home() {
 
             <div className="flex items-center gap-3">
               {profile?.role === "admin" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/admin")}
-                  className="gap-2"
-                >
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin")} className="gap-2">
                   <Settings className="w-4 h-4" />
                   Admin
                 </Button>
@@ -144,22 +208,20 @@ export default function Home() {
           >
             Bem-vindo, {profile?.name || "Usuário"}
           </motion.h2>
-          <p className="text-muted-foreground text-lg">
-            Escolha uma área para começar
-          </p>
+          <p className="text-muted-foreground text-lg">Escolha uma área para começar</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {sections.map((section, index) => (
             <motion.div
-              key={section.path}
+              key={section.title}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
               <Card
-                className={`${section.disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-2xl hover:scale-[1.05]'} transition-all duration-300 group border-2 rounded-2xl`}
-                onClick={() => !section.disabled && navigate(section.path)}
+                className={`${section.disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:shadow-2xl hover:scale-[1.05]"} transition-all duration-300 group border-2 rounded-2xl`}
+                onClick={() => handleCardClick(section)}
               >
                 <CardHeader className="text-center pb-4">
                   <div
@@ -173,12 +235,12 @@ export default function Home() {
                 </CardHeader>
                 <CardContent className="text-center">
                   <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{section.description}</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:text-white transition-all"
                     disabled={section.disabled}
                   >
-                    {section.disabled ? 'Em breve' : 'Acessar'}
+                    {section.disabled ? "Em breve" : "Acessar"}
                   </Button>
                 </CardContent>
               </Card>
@@ -255,16 +317,61 @@ export default function Home() {
               )}
             </div>
             <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => selectedNews && window.open(selectedNews.url, "_blank")}
-              >
+              <Button variant="outline" onClick={() => selectedNews && window.open(selectedNews.url, "_blank")}>
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Abrir no site
               </Button>
-              <Button onClick={() => setSelectedNews(null)}>
-                Fechar
-              </Button>
+              <Button onClick={() => setSelectedNews(null)}>Fechar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Transfer.it */}
+        <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+          <DialogContent className="max-w-5xl w-[95vw] max-h-[85vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="pr-10">Transfer — Enviar arquivos (Transfer.it)</DialogTitle>
+            </DialogHeader>
+
+            {/* Barra de ações */}
+            <div className="flex items-center justify-between gap-2 pb-3 border-b">
+              <div className="text-sm text-muted-foreground">
+                {transferLoaded ? "Carregado" : "Tentando carregar dentro do app…"}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={copyTransferLink}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  {copied ? "Copiado!" : "Copiar link"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => window.open(TRANSFER_URL, "_blank")}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Abrir em nova aba
+                </Button>
+              </div>
+            </div>
+
+            {/* Iframe */}
+            <div className="flex-1 overflow-auto">
+              <iframe
+                src={TRANSFER_URL}
+                className="w-full h-full min-h-[600px] rounded-md border-0"
+                title="Transfer.it"
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                referrerPolicy="no-referrer"
+                onLoad={() => setTransferLoaded(true)}
+              />
+            </div>
+
+            {/* Fallback sutil se X-Frame-Options bloquear */}
+            {!transferLoaded && (
+              <div className="mt-3 text-xs text-muted-foreground">
+                Se o conteúdo não aparecer, clique em <span className="font-medium">“Abrir em nova aba”</span>. Alguns
+                sites bloqueiam incorporação via iframe por política de segurança.
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button onClick={() => setTransferOpen(false)}>Fechar</Button>
             </div>
           </DialogContent>
         </Dialog>
