@@ -18,9 +18,12 @@ import {
   Link as LinkIcon,
   Trash2,
   Copy,
+  Sparkles,
+  Zap,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarBlock } from "@/components/CalendarBlock";
@@ -42,7 +45,7 @@ type UploadItem = {
   name: string;
   size: number;
   status: "pending" | "uploading" | "done" | "error";
-  progress: number; // visual
+  progress: number;
   path?: string;
   url?: string;
   error?: string;
@@ -57,7 +60,7 @@ type TransferRow = {
   note: string | null;
 };
 
-const SUPABASE_BUCKET = "transfers"; // crie este bucket no Supabase (privado)
+const SUPABASE_BUCKET = "transfers";
 
 function slugify(s: string) {
   return s
@@ -69,14 +72,38 @@ function slugify(s: string) {
     .toLowerCase();
 }
 
+// Glass Card Component
+const GlassCard = ({ children, className, hover = true, ...props }: any) => (
+  <div
+    className={`
+      rounded-2xl border border-white/20 backdrop-blur-lg bg-white/8 shadow-xl shadow-black/10
+      ${hover ? "hover:shadow-2xl hover:shadow-black/20 hover:border-white/40 transition-all duration-500" : ""}
+      ${className}
+    `}
+    {...props}
+  >
+    {children}
+  </div>
+);
+
+// Glass Input Component
+const GlassInput = ({ className, ...props }: any) => (
+  <Input
+    className={`
+      backdrop-blur-lg bg-white/5 border-white/30 focus:border-white/50 focus:ring-2 focus:ring-white/20
+      transition-all duration-300 placeholder:text-white/60 text-white
+      ${className}
+    `}
+    {...props}
+  />
+);
+
 export default function Home() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
 
   const [clubeNews, setClubeNews] = useState<Array<{ title: string; url: string }>>([]);
   const [selectedNews, setSelectedNews] = useState<{ title: string; url: string } | null>(null);
-
-  // ====== Transfer (Supabase Storage) ======
   const [transferOpen, setTransferOpen] = useState(false);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -87,7 +114,7 @@ export default function Home() {
   const folder = useMemo(() => {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     return `${userId || "anon"}/${stamp}`;
-  }, [userId, transferOpen]); // novo folder a cada abertura
+  }, [userId, transferOpen]);
 
   useEffect(() => {
     const fetchClubeNews = async () => {
@@ -120,7 +147,6 @@ export default function Home() {
     }
   }, [transferOpen]);
 
-  // Drag & drop handlers
   useEffect(() => {
     const el = dropRef.current;
     if (!el) return;
@@ -178,7 +204,6 @@ export default function Home() {
       const safeName = `${Date.now()}-${slugify(item.name)}`;
       const path = `${folder}/${safeName}`;
 
-      // Upload (sem progresso nativo; usamos marcos visuais)
       const { error: upErr } = await supabase.storage.from(SUPABASE_BUCKET).upload(path, item.file, {
         cacheControl: "3600",
         upsert: false,
@@ -188,7 +213,6 @@ export default function Home() {
       updated.progress = 70;
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...updated } : i)));
 
-      // Tenta signed URL (7 dias). Se falhar, tenta publicUrl.
       let url: string | undefined;
       const signed = await supabase.storage.from(SUPABASE_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 7);
       if (!signed.error && signed.data?.signedUrl) {
@@ -209,9 +233,7 @@ export default function Home() {
   };
 
   const uploadAll = async () => {
-    // Sobe sequencialmente para não estourar rede/navegador
     for (const it of items.filter((i) => i.status === "pending")) {
-      // eslint-disable-next-line no-await-in-loop
       await uploadOne(it);
     }
   };
@@ -235,56 +257,54 @@ export default function Home() {
     }
   };
 
-  // ====== Seções do dashboard ======
   const sections: Section[] = [
     {
       title: "Orçamentos",
       description: "Criar e gerenciar orçamentos de produção",
       icon: FileText,
-      gradient: "gradient-orange",
+      gradient: "from-orange-500 to-red-500",
       path: "/orcamentos",
     },
     {
       title: "Direitos",
       description: "Gestão de direitos autorais e renovações",
       icon: Eye,
-      gradient: "gradient-purple",
+      gradient: "from-purple-500 to-pink-500",
       path: "/direitos",
     },
     {
       title: "Financeiro",
       description: "Controle financeiro e relatórios",
       icon: DollarSign,
-      gradient: "gradient-green",
+      gradient: "from-green-500 to-emerald-500",
       path: "/financeiro",
     },
     {
       title: "Consulta ANCINE",
       description: "Claquetes & registros oficiais",
       icon: Clapperboard,
-      gradient: "gradient-yellow",
+      gradient: "from-yellow-500 to-amber-500",
       path: "/ancine",
     },
     {
       title: "Gerador de Claquete",
       description: "Crie claquetes profissionais para filmagem",
       icon: Clapperboard,
-      gradient: "gradient-cyan",
+      gradient: "from-cyan-500 to-blue-500",
       path: "/claquete",
     },
     {
       title: "BYD Pronta Entrega",
       description: "Orçamento para atendimento",
       icon: FileText,
-      gradient: "gradient-indigo",
+      gradient: "from-indigo-500 to-purple-500",
       path: "/byd-pronta-entrega",
     },
-    // Novo: Transfer (Supabase)
     {
       title: "Transfer",
       description: "Enviar arquivos (Supabase Storage)",
       icon: Upload,
-      gradient: "gradient-pink",
+      gradient: "from-pink-500 to-rose-500",
       onClick: () => setTransferOpen(true),
     },
   ];
@@ -296,47 +316,56 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <NavBarDemo />
 
       {/* Header */}
-      <header className="border-b sticky top-0 z-10 glass-effect mt-20 bg-gradient-to-r from-blue-50 via-purple-50 to-blue-50">
+      <header className="border-b border-white/10 sticky top-0 z-10 backdrop-blur-lg bg-slate-900/80 mt-20">
         <div className="container-page">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold">WE</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-purple-500/20">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold">Sistema de Orçamentos</h1>
-                <p className="text-sm text-muted-foreground">RTV WE</p>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">
+                  Sistema de Orçamentos
+                </h1>
+                <p className="text-sm text-white/60">RTV WE</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {profile?.role === "admin" && (
-                <Button variant="outline" size="sm" onClick={() => navigate("/admin")} className="gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/admin")}
+                  className="gap-2 backdrop-blur-md bg-white/5 border-white/20 text-white hover:bg-white/10"
+                >
                   <Settings className="w-4 h-4" /> Admin
                 </Button>
               )}
 
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-10 w-10 border-2 border-white/20">
                 <AvatarImage
                   src={`https://api.dicebear.com/7.x/initials/svg?seed=${profile?.name || profile?.email}`}
                 />
-                <AvatarFallback>{profile?.name?.[0] || profile?.email?.[0] || "U"}</AvatarFallback>
+                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+                  {profile?.name?.[0] || profile?.email?.[0] || "U"}
+                </AvatarFallback>
               </Avatar>
 
               <div className="hidden md:block text-right">
-                <p className="text-sm font-medium">{profile?.name || "Usuário"}</p>
-                <p className="text-xs text-muted-foreground capitalize">{profile?.role}</p>
+                <p className="text-sm font-semibold text-white">{profile?.name || "Usuário"}</p>
+                <p className="text-xs text-white/60 capitalize">{profile?.role}</p>
               </div>
 
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={signOut}
-                className="text-muted-foreground hover:text-destructive"
+                className="text-white/60 hover:text-red-300 hover:bg-red-500/20 backdrop-blur-md"
               >
                 <LogOut className="w-4 h-4" />
               </Button>
@@ -347,206 +376,238 @@ export default function Home() {
 
       {/* Main */}
       <main className="container-page py-12">
-        <div className="text-center mb-12">
+        <div className="text-center mb-16">
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+            className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent"
           >
             Bem-vindo, {profile?.name || "Usuário"}
           </motion.h2>
-          <p className="text-muted-foreground text-lg">Escolha uma área para começar</p>
+          <p className="text-white/60 text-xl">Escolha uma área para começar</p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {sections.map((section, index) => (
             <motion.div
               key={section.title}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <Card
-                className={`${section.disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:shadow-2xl hover:scale-[1.05]"} transition-all duration-300 group border-2 rounded-2xl`}
+              <GlassCard
+                className={`${section.disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer group"} p-1`}
                 onClick={() => handleCardClick(section)}
               >
-                <CardHeader className="text-center pb-4">
+                <div className="p-6 text-center">
                   <div
-                    className={`w-16 h-16 mx-auto rounded-2xl ${section.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-xl`}
+                    className={`w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br ${section.gradient} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 shadow-2xl`}
                   >
-                    <section.icon className="w-8 h-8 text-white" />
+                    <section.icon className="w-10 h-10 text-white" />
                   </div>
-                  <CardTitle className="text-lg group-hover:text-primary transition-colors font-bold">
+                  <h3 className="text-xl font-bold text-white mb-3 group-hover:text-purple-200 transition-colors">
                     {section.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-center">
-                  <p className="text-sm text-muted-foreground mb-4 min-h-[40px]">{section.description}</p>
+                  </h3>
+                  <p className="text-white/70 mb-6 min-h-[60px] text-sm leading-relaxed">{section.description}</p>
                   <Button
-                    variant="outline"
-                    className="w-full group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:text-white transition-all"
+                    className="w-full backdrop-blur-md bg-white/10 border-white/20 text-white hover:bg-white/20 hover:scale-105 transition-all duration-300"
                     disabled={section.disabled}
                   >
                     {section.disabled ? "Em breve" : "Acessar"}
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </GlassCard>
             </motion.div>
           ))}
         </div>
 
         {/* Calendário */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="mt-12 max-w-6xl mx-auto"
+          className="mt-16 max-w-6xl mx-auto"
         >
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Calendário</CardTitle>
-            </CardHeader>
-            <CardContent className="flex justify-center">
+          <GlassCard className="p-8">
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <TrendingUp className="w-6 h-6 text-purple-300" />
+                <h3 className="text-2xl font-bold text-white">Calendário</h3>
+              </div>
+            </div>
+            <div className="flex justify-center">
               <CalendarBlock />
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
         </motion.div>
 
         {/* Clube de Criação */}
         {clubeNews.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="mt-12 max-w-6xl mx-auto"
+            className="mt-16 max-w-6xl mx-auto"
           >
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Newspaper className="w-5 h-5 text-primary" />
-                  <CardTitle>Clube de Criação — Últimas Notícias</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  {clubeNews.map((news, idx) => (
-                    <li key={idx}>
-                      <button
-                        onClick={() => setSelectedNews(news)}
-                        className="text-sm hover:text-primary transition-colors flex items-center gap-2 group w-full text-left"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary group-hover:scale-125 transition-transform flex-shrink-0" />
-                        <span className="flex-1">{news.title}</span>
-                        <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+            <GlassCard className="p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <Newspaper className="w-6 h-6 text-purple-300" />
+                <h3 className="text-2xl font-bold text-white">Clube de Criação — Últimas Notícias</h3>
+              </div>
+              <div className="space-y-4">
+                {clubeNews.map((news, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedNews(news)}
+                    className="w-full text-left p-4 rounded-xl backdrop-blur-md bg-white/5 border border-white/10 hover:border-purple-400/30 hover:bg-white/10 transition-all duration-300 group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-purple-400 group-hover:scale-150 transition-transform flex-shrink-0" />
+                      <span className="text-white/80 group-hover:text-white flex-1">{news.title}</span>
+                      <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-purple-300 transition-colors flex-shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </GlassCard>
           </motion.div>
         )}
 
         {/* Modal de Notícia */}
         <Dialog open={!!selectedNews} onOpenChange={() => setSelectedNews(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col backdrop-blur-lg bg-slate-800/95 border-white/20">
             <DialogHeader>
-              <DialogTitle className="pr-8">{selectedNews?.title}</DialogTitle>
+              <DialogTitle className="pr-8 text-white">{selectedNews?.title}</DialogTitle>
             </DialogHeader>
             <div className="flex-1 overflow-auto">
               {selectedNews && (
                 <iframe
                   src={selectedNews.url}
-                  className="w-full h-full min-h-[600px] border-0"
+                  className="w-full h-full min-h-[600px] border-0 rounded-lg"
                   title={selectedNews.title}
                   sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                 />
               )}
             </div>
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => selectedNews && window.open(selectedNews.url, "_blank")}>
+            <div className="flex justify-end gap-2 pt-4 border-t border-white/20">
+              <Button
+                variant="outline"
+                onClick={() => selectedNews && window.open(selectedNews.url, "_blank")}
+                className="backdrop-blur-md bg-white/5 border-white/20 text-white hover:bg-white/10"
+              >
                 <ExternalLink className="w-4 h-4 mr-2" /> Abrir no site
               </Button>
-              <Button onClick={() => setSelectedNews(null)}>Fechar</Button>
+              <Button
+                onClick={() => setSelectedNews(null)}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 border-0"
+              >
+                Fechar
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
 
         {/* Modal Transfer (Supabase Storage) */}
         <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
-          <DialogContent className="max-w-4xl w-[95vw]">
+          <DialogContent className="max-w-4xl w-[95vw] backdrop-blur-lg bg-slate-800/95 border-white/20">
             <DialogHeader>
-              <DialogTitle>Transfer — enviar arquivos (Supabase Storage)</DialogTitle>
+              <DialogTitle className="text-white flex items-center gap-2">
+                <Zap className="w-5 h-5 text-purple-300" />
+                Transfer — Enviar Arquivos
+              </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-6">
               {/* Área de drop/seleção */}
-              <div
+              <GlassCard
                 ref={dropRef}
-                className="border-2 border-dashed rounded-xl p-6 text-center hover:border-primary transition-colors"
+                className="p-8 text-center border-2 border-dashed border-white/30 hover:border-purple-400/50 transition-all duration-300"
+                hover={false}
               >
-                <p className="text-sm text-muted-foreground mb-3">
-                  Arraste e solte os arquivos aqui ou selecione abaixo
-                </p>
-                <div className="flex items-center justify-center gap-2">
-                  <Input type="file" multiple onChange={onPickFiles} />
+                <Upload className="w-12 h-12 text-white/40 mx-auto mb-4" />
+                <p className="text-white/80 mb-4 text-lg">Arraste e solte os arquivos aqui ou selecione abaixo</p>
+                <div className="flex items-center justify-center">
+                  <GlassInput type="file" multiple onChange={onPickFiles} className="max-w-md" />
                 </div>
-                <div className="text-xs text-muted-foreground mt-2">
-                  Pasta do envio: <code className="bg-muted px-1 py-0.5 rounded">{folder}</code>
+                <div className="text-sm text-white/60 mt-4">
+                  Pasta do envio: <code className="bg-white/10 px-2 py-1 rounded text-purple-200">{folder}</code>
                 </div>
-              </div>
+              </GlassCard>
 
               {/* Lista de arquivos */}
               {items.length > 0 && (
-                <div className="rounded-lg border divide-y">
-                  {items.map((it) => (
-                    <div key={it.id} className="p-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="truncate">
-                            <div className="font-medium truncate">{it.name}</div>
-                            <div className="text-xs text-muted-foreground">{(it.size / 1024 / 1024).toFixed(2)} MB</div>
+                <GlassCard className="p-6">
+                  <div className="space-y-3">
+                    {items.map((it) => (
+                      <div key={it.id} className="p-4 rounded-xl backdrop-blur-md bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-between gap-4 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-white truncate">{it.name}</div>
+                            <div className="text-sm text-white/60">{(it.size / 1024 / 1024).toFixed(2)} MB</div>
                           </div>
                           <div className="flex items-center gap-2">
                             {it.url && (
-                              <Button size="sm" variant="outline" onClick={() => window.open(it.url!, "_blank")}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open(it.url!, "_blank")}
+                                className="backdrop-blur-md bg-green-500/20 border-green-400/30 text-green-200 hover:bg-green-500/30"
+                              >
                                 <LinkIcon className="w-4 h-4 mr-1" /> Abrir
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" onClick={() => removeItem(it.id)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removeItem(it.id)}
+                              className="text-red-300/80 hover:text-red-200 hover:bg-red-500/20"
+                            >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
-                        {/* Barra de progresso simples */}
-                        <div className="h-2 w-full bg-muted rounded mt-2 overflow-hidden">
+
+                        {/* Barra de progresso */}
+                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
                           <div
-                            className={`h-full ${it.status === "error" ? "bg-destructive" : it.status === "done" ? "bg-green-500" : "bg-primary"} transition-all`}
+                            className={`h-full transition-all duration-500 ${
+                              it.status === "error"
+                                ? "bg-red-500"
+                                : it.status === "done"
+                                  ? "bg-green-500"
+                                  : "bg-gradient-to-r from-blue-500 to-purple-500"
+                            }`}
                             style={{ width: `${it.progress}%` }}
                           />
                         </div>
-                        <div className="text-[11px] mt-1 text-muted-foreground">
-                          {it.status === "pending" && "Aguardando"}
-                          {it.status === "uploading" && "Enviando..."}
-                          {it.status === "done" && "Concluído"}
-                          {it.status === "error" && (it.error || "Erro no upload")}
+                        <div className="text-xs mt-2 text-white/60">
+                          {it.status === "pending" && "⏳ Aguardando"}
+                          {it.status === "uploading" && "📤 Enviando..."}
+                          {it.status === "done" && "✅ Concluído"}
+                          {it.status === "error" && `❌ ${it.error || "Erro no upload"}`}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </GlassCard>
               )}
 
               {/* Ações */}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
                   <Button
                     onClick={uploadAll}
                     disabled={items.length === 0 || items.every((i) => i.status !== "pending")}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0"
                   >
                     <Upload className="w-4 h-4 mr-2" /> Enviar arquivos
                   </Button>
-                  <Button variant="outline" onClick={copyAllLinks} disabled={!items.some((i) => i.url)}>
+                  <Button
+                    variant="outline"
+                    onClick={copyAllLinks}
+                    disabled={!items.some((i) => i.url)}
+                    className="backdrop-blur-md bg-white/5 border-white/20 text-white hover:bg-white/10"
+                  >
                     <Copy className="w-4 h-4 mr-2" /> Copiar links
                   </Button>
                 </div>
@@ -556,59 +617,61 @@ export default function Home() {
                   disabled={
                     !items.length || items.some((i) => i.status === "pending" || i.status === "uploading") || saving
                   }
+                  className="backdrop-blur-md bg-white/10 border-white/20 text-white hover:bg-white/20"
                 >
-                  {saving ? "Salvando..." : "Salvar registro"}
+                  {saving ? "💾 Salvando..." : "Salvar registro"}
                 </Button>
               </div>
 
               {/* Últimos envios */}
               {recent.length > 0 && (
-                <div className="space-y-2">
-                  <div className="font-medium">Últimos envios</div>
-                  <div className="rounded-md border">
-                    <div className="max-h-60 overflow-auto divide-y">
-                      {recent.map((r) => (
-                        <div key={r.id} className="p-3 text-sm">
-                          <div className="flex items-center justify-between">
-                            <div className="font-medium">{new Date(r.created_at).toLocaleString()}</div>
-                            {r.files?.some((f) => f.url) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  const urls = r.files
-                                    ?.map((f) => f.url)
-                                    .filter(Boolean)
-                                    .join("\n");
-                                  if (urls) navigator.clipboard.writeText(urls);
-                                }}
-                              >
-                                <Copy className="w-4 h-4 mr-1" /> Copiar links
-                              </Button>
-                            )}
+                <GlassCard className="p-6">
+                  <h4 className="font-semibold text-white mb-4 text-lg">📁 Últimos Envios</h4>
+                  <div className="max-h-60 overflow-auto space-y-3">
+                    {recent.map((r) => (
+                      <div key={r.id} className="p-4 rounded-xl backdrop-blur-md bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium text-white">
+                            {new Date(r.created_at).toLocaleString("pt-BR")}
                           </div>
-                          <ul className="mt-1 text-muted-foreground list-disc pl-5 space-y-0.5">
-                            {r.files?.map((f, idx) => (
-                              <li key={idx} className="truncate">
-                                {f.name}{" "}
-                                {f.url && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 ml-2"
-                                    onClick={() => window.open(f.url as string, "_blank")}
-                                  >
-                                    Abrir
-                                  </Button>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                          {r.files?.some((f) => f.url) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const urls = r.files
+                                  ?.map((f) => f.url)
+                                  .filter(Boolean)
+                                  .join("\n");
+                                if (urls) navigator.clipboard.writeText(urls);
+                              }}
+                              className="backdrop-blur-md bg-white/5 border-white/20 text-white hover:bg-white/10"
+                            >
+                              <Copy className="w-4 h-4 mr-1" /> Copiar links
+                            </Button>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                        <ul className="space-y-1">
+                          {r.files?.map((f, idx) => (
+                            <li key={idx} className="flex items-center justify-between text-sm text-white/70">
+                              <span className="truncate flex-1">{f.name}</span>
+                              {f.url && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 ml-2 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20"
+                                  onClick={() => window.open(f.url as string, "_blank")}
+                                >
+                                  Abrir
+                                </Button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                </GlassCard>
               )}
             </div>
           </DialogContent>
