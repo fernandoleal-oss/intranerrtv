@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Save, FileText, Plus, Trash2, AlertCircle, Star, Zap, TrendingUp } from "lucide-react";
+import { Save, FileText, Plus, Trash2, AlertCircle, Star, Zap, TrendingUp, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -569,16 +569,21 @@ export default function OrcamentoNovo() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <HeaderBar
-        title="Novo Orçamento"
+        title={
+          <div className="flex items-center gap-3">
+            <Calculator className="h-6 w-6 text-blue-600" />
+            <span>Novo Orçamento</span>
+          </div>
+        }
         subtitle="Preencha os dados e visualize em tempo real"
         backTo="/orcamentos"
         actions={
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
           >
             {saving ? (
               <div className="flex items-center gap-2">
@@ -597,38 +602,36 @@ export default function OrcamentoNovo() {
 
       <div className="container-page py-6">
         {/* Banner Informativo */}
-        <Card className="mb-8 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-sm">
+        <Card className="mb-8 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-lg">
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
-              <div className="bg-blue-100 p-2 rounded-lg">
+              <div className="bg-blue-100 p-3 rounded-xl">
                 <AlertCircle className="h-6 w-6 text-blue-600" />
               </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-blue-900">Como preencher o orçamento</h3>
-                <div className="grid md:grid-cols-2 gap-2 text-sm text-blue-800">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div className="space-y-3">
+                <h3 className="font-semibold text-blue-900 text-lg">Como preencher o orçamento</h3>
+                <div className="grid md:grid-cols-2 gap-3 text-sm text-blue-800">
+                  <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                     <span>
                       <strong>Cliente e Produto</strong> são obrigatórios
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                     <span>
-                      Cada campanha precisa de <strong>pelo menos 1 cotação de filme</strong>
+                      Cada campanha precisa de <strong>pelo menos 1 cotação</strong>
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                     <span>
-                      Use <strong>Múltiplas Opções</strong> para diferentes cenários
+                      Sistema destaca a <strong>opção mais barata</strong>
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span>
-                      Sistema destaca automaticamente a <strong>opção mais barata</strong>
-                    </span>
+                  <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                    <span>Revise os totais antes de salvar</span>
                   </div>
                 </div>
               </div>
@@ -640,19 +643,21 @@ export default function OrcamentoNovo() {
           {/* Formulário Principal */}
           <div className="lg:col-span-2 space-y-6">
             {/* Identificação */}
-            <Card className="shadow-sm border-gray-200">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
-                  Identificação
+            <Card className="shadow-lg border-blue-100">
+              <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-white rounded-t-lg">
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                  Identificação do Orçamento
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Tipo *</Label>
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="type" className="text-sm font-semibold">
+                      Tipo *
+                    </Label>
                     <Select value={data.type} onValueChange={(v) => updateData({ type: v as BudgetType })}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-12">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -663,23 +668,29 @@ export default function OrcamentoNovo() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="produtor">Produtor</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="produtor" className="text-sm font-semibold">
+                      Produtor
+                    </Label>
                     <Input
                       id="produtor"
                       value={data.produtor || ""}
                       onChange={(e) => updateData({ produtor: e.target.value })}
                       placeholder="Nome do produtor"
+                      className="h-12"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="email" className="text-sm font-semibold">
+                      E-mail
+                    </Label>
                     <Input
                       id="email"
                       type="email"
                       value={data.email || ""}
                       onChange={(e) => updateData({ email: e.target.value })}
                       placeholder="email@exemplo.com"
+                      className="h-12"
                     />
                   </div>
                 </div>
@@ -687,14 +698,14 @@ export default function OrcamentoNovo() {
             </Card>
 
             {/* Cliente & Produto */}
-            <Card className="shadow-sm border-gray-200">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg">Cliente & Produto</CardTitle>
+            <Card className="shadow-lg border-green-100">
+              <CardHeader className="pb-4 bg-gradient-to-r from-green-50 to-white rounded-t-lg">
+                <CardTitle className="text-xl">Cliente & Produto</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cliente" className="flex items-center gap-1">
+              <CardContent className="space-y-6 pt-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label htmlFor="cliente" className="flex items-center gap-1 text-sm font-semibold">
                       Cliente <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -702,11 +713,11 @@ export default function OrcamentoNovo() {
                       value={data.cliente || ""}
                       onChange={(e) => updateData({ cliente: e.target.value })}
                       placeholder="Nome do cliente"
-                      className={!data.cliente ? "border-red-300 focus:border-red-500" : ""}
+                      className={`h-12 ${!data.cliente ? "border-red-300 focus:border-red-500" : ""}`}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="produto" className="flex items-center gap-1">
+                  <div className="space-y-3">
+                    <Label htmlFor="produto" className="flex items-center gap-1 text-sm font-semibold">
                       Produto <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -714,55 +725,69 @@ export default function OrcamentoNovo() {
                       value={data.produto || ""}
                       onChange={(e) => updateData({ produto: e.target.value })}
                       placeholder="Nome do produto"
-                      className={!data.produto ? "border-red-300 focus:border-red-500" : ""}
+                      className={`h-12 ${!data.produto ? "border-red-300 focus:border-red-500" : ""}`}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="job">Job</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="job" className="text-sm font-semibold">
+                      Job
+                    </Label>
                     <Input
                       id="job"
                       value={data.job || ""}
                       onChange={(e) => updateData({ job: e.target.value })}
                       placeholder="Descrição do job"
+                      className="h-12"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="midias">Mídias</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="midias" className="text-sm font-semibold">
+                      Mídias
+                    </Label>
                     <Input
                       id="midias"
                       value={data.midias || ""}
                       onChange={(e) => updateData({ midias: e.target.value })}
                       placeholder="Mídias planejadas"
+                      className="h-12"
                     />
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
-                  <div className="space-y-2">
-                    <Label htmlFor="entregaveis">Entregáveis</Label>
+                <div className="grid md:grid-cols-2 gap-6 pt-6 border-t">
+                  <div className="space-y-3">
+                    <Label htmlFor="entregaveis" className="text-sm font-semibold">
+                      Entregáveis
+                    </Label>
                     <Input
                       id="entregaveis"
                       value={data.entregaveis || ""}
                       onChange={(e) => updateData({ entregaveis: e.target.value })}
                       placeholder="Ex: 1 filme 30s, 1 filme 15s..."
+                      className="h-12"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="adaptacoes">Adaptações</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="adaptacoes" className="text-sm font-semibold">
+                      Adaptações
+                    </Label>
                     <Input
                       id="adaptacoes"
                       value={data.adaptacoes || ""}
                       onChange={(e) => updateData({ adaptacoes: e.target.value })}
                       placeholder="Ex: 2 adaptações..."
+                      className="h-12"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="exclusividade">Exclusividade de Elenco</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="exclusividade" className="text-sm font-semibold">
+                      Exclusividade de Elenco
+                    </Label>
                     <Select
                       value={data.exclusividade_elenco || "nao_aplica"}
                       onValueChange={(v: any) => updateData({ exclusividade_elenco: v })}
                     >
-                      <SelectTrigger id="exclusividade">
+                      <SelectTrigger id="exclusividade" className="h-12">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -779,11 +804,11 @@ export default function OrcamentoNovo() {
             {/* Campanhas */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold">Campanhas</h3>
+                <h3 className="text-2xl font-bold text-gray-900">Campanhas</h3>
                 <p className="text-sm text-muted-foreground">Gerencie as campanhas e suas cotações</p>
               </div>
-              <Button onClick={addCampaign} className="gap-2 bg-green-600 hover:bg-green-700">
-                <Plus className="h-4 w-4" />
+              <Button onClick={addCampaign} className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg">
+                <Plus className="h-5 w-5" />
                 Nova Campanha
               </Button>
             </div>
@@ -805,14 +830,14 @@ export default function OrcamentoNovo() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                   >
-                    <Card className="border-l-4 border-l-blue-500 shadow-md">
-                      <CardHeader className="pb-4">
+                    <Card className="border-l-4 border-l-blue-500 shadow-xl">
+                      <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-white rounded-t-lg">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                              {campIndex + 1}
+                          <div className="flex items-center gap-4">
+                            <Badge variant="default" className="bg-blue-600 text-white px-3 py-1 text-sm">
+                              Campanha {campIndex + 1}
                             </Badge>
-                            <CardTitle className="text-lg">{camp.nome}</CardTitle>
+                            <CardTitle className="text-xl">{camp.nome}</CardTitle>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
@@ -820,6 +845,7 @@ export default function OrcamentoNovo() {
                               variant="outline"
                               onClick={() => removeCampaign(camp.id)}
                               disabled={data.campanhas && data.campanhas.length <= 1}
+                              className="text-red-600 border-red-200 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -827,33 +853,35 @@ export default function OrcamentoNovo() {
                         </div>
                       </CardHeader>
 
-                      <CardContent className="space-y-6">
+                      <CardContent className="space-y-8 pt-6">
                         {/* Configuração da Campanha */}
-                        <div className="grid md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                          <div className="md:col-span-2 space-y-2">
-                            <Label>Nome da Campanha</Label>
+                        <div className="grid md:grid-cols-3 gap-6 p-6 bg-gray-50 rounded-xl border">
+                          <div className="md:col-span-2 space-y-3">
+                            <Label className="text-sm font-semibold">Nome da Campanha</Label>
                             <Input
                               value={camp.nome}
                               onChange={(e) => updateCampaign(camp.id, { nome: e.target.value })}
                               placeholder="Ex.: Lançamento Q4"
+                              className="h-12"
                             />
                           </div>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
                               <Switch
                                 checked={camp.inclui_audio || false}
                                 onCheckedChange={(v) => updateCampaign(camp.id, { inclui_audio: v })}
+                                className="data-[state=checked]:bg-green-600"
                               />
-                              <Label className="text-sm">Incluir Áudio</Label>
+                              <Label className="text-sm font-semibold">Incluir Áudio</Label>
                             </div>
                           </div>
                         </div>
 
                         {/* Cotações Filme */}
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 className="font-semibold text-lg">Cotações de Filme</h4>
+                              <h4 className="font-semibold text-xl text-gray-900">Cotações de Filme</h4>
                               <p className="text-sm text-muted-foreground">
                                 {camp.quotes_film.length === 0
                                   ? "Adicione pelo menos uma cotação de filme"
@@ -861,21 +889,25 @@ export default function OrcamentoNovo() {
                               </p>
                             </div>
                             <Button
-                              size="sm"
+                              size="lg"
                               onClick={() => addQuoteFilmTo(camp.id)}
-                              className="gap-2 bg-blue-600 hover:bg-blue-700"
+                              className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg"
                             >
-                              <Plus className="h-4 w-4" />
+                              <Plus className="h-5 w-5" />
                               Adicionar Cotação
                             </Button>
                           </div>
 
-                          <div className="space-y-4">
+                          <div className="space-y-6">
                             {camp.quotes_film.length === 0 && (
-                              <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                                <p className="text-gray-500">Nenhuma cotação de filme adicionada</p>
-                                <Button variant="outline" onClick={() => addQuoteFilmTo(camp.id)} className="mt-2">
+                              <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
+                                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                                <p className="text-gray-500 text-lg mb-2">Nenhuma cotação de filme adicionada</p>
+                                <p className="text-gray-400 text-sm mb-4">Comece adicionando a primeira cotação</p>
+                                <Button
+                                  onClick={() => addQuoteFilmTo(camp.id)}
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                >
                                   Adicionar Primeira Cotação
                                 </Button>
                               </div>
@@ -890,52 +922,59 @@ export default function OrcamentoNovo() {
                                   key={q.id}
                                   initial={{ opacity: 0, scale: 0.95 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  className={`border rounded-xl p-4 space-y-4 ${
-                                    isCheapest ? "border-green-500 bg-green-50 shadow-sm" : "border-gray-200 bg-white"
+                                  className={`border-2 rounded-xl p-6 space-y-6 ${
+                                    isCheapest
+                                      ? "border-green-500 bg-green-50 shadow-lg"
+                                      : "border-gray-200 bg-white shadow-md"
                                   }`}
                                 >
                                   {isCheapest && (
-                                    <div className="flex items-center gap-2 p-2 bg-green-100 rounded-lg">
-                                      <Star className="h-4 w-4 text-green-600 fill-current" />
-                                      <span className="text-sm font-semibold text-green-700">MELHOR OPÇÃO - FILME</span>
+                                    <div className="flex items-center gap-3 p-3 bg-green-100 rounded-lg border border-green-200">
+                                      <Star className="h-5 w-5 text-green-600 fill-current" />
+                                      <span className="text-sm font-semibold text-green-700">
+                                        🏆 MELHOR OPÇÃO - FILME
+                                      </span>
                                     </div>
                                   )}
 
-                                  <div className="grid md:grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                      <Label>Produtora</Label>
+                                  <div className="grid md:grid-cols-3 gap-6">
+                                    <div className="space-y-3">
+                                      <Label className="text-sm font-semibold">Produtora</Label>
                                       <Input
                                         value={q.produtora}
                                         onChange={(e) =>
                                           updateQuoteFilmIn(camp.id, q.id, { produtora: e.target.value })
                                         }
                                         placeholder="Nome da produtora"
+                                        className="h-12"
                                       />
                                     </div>
-                                    <div className="space-y-2">
-                                      <Label>Diretor</Label>
+                                    <div className="space-y-3">
+                                      <Label className="text-sm font-semibold">Diretor</Label>
                                       <Input
                                         value={q.diretor}
                                         onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { diretor: e.target.value })}
                                         placeholder="Opcional"
+                                        className="h-12"
                                       />
                                     </div>
-                                    <div className="space-y-2">
-                                      <Label>Tratamento</Label>
+                                    <div className="space-y-3">
+                                      <Label className="text-sm font-semibold">Tratamento</Label>
                                       <Input
                                         value={q.tratamento}
                                         onChange={(e) =>
                                           updateQuoteFilmIn(camp.id, q.id, { tratamento: e.target.value })
                                         }
                                         placeholder="Link ou descrição"
+                                        className="h-12"
                                       />
                                     </div>
                                   </div>
 
-                                  <div className="space-y-2">
-                                    <Label>Escopo Detalhado</Label>
+                                  <div className="space-y-3">
+                                    <Label className="text-sm font-semibold">Escopo Detalhado</Label>
                                     <textarea
-                                      className="w-full min-h-[100px] px-3 py-2 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                      className="w-full min-h-[120px] px-4 py-3 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
                                       value={q.escopo}
                                       onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { escopo: e.target.value })}
                                       placeholder="Descreva o escopo completo da produtora..."
@@ -943,38 +982,40 @@ export default function OrcamentoNovo() {
                                   </div>
 
                                   {/* Valores principais */}
-                                  <div className="grid md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                      <Label>Valor (R$)</Label>
+                                  <div className="grid md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                      <Label className="text-sm font-semibold">Valor (R$)</Label>
                                       <CurrencyInput
                                         value={q.valor}
                                         onChange={(value: number) => updateQuoteFilmIn(camp.id, q.id, { valor: value })}
+                                        className="h-12"
                                       />
                                     </div>
-                                    <div className="space-y-2">
-                                      <Label>Desconto (R$)</Label>
+                                    <div className="space-y-3">
+                                      <Label className="text-sm font-semibold">Desconto (R$)</Label>
                                       <CurrencyInput
                                         value={q.desconto}
                                         onChange={(value: number) =>
                                           updateQuoteFilmIn(camp.id, q.id, { desconto: value })
                                         }
+                                        className="h-12"
                                       />
                                     </div>
                                   </div>
 
-                                  <div className="flex justify-between items-center pt-4 border-t">
-                                    <div className="space-y-1">
+                                  <div className="flex justify-between items-center pt-6 border-t">
+                                    <div className="space-y-2">
                                       <div className="text-sm font-semibold text-gray-700">Valor Final</div>
-                                      <div className="text-2xl font-bold text-green-600">{money(finalForCard)}</div>
+                                      <div className="text-3xl font-bold text-green-600">{money(finalForCard)}</div>
                                     </div>
                                     <Button
-                                      size="sm"
+                                      size="lg"
                                       variant="outline"
                                       onClick={() => removeQuoteFilmFrom(camp.id, q.id)}
-                                      className="text-red-600 border-red-200 hover:bg-red-50"
+                                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                                     >
-                                      <Trash2 className="h-4 w-4 mr-1" />
-                                      Remover
+                                      <Trash2 className="h-5 w-5 mr-2" />
+                                      Remover Cotação
                                     </Button>
                                   </div>
                                 </motion.div>
@@ -985,10 +1026,10 @@ export default function OrcamentoNovo() {
 
                         {/* Cotações Áudio */}
                         {camp.inclui_audio && (
-                          <div className="space-y-4 pt-6 border-t">
+                          <div className="space-y-6 pt-6 border-t">
                             <div className="flex items-center justify-between">
                               <div>
-                                <h4 className="font-semibold text-lg">Cotações de Áudio</h4>
+                                <h4 className="font-semibold text-xl text-gray-900">Cotações de Áudio</h4>
                                 <p className="text-sm text-muted-foreground">
                                   {camp.quotes_audio.length === 0
                                     ? "Adicione cotações de produtoras de áudio"
@@ -996,16 +1037,16 @@ export default function OrcamentoNovo() {
                                 </p>
                               </div>
                               <Button
-                                size="sm"
+                                size="lg"
                                 onClick={() => addQuoteAudioTo(camp.id)}
-                                className="gap-2 bg-purple-600 hover:bg-purple-700"
+                                className="gap-2 bg-purple-600 hover:bg-purple-700 shadow-lg"
                               >
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-5 w-5" />
                                 Adicionar Áudio
                               </Button>
                             </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                               {camp.quotes_audio.map((q) => {
                                 const isCheapest = cheapestAudio?.id === q.id;
                                 const audioFinal = finalAudioValue(q);
@@ -1015,36 +1056,37 @@ export default function OrcamentoNovo() {
                                     key={q.id}
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    className={`border rounded-xl p-4 space-y-4 ${
+                                    className={`border-2 rounded-xl p-6 space-y-6 ${
                                       isCheapest
-                                        ? "border-purple-500 bg-purple-50 shadow-sm"
-                                        : "border-gray-200 bg-white"
+                                        ? "border-purple-500 bg-purple-50 shadow-lg"
+                                        : "border-gray-200 bg-white shadow-md"
                                     }`}
                                   >
                                     {isCheapest && (
-                                      <div className="flex items-center gap-2 p-2 bg-purple-100 rounded-lg">
-                                        <Zap className="h-4 w-4 text-purple-600" />
+                                      <div className="flex items-center gap-3 p-3 bg-purple-100 rounded-lg border border-purple-200">
+                                        <Zap className="h-5 w-5 text-purple-600" />
                                         <span className="text-sm font-semibold text-purple-700">
-                                          MELHOR OPÇÃO - ÁUDIO
+                                          🏆 MELHOR OPÇÃO - ÁUDIO
                                         </span>
                                       </div>
                                     )}
 
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Produtora</Label>
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                      <div className="space-y-3">
+                                        <Label className="text-sm font-semibold">Produtora</Label>
                                         <Input
                                           value={q.produtora}
                                           onChange={(e) =>
                                             updateQuoteAudioIn(camp.id, q.id, { produtora: e.target.value })
                                           }
                                           placeholder="Nome da produtora"
+                                          className="h-12"
                                         />
                                       </div>
-                                      <div className="space-y-2">
-                                        <Label>Descrição/Escopo</Label>
+                                      <div className="space-y-3">
+                                        <Label className="text-sm font-semibold">Descrição/Escopo</Label>
                                         <textarea
-                                          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                          className="w-full min-h-[100px] px-4 py-3 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
                                           value={q.descricao}
                                           onChange={(e) =>
                                             updateQuoteAudioIn(camp.id, q.id, { descricao: e.target.value })
@@ -1054,40 +1096,42 @@ export default function OrcamentoNovo() {
                                       </div>
                                     </div>
 
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <Label>Valor (R$)</Label>
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                      <div className="space-y-3">
+                                        <Label className="text-sm font-semibold">Valor (R$)</Label>
                                         <CurrencyInput
                                           value={q.valor}
                                           onChange={(value: number) =>
                                             updateQuoteAudioIn(camp.id, q.id, { valor: value })
                                           }
+                                          className="h-12"
                                         />
                                       </div>
-                                      <div className="space-y-2">
-                                        <Label>Desconto (R$)</Label>
+                                      <div className="space-y-3">
+                                        <Label className="text-sm font-semibold">Desconto (R$)</Label>
                                         <CurrencyInput
                                           value={q.desconto}
                                           onChange={(value: number) =>
                                             updateQuoteAudioIn(camp.id, q.id, { desconto: value })
                                           }
+                                          className="h-12"
                                         />
                                       </div>
                                     </div>
 
-                                    <div className="flex justify-between items-center pt-4 border-t">
-                                      <div className="space-y-1">
+                                    <div className="flex justify-between items-center pt-6 border-t">
+                                      <div className="space-y-2">
                                         <div className="text-sm font-semibold text-gray-700">Valor Final</div>
-                                        <div className="text-2xl font-bold text-purple-600">{money(audioFinal)}</div>
+                                        <div className="text-3xl font-bold text-purple-600">{money(audioFinal)}</div>
                                       </div>
                                       <Button
-                                        size="sm"
+                                        size="lg"
                                         variant="outline"
                                         onClick={() => removeQuoteAudioFrom(camp.id, q.id)}
-                                        className="text-red-600 border-red-200 hover:bg-red-50"
+                                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                                       >
-                                        <Trash2 className="h-4 w-4 mr-1" />
-                                        Remover
+                                        <Trash2 className="h-5 w-5 mr-2" />
+                                        Remover Cotação
                                       </Button>
                                     </div>
                                   </motion.div>
@@ -1105,31 +1149,35 @@ export default function OrcamentoNovo() {
 
             {/* Faturamento e Observações */}
             <div className="grid md:grid-cols-2 gap-6">
-              <Card className="shadow-sm border-gray-200">
-                <CardHeader>
-                  <CardTitle className="text-lg">Faturamento</CardTitle>
+              <Card className="shadow-lg border-yellow-200">
+                <CardHeader className="bg-gradient-to-r from-yellow-50 to-white rounded-t-lg">
+                  <CardTitle className="text-xl">Faturamento</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <CardContent className="space-y-6 pt-6">
+                  <div className="flex items-start gap-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
                     <Checkbox
                       id="pendente"
                       checked={!!data.pendente_faturamento}
                       onCheckedChange={(checked) => updateData({ pendente_faturamento: Boolean(checked) })}
+                      className="mt-1 data-[state=checked]:bg-yellow-600"
                     />
-                    <div className="space-y-1">
-                      <Label htmlFor="pendente" className="cursor-pointer font-semibold text-yellow-800">
-                        Pendente de faturamento
+                    <div className="space-y-2">
+                      <Label htmlFor="pendente" className="cursor-pointer font-semibold text-yellow-800 text-lg">
+                        ⏳ Pendente de faturamento
                       </Label>
-                      <p className="text-sm text-yellow-700">Marcará visualmente no PDF como pendente</p>
+                      <p className="text-sm text-yellow-700">Marcará visualmente no PDF como pendente de faturamento</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="observacoes">Observações</Label>
+                  <div className="space-y-3">
+                    <Label htmlFor="observacoes" className="text-sm font-semibold">
+                      Observações
+                    </Label>
                     <Input
                       id="observacoes"
                       value={data.observacoes || ""}
                       onChange={(e) => updateData({ observacoes: e.target.value })}
                       placeholder="Ex.: incluir em outubro, aguardando aprovação..."
+                      className="h-12"
                     />
                   </div>
                 </CardContent>
@@ -1140,67 +1188,73 @@ export default function OrcamentoNovo() {
           {/* Preview */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
-              <Card className="shadow-lg border-blue-100">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <FileText className="h-5 w-5 text-blue-600" />
+              <Card className="shadow-xl border-blue-200">
+                <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-white rounded-t-lg">
+                  <CardTitle className="flex items-center gap-3 text-xl">
+                    <FileText className="h-6 w-6 text-blue-600" />
                     Resumo do Orçamento
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6 pt-6">
                   {data.pendente_faturamento && (
-                    <div className="rounded-lg border border-yellow-400 bg-yellow-50 text-yellow-800 px-3 py-2 text-sm">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <AlertCircle className="h-4 w-4" />
+                    <div className="rounded-xl border-2 border-yellow-400 bg-yellow-50 text-yellow-800 px-4 py-3">
+                      <div className="flex items-center gap-3 font-semibold">
+                        <AlertCircle className="h-5 w-5" />
                         PENDENTE DE FATURAMENTO
                       </div>
                     </div>
                   )}
 
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-sm font-medium text-gray-600">Cliente:</span>
-                      <span className="font-semibold text-gray-900">{data.cliente || "—"}</span>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-3 border-b">
+                      <span className="text-sm font-semibold text-gray-600">Cliente:</span>
+                      <span className="font-bold text-gray-900 text-lg">{data.cliente || "—"}</span>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-sm font-medium text-gray-600">Produto:</span>
-                      <span className="font-semibold text-gray-900">{data.produto || "—"}</span>
+                    <div className="flex justify-between items-center py-3 border-b">
+                      <span className="text-sm font-semibold text-gray-600">Produto:</span>
+                      <span className="font-bold text-gray-900 text-lg">{data.produto || "—"}</span>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-sm font-medium text-gray-600">Cotações Filme:</span>
-                      <Badge variant="outline">{totalQuotesFilme}</Badge>
+                    <div className="flex justify-between items-center py-3 border-b">
+                      <span className="text-sm font-semibold text-gray-600">Cotações Filme:</span>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 px-3 py-1">
+                        {totalQuotesFilme}
+                      </Badge>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-sm font-medium text-gray-600">Cotações Áudio:</span>
-                      <Badge variant="outline">{totalQuotesAudio}</Badge>
+                    <div className="flex justify-between items-center py-3 border-b">
+                      <span className="text-sm font-semibold text-gray-600">Cotações Áudio:</span>
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 px-3 py-1">
+                        {totalQuotesAudio}
+                      </Badge>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-sm font-medium text-gray-600">Campanhas:</span>
-                      <Badge variant="secondary">{data.campanhas?.length || 0}</Badge>
+                    <div className="flex justify-between items-center py-3 border-b">
+                      <span className="text-sm font-semibold text-gray-600">Campanhas:</span>
+                      <Badge variant="default" className="bg-green-600 px-3 py-1">
+                        {data.campanhas?.length || 0}
+                      </Badge>
                     </div>
                   </div>
 
                   {/* Totais por Campanha */}
-                  <div className="pt-4 border-t">
-                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-green-600" />
+                  <div className="pt-6 border-t">
+                    <h4 className="font-semibold text-gray-900 text-lg mb-4 flex items-center gap-3">
+                      <TrendingUp className="h-5 w-5 text-green-600" />
                       Totais por Campanha
                     </h4>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {(data.totais_campanhas || []).map((t) => (
-                        <div key={t.campId} className="rounded-lg border border-gray-200 p-3 bg-white">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-medium text-sm text-gray-900">{t.nome}</span>
-                            <span className="font-bold text-green-600">{money(t.subtotal)}</span>
+                        <div key={t.campId} className="rounded-xl border border-gray-300 p-4 bg-white shadow-sm">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-semibold text-gray-900">{t.nome}</span>
+                            <span className="font-bold text-2xl text-green-600">{money(t.subtotal)}</span>
                           </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                          <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
                             <div className="flex justify-between">
                               <span>Filme:</span>
-                              <span className="font-medium">{money(t.filmVal)}</span>
+                              <span className="font-semibold">{money(t.filmVal)}</span>
                             </div>
                             <div className="flex justify-between">
                               <span>Áudio:</span>
-                              <span className="font-medium">{money(t.audioVal)}</span>
+                              <span className="font-semibold">{money(t.audioVal)}</span>
                             </div>
                           </div>
                         </div>
@@ -1211,17 +1265,29 @@ export default function OrcamentoNovo() {
               </Card>
 
               {/* Dicas Rápidas */}
-              <Card className="border-orange-100 bg-orange-50">
-                <CardContent className="p-4">
-                  <h4 className="font-semibold text-orange-900 mb-2 flex items-center gap-2">
-                    <Zap className="h-4 w-4" />
+              <Card className="border-orange-200 bg-gradient-to-r from-orange-50 to-white shadow-lg">
+                <CardContent className="p-6">
+                  <h4 className="font-semibold text-orange-900 text-lg mb-4 flex items-center gap-3">
+                    <Zap className="h-5 w-5 text-orange-600" />
                     Dicas Rápidas
                   </h4>
-                  <ul className="text-sm text-orange-800 space-y-1">
-                    <li>• Preencha todos os campos obrigatórios</li>
-                    <li>• Adicione pelo menos 1 cotação por campanha</li>
-                    <li>• Sistema calcula automaticamente os melhores valores</li>
-                    <li>• Revise os totais antes de salvar</li>
+                  <ul className="text-sm text-orange-800 space-y-3">
+                    <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                      <span>Preencha todos os campos obrigatórios</span>
+                    </li>
+                    <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                      <span>Adicione pelo menos 1 cotação por campanha</span>
+                    </li>
+                    <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                      <span>Sistema calcula automaticamente os melhores valores</span>
+                    </li>
+                    <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                      <span>Revise os totais antes de salvar</span>
+                    </li>
                   </ul>
                 </CardContent>
               </Card>
