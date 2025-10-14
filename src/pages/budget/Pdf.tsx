@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Star, CheckCircle } from "lucide-react";
+import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
@@ -84,10 +84,11 @@ const lowestQuoteValue = (q: QuoteFilm) => {
   }
   return base;
 };
+
 /** valor final para áudio */
 const finalAudioValue = (a: QuoteAudio) => toNum(a.valor) - toNum(a.desconto);
 
-/** escolhe fornecedor “selecionado” ou o mais barato */
+/** escolhe fornecedor "selecionado" ou o mais barato */
 const pickFilm = (quotes: QuoteFilm[] = []) => {
   const sel = quotes.find((q) => q.selecionado);
   if (sel) return sel;
@@ -96,6 +97,7 @@ const pickFilm = (quotes: QuoteFilm[] = []) => {
     return lowestQuoteValue(q) < lowestQuoteValue(best) ? q : best;
   }, null as any);
 };
+
 const pickAudio = (quotes: QuoteAudio[] = []) => {
   const sel = quotes.find((q) => q.selecionado);
   if (sel) return sel;
@@ -115,9 +117,7 @@ export default function BudgetPdf() {
   const [data, setData] = useState<BudgetData | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Hooks que dependem de "data" PRECISAM vir antes de return, para não quebrar a ordem.
   const payload = data?.payload ?? {};
-  // O seu orçamento novo salva como campanhas -> quotes_film/quotes_audio.
   const campanhas: CampaignQuotes[] = Array.isArray(payload.campanhas) ? payload.campanhas : [];
 
   const totaisPorCampanha = useMemo(() => {
@@ -129,6 +129,10 @@ export default function BudgetPdf() {
       return { id: camp.id, nome: camp.nome, total: filmVal + audioVal };
     });
   }, [JSON.stringify(campanhas)]);
+
+  const totalGeral = useMemo(() => {
+    return totaisPorCampanha.reduce((sum, camp) => sum + camp.total, 0);
+  }, [totaisPorCampanha]);
 
   /** ====== Carrega orçamento ====== */
   useEffect(() => {
@@ -294,6 +298,7 @@ export default function BudgetPdf() {
           background: #FFFFFF;
           color: #000000;
           box-sizing: border-box;
+          font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
         }
         .grid-opts {
           display: grid;
@@ -310,87 +315,101 @@ export default function BudgetPdf() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-[28px] leading-8 font-semibold">Gerar PDF</h1>
+              <h1 className="text-[28px] leading-8 font-semibold">Visualização do Orçamento</h1>
               <p className="text-muted-foreground">{data.display_id}</p>
             </div>
           </div>
 
-          <Button onClick={handleGeneratePdf} disabled={generating} className="gap-2">
-            <Download className="h-4 w-4" />
-            {generating ? "Gerando..." : "Baixar PDF"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => navigate(`/budget/${id}`)} className="gap-2">
+              <FileText className="h-4 w-4" />
+              Editar
+            </Button>
+            <Button onClick={handleGeneratePdf} disabled={generating} className="gap-2">
+              <Download className="h-4 w-4" />
+              {generating ? "Gerando..." : "Baixar PDF"}
+            </Button>
+          </div>
         </div>
 
         {/* Conteúdo que vira PDF */}
-        <div ref={contentRef} className="print-content">
+        <div ref={contentRef} className="print-content bg-white shadow-2xl">
           {/* Cabeçalho */}
           <div
-            className="avoid-break flex items-start justify-between mb-8 pb-6"
-            style={{ borderBottom: "3px solid #E6191E" }}
+            className="avoid-break flex items-start justify-between mb-8 pb-6 border-b-4"
+            style={{ borderColor: "#E6191E" }}
           >
             <div className="flex-1">
-              <img src={logoWE} alt="Logo WE" style={{ height: "50px", marginBottom: "12px" }} />
-              <div style={{ fontSize: "9px", lineHeight: "1.6", color: "#666" }}>
-                <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000", marginBottom: "4px" }}>
+              <img src={logoWE} alt="Logo WE" style={{ height: "45px", marginBottom: "12px" }} />
+              <div style={{ fontSize: "9px", lineHeight: "1.4", color: "#666" }}>
+                <p style={{ fontWeight: "bold", fontSize: "10px", color: "#000", marginBottom: "2px" }}>
                   WF/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA
                 </p>
-                <p style={{ marginBottom: "2px" }}>CNPJ: 05.265.118/0001-65</p>
+                <p style={{ marginBottom: "1px" }}>CNPJ: 05.265.118/0001-65</p>
                 <p>Rua Chilon, 381, Vila Olímpia, São Paulo – SP, CEP: 04552-030</p>
               </div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>ORÇAMENTO</h1>
-              <p style={{ fontSize: "18px", fontWeight: 700, color: "#000", marginBottom: "4px" }}>
+              <h1 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "4px", color: "#E6191E" }}>ORÇAMENTO</h1>
+              <p style={{ fontSize: "16px", fontWeight: 700, color: "#000", marginBottom: "4px" }}>
                 Nº {data.budget_number}
               </p>
-              <p style={{ fontSize: "11px", color: "#666", marginBottom: "2px" }}>{data.display_id}</p>
-              <p style={{ fontSize: "12px", color: "#666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
+              <p style={{ fontSize: "10px", color: "#666", marginBottom: "2px" }}>{data.display_id}</p>
+              <p style={{ fontSize: "11px", color: "#666" }}>{new Date().toLocaleDateString("pt-BR")}</p>
             </div>
           </div>
 
-          {/* Identificação */}
+          {/* Informações do Cliente */}
           <div
-            className="avoid-break"
+            className="avoid-break mb-6 p-4 rounded-lg border"
             style={{
-              marginBottom: "24px",
-              padding: "16px",
-              borderRadius: "8px",
-              backgroundColor: "#F5F5F5",
-              border: "1px solid #E0E0E0",
+              backgroundColor: "#F8FAFC",
+              border: "1px solid #E2E8F0",
             }}
           >
+            <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px", color: "#1E293B" }}>
+              Informações do Projeto
+            </h2>
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "16px",
-                fontSize: "13px",
+                gap: "12px",
+                fontSize: "12px",
               }}
             >
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Cliente</p>
+                <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Cliente</p>
                 <p style={{ fontWeight: "bold", color: "#000" }}>{payload.cliente || "-"}</p>
               </div>
               <div>
-                <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Produto</p>
+                <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Produto</p>
                 <p style={{ fontWeight: "bold", color: "#000" }}>{payload.produto || "-"}</p>
               </div>
               {payload.job && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Job</p>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Job</p>
                   <p style={{ fontWeight: "bold", color: "#000" }}>{payload.job}</p>
                 </div>
               )}
-              {campanhas[0]?.nome && (
+              {payload.produtor && (
                 <div>
-                  <p style={{ marginBottom: "4px", fontSize: "11px", fontWeight: 600, color: "#666" }}>Campanha (1ª)</p>
-                  <p style={{ fontWeight: "bold", color: "#000" }}>{campanhas[0].nome}</p>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Produtor</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.produtor}</p>
+                </div>
+              )}
+              {payload.entregaveis && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>
+                    Entregáveis
+                  </p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.entregaveis}</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Campanhas (modelo de quotes) */}
+          {/* Campanhas */}
           {campanhas.map((camp, campIdx) => {
             const filmSel = pickFilm(camp.quotes_film || []);
             const audioSel = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
@@ -404,240 +423,427 @@ export default function BudgetPdf() {
             const globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
 
             return (
-              <div key={camp.id || campIdx} className="avoid-break" style={{ marginBottom: "24px" }}>
+              <div key={camp.id || campIdx} className="avoid-break mb-8">
                 {/* Cabeçalho da campanha */}
                 <div
                   style={{
+                    background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
                     borderLeft: "4px solid #E6191E",
-                    padding: "12px 16px",
-                    marginBottom: "12px",
+                    padding: "16px 20px",
+                    marginBottom: "16px",
                     borderRadius: "0 8px 8px 0",
-                    backgroundColor: "#F9F9F9",
+                    border: "1px solid #E2E8F0",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#000" }}>
-                      {camp.nome || `Campanha ${campIdx + 1}`}
-                    </h2>
-                    <span style={{ fontSize: "16px", fontWeight: "bold", color: "#E6191E" }}>{money(campTotal)}</span>
+                    <div className="flex items-center gap-3">
+                      <Building2 className="h-5 w-5 text-gray-600" />
+                      <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>
+                        {camp.nome || `Campanha ${campIdx + 1}`}
+                      </h2>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: "12px", color: "#64748B", marginBottom: "2px" }}>Total da Campanha</p>
+                      <span style={{ fontSize: "20px", fontWeight: "bold", color: "#E6191E" }}>{money(campTotal)}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* PRODUTORAS DE FILME */}
                 {films.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "12px" }}>
-                    <div style={{ fontWeight: 700, fontSize: "14px", color: "#000" }}>Produtoras — Filme</div>
-                    {films.map((f, idx) => {
-                      const isEscolhido = !!(filmSel && filmSel.id === f.id);
-                      const minFornecedor = lowestQuoteValue(f);
-                      const isMaisBaratoGlobal = Math.abs(minFornecedor - globalMinFilm) < 0.005;
+                  <div style={{ marginBottom: "20px" }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Film className="h-4 w-4 text-blue-600" />
+                      <h3 style={{ fontWeight: 700, fontSize: "16px", color: "#1E293B" }}>Produtoras de Filme</h3>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {films.map((f, idx) => {
+                        const isEscolhido = !!(filmSel && filmSel.id === f.id);
+                        const minFornecedor = lowestQuoteValue(f);
+                        const isMaisBaratoGlobal = Math.abs(minFornecedor - globalMinFilm) < 0.005;
 
-                      const destaque = isEscolhido || isMaisBaratoGlobal;
-                      const cardBg = destaque ? "#F0FAF4" : "#FFFFFF";
-                      const cardBorder = destaque ? "2px solid #48bb78" : "1px solid #E5E5E5";
-                      const shadow = destaque ? "0 2px 8px rgba(72, 187, 120, 0.15)" : "0 1px 3px rgba(0,0,0,0.08)";
+                        const destaque = isEscolhido || isMaisBaratoGlobal;
+                        const cardBg = destaque ? "#F0FDF4" : "#FFFFFF";
+                        const cardBorder = destaque ? "2px solid #16A34A" : "1px solid #E2E8F0";
+                        const shadow = destaque ? "0 4px 12px rgba(22, 163, 74, 0.15)" : "0 2px 4px rgba(0,0,0,0.05)";
 
-                      return (
-                        <div
-                          key={f.id || idx}
-                          className="rounded-lg px-3 py-3"
-                          style={{ backgroundColor: cardBg, border: cardBorder, boxShadow: shadow }}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex-1 pr-3">
-                              <div className="flex items-center gap-2 mb-1">
-                                {isMaisBaratoGlobal && (
-                                  <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
-                                )}
-                                {isEscolhido && <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />}
-                                <p
-                                  className={`font-bold ${destaque ? "text-sm" : "text-xs"}`}
-                                  style={{ color: "#000" }}
-                                >
-                                  {f.produtora || "Fornecedor"}
-                                </p>
-                              </div>
-
-                              {f.diretor && (
-                                <p className="text-[10px] mt-1" style={{ color: "#666" }}>
-                                  <span className="font-semibold">Diretor:</span> {f.diretor}
-                                </p>
-                              )}
-                              {f.tratamento && (
-                                <p className="text-[10px] mt-1" style={{ color: "#666" }}>
-                                  <span className="font-semibold">Tratamento:</span> {f.tratamento}
-                                </p>
-                              )}
-                              {f.escopo && (
-                                <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "#444" }}>
-                                  {f.escopo}
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="text-right flex-shrink-0">
-                              <span
-                                className={`font-bold ${destaque ? "text-base" : "text-sm"}`}
-                                style={{ color: destaque ? "#2F855A" : "#000" }}
-                              >
-                                {money(minFornecedor)}
-                              </span>
-                              {toNum(f.desconto) > 0 && (
-                                <p className="text-[9px] mt-1" style={{ color: "#666" }}>
-                                  Desc: {money(toNum(f.desconto))}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Opções lado a lado (2 colunas) */}
-                          {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
-                            <div style={{ marginTop: 8 }}>
-                              <p className="text-[10px] font-semibold mb-2" style={{ color: "#666" }}>
-                                Opções disponíveis:
-                              </p>
-                              <div className="grid-opts">
-                                {f.opcoes.map((opc, oIdx) => {
-                                  const valorOpc = toNum(opc.valor) - toNum(opc.desconto);
-                                  // Marca a opção escolhida se ela for exatamente a menor e o fornecedor for o escolhido
-                                  const isOpcEscolhida = isEscolhido && Math.abs(valorOpc - minFornecedor) < 0.005;
-
-                                  return (
-                                    <div
-                                      key={opc.id || oIdx}
+                        return (
+                          <div
+                            key={f.id || idx}
+                            className="rounded-lg p-4"
+                            style={{
+                              backgroundColor: cardBg,
+                              border: cardBorder,
+                              boxShadow: shadow,
+                              position: "relative",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {destaque && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: "3px",
+                                  background: "linear-gradient(90deg, #16A34A, #22C55E)",
+                                }}
+                              />
+                            )}
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex-1 pr-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {isMaisBaratoGlobal && (
+                                    <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
+                                  )}
+                                  {isEscolhido && <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />}
+                                  <p
+                                    className={`font-bold ${destaque ? "text-base" : "text-sm"}`}
+                                    style={{ color: "#1E293B" }}
+                                  >
+                                    {f.produtora || "Fornecedor"}
+                                  </p>
+                                  {destaque && (
+                                    <span
                                       style={{
-                                        padding: "8px 10px",
-                                        backgroundColor: isOpcEscolhida ? "#F0FAF4" : "#F9F9F9",
-                                        border: isOpcEscolhida ? "1px solid #48BB78" : "1px solid #E5E5E5",
-                                        borderRadius: 6,
-                                        fontSize: 10,
+                                        fontSize: "10px",
+                                        fontWeight: 700,
+                                        color: "#16A34A",
+                                        background: "#DCFCE7",
+                                        padding: "2px 8px",
+                                        borderRadius: "12px",
+                                        marginLeft: "8px",
                                       }}
                                     >
-                                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                                        <div style={{ flex: 1 }}>
-                                          <p style={{ fontWeight: 700, marginBottom: 2, color: "#000" }}>
-                                            {opc.nome || `Opção ${oIdx + 1}`}
-                                          </p>
-                                          {opc.escopo && <p style={{ fontSize: 9, color: "#555" }}>{opc.escopo}</p>}
-                                          {isOpcEscolhida && (
-                                            <span
-                                              style={{
-                                                display: "inline-block",
-                                                marginTop: 4,
-                                                fontSize: 9,
-                                                fontWeight: 700,
-                                                color: "#2F855A",
-                                                background: "#C6F6D5",
-                                                border: "1px solid #48BB78",
-                                                padding: "1px 6px",
-                                                borderRadius: 999,
-                                              }}
-                                            >
-                                              ✓ OPÇÃO ESCOLHIDA
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div style={{ textAlign: "right" }}>
-                                          <p style={{ fontWeight: 700, color: "#000" }}>{money(valorOpc)}</p>
-                                          {toNum(opc.desconto) > 0 && (
-                                            <p style={{ fontSize: 8, color: "#666" }}>
-                                              Desc: {money(toNum(opc.desconto))}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                                      {isEscolhido ? "SELECIONADO" : "MELHOR PREÇO"}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1">
+                                  {f.diretor && (
+                                    <p className="text-[11px]" style={{ color: "#475569" }}>
+                                      <span className="font-semibold">Diretor:</span> {f.diretor}
+                                    </p>
+                                  )}
+                                  {f.tratamento && (
+                                    <p className="text-[11px]" style={{ color: "#475569" }}>
+                                      <span className="font-semibold">Tratamento:</span> {f.tratamento}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {f.escopo && (
+                                  <div
+                                    className="mt-3 p-3 rounded border"
+                                    style={{
+                                      backgroundColor: "#F8FAFC",
+                                      border: "1px solid #E2E8F0",
+                                      fontSize: "11px",
+                                      lineHeight: "1.5",
+                                      color: "#475569",
+                                    }}
+                                  >
+                                    {f.escopo}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="text-right flex-shrink-0">
+                                <span
+                                  className={`font-bold ${destaque ? "text-lg" : "text-base"}`}
+                                  style={{ color: destaque ? "#16A34A" : "#1E293B" }}
+                                >
+                                  {money(minFornecedor)}
+                                </span>
+                                {toNum(f.desconto) > 0 && (
+                                  <p className="text-[10px] mt-1" style={{ color: "#64748B" }}>
+                                    Desconto: {money(toNum(f.desconto))}
+                                  </p>
+                                )}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+
+                            {/* Opções lado a lado (2 colunas) */}
+                            {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
+                              <div style={{ marginTop: 12 }}>
+                                <p className="text-[11px] font-semibold mb-3" style={{ color: "#475569" }}>
+                                  Opções disponíveis:
+                                </p>
+                                <div className="grid-opts">
+                                  {f.opcoes.map((opc, oIdx) => {
+                                    const valorOpc = toNum(opc.valor) - toNum(opc.desconto);
+                                    const isOpcEscolhida = isEscolhido && Math.abs(valorOpc - minFornecedor) < 0.005;
+
+                                    return (
+                                      <div
+                                        key={opc.id || oIdx}
+                                        style={{
+                                          padding: "10px 12px",
+                                          backgroundColor: isOpcEscolhida ? "#F0FDF4" : "#F8FAFC",
+                                          border: isOpcEscolhida ? "2px solid #16A34A" : "1px solid #E2E8F0",
+                                          borderRadius: 8,
+                                          fontSize: 11,
+                                          position: "relative",
+                                        }}
+                                      >
+                                        {isOpcEscolhida && (
+                                          <div
+                                            style={{
+                                              position: "absolute",
+                                              top: -1,
+                                              left: -1,
+                                              right: -1,
+                                              height: "2px",
+                                              backgroundColor: "#16A34A",
+                                              borderRadius: "8px 8px 0 0",
+                                            }}
+                                          />
+                                        )}
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                          <div style={{ flex: 1 }}>
+                                            <p style={{ fontWeight: 700, marginBottom: 4, color: "#1E293B" }}>
+                                              {opc.nome || `Opção ${oIdx + 1}`}
+                                            </p>
+                                            {opc.escopo && (
+                                              <p style={{ fontSize: 10, color: "#64748B", lineHeight: "1.4" }}>
+                                                {opc.escopo}
+                                              </p>
+                                            )}
+                                            {isOpcEscolhida && (
+                                              <span
+                                                style={{
+                                                  display: "inline-block",
+                                                  marginTop: 6,
+                                                  fontSize: 9,
+                                                  fontWeight: 700,
+                                                  color: "#16A34A",
+                                                  background: "#DCFCE7",
+                                                  border: "1px solid #16A34A",
+                                                  padding: "2px 8px",
+                                                  borderRadius: "12px",
+                                                }}
+                                              >
+                                                ✓ OPÇÃO ESCOLHIDA
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                            <p style={{ fontWeight: 700, color: "#1E293B", fontSize: "12px" }}>
+                                              {money(valorOpc)}
+                                            </p>
+                                            {toNum(opc.desconto) > 0 && (
+                                              <p style={{ fontSize: 9, color: "#64748B" }}>
+                                                Desc: {money(toNum(opc.desconto))}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
                 {/* PRODUTORAS DE ÁUDIO */}
                 {camp.inclui_audio && audios.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <div style={{ fontWeight: 700, fontSize: "14px", color: "#000" }}>Produtoras — Áudio</div>
-                    {audios.map((a, idx) => {
-                      const isEscolhido = !!(audioSel && audioSel.id === a.id);
-                      const finalA = finalAudioValue(a);
-                      return (
-                        <div
-                          key={a.id || idx}
-                          className="rounded-lg px-3 py-3"
-                          style={{
-                            backgroundColor: isEscolhido ? "#EEF5FF" : "#FFFFFF",
-                            border: isEscolhido ? "2px solid #3B82F6" : "1px solid #E5E5E5",
-                          }}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="pr-3">
-                              <div className="flex items-center gap-2">
-                                {isEscolhido && <CheckCircle className="h-4 w-4 text-blue-600" />}
-                                <p className="font-bold text-sm" style={{ color: "#000" }}>
-                                  {a.produtora || "Fornecedor de Áudio"}
-                                </p>
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Music className="h-4 w-4 text-purple-600" />
+                      <h3 style={{ fontWeight: 700, fontSize: "16px", color: "#1E293B" }}>Produtoras de Áudio</h3>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {audios.map((a, idx) => {
+                        const isEscolhido = !!(audioSel && audioSel.id === a.id);
+                        const finalA = finalAudioValue(a);
+                        return (
+                          <div
+                            key={a.id || idx}
+                            className="rounded-lg p-4"
+                            style={{
+                              backgroundColor: isEscolhido ? "#F8FAFF" : "#FFFFFF",
+                              border: isEscolhido ? "2px solid #4F46E5" : "1px solid #E2E8F0",
+                              boxShadow: isEscolhido
+                                ? "0 4px 12px rgba(79, 70, 229, 0.15)"
+                                : "0 2px 4px rgba(0,0,0,0.05)",
+                              position: "relative",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {isEscolhido && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: "3px",
+                                  background: "linear-gradient(90deg, #4F46E5, #6366F1)",
+                                }}
+                              />
+                            )}
+                            <div className="flex justify-between items-start">
+                              <div className="pr-4 flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {isEscolhido && <CheckCircle className="h-4 w-4 text-blue-600" />}
+                                  <p className="font-bold text-sm" style={{ color: "#1E293B" }}>
+                                    {a.produtora || "Fornecedor de Áudio"}
+                                  </p>
+                                  {isEscolhido && (
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        fontWeight: 700,
+                                        color: "#4F46E5",
+                                        background: "#E0E7FF",
+                                        padding: "2px 8px",
+                                        borderRadius: "12px",
+                                        marginLeft: "8px",
+                                      }}
+                                    >
+                                      SELECIONADO
+                                    </span>
+                                  )}
+                                </div>
+                                {a.descricao && (
+                                  <div
+                                    className="p-2 rounded border mt-2"
+                                    style={{
+                                      backgroundColor: "#F8FAFC",
+                                      border: "1px solid #E2E8F0",
+                                      fontSize: "11px",
+                                      color: "#475569",
+                                    }}
+                                  >
+                                    {a.descricao}
+                                  </div>
+                                )}
                               </div>
-                              {a.descricao && (
-                                <p className="text-[10px] mt-1" style={{ color: "#444" }}>
-                                  {a.descricao}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <span
-                                className={`font-bold ${isEscolhido ? "text-base" : "text-sm"}`}
-                                style={{ color: "#000" }}
-                              >
-                                {money(finalA)}
-                              </span>
-                              {toNum(a.desconto) > 0 && (
-                                <p className="text-[9px] mt-1" style={{ color: "#666" }}>
-                                  Desc: {money(toNum(a.desconto))}
-                                </p>
-                              )}
+                              <div className="text-right flex-shrink-0">
+                                <span
+                                  className={`font-bold ${isEscolhido ? "text-lg" : "text-base"}`}
+                                  style={{ color: isEscolhido ? "#4F46E5" : "#1E293B" }}
+                                >
+                                  {money(finalA)}
+                                </span>
+                                {toNum(a.desconto) > 0 && (
+                                  <p className="text-[10px] mt-1" style={{ color: "#64748B" }}>
+                                    Desconto: {money(toNum(a.desconto))}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
             );
           })}
 
-          {/* Resumo por campanha */}
-          {totaisPorCampanha.length > 0 && (
+          {/* Resumo Financeiro */}
+          {(totaisPorCampanha.length > 0 || totalGeral > 0) && (
             <div
-              className="avoid-break"
+              className="avoid-break mt-8 p-6 rounded-xl border"
               style={{
-                paddingTop: "16px",
-                marginTop: "24px",
-                borderRadius: "8px",
-                padding: "16px",
-                backgroundColor: "#F5F5F5",
-                borderTop: "3px solid #E6191E",
+                background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+                border: "2px solid #E2E8F0",
               }}
             >
-              <div style={{ marginBottom: 8, fontWeight: 700, fontSize: 14, color: "#000" }}>Resumo por Campanha</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 12 }}>
-                {totaisPorCampanha.map((t) => (
-                  <div
-                    key={t.id}
-                    style={{ background: "#fff", border: "1px solid #E5E5E5", borderRadius: 8, padding: 12 }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600 }}>{t.nome}</span>
-                      <span style={{ fontWeight: 700 }}>{money(t.total)}</span>
-                    </div>
+              <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px", color: "#1E293B" }}>
+                Resumo Financeiro
+              </h2>
+
+              {/* Totais por Campanha */}
+              {totaisPorCampanha.length > 0 && (
+                <div style={{ marginBottom: "16px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#475569" }}>
+                    Totais por Campanha
+                  </h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: "12px" }}>
+                    {totaisPorCampanha.map((t) => (
+                      <div
+                        key={t.id}
+                        style={{
+                          background: "#fff",
+                          border: "1px solid #E2E8F0",
+                          borderRadius: 8,
+                          padding: "12px",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontWeight: 600, fontSize: "13px", color: "#1E293B" }}>{t.nome}</span>
+                          <span style={{ fontWeight: 700, fontSize: "14px", color: "#E6191E" }}>{money(t.total)}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {/* Total Geral */}
+              {totalGeral > 0 && (
+                <div
+                  style={{
+                    padding: "16px",
+                    background: "#FFFFFF",
+                    border: "2px solid #E6191E",
+                    borderRadius: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#64748B", marginBottom: "4px" }}>
+                    TOTAL GERAL
+                  </p>
+                  <p style={{ fontSize: "24px", fontWeight: "bold", color: "#E6191E" }}>{money(totalGeral)}</p>
+                </div>
+              )}
+
+              {/* Observações */}
+              {payload.observacoes && (
+                <div
+                  style={{
+                    marginTop: "16px",
+                    padding: "12px",
+                    background: "#FFF",
+                    borderRadius: "8px",
+                    border: "1px solid #E2E8F0",
+                  }}
+                >
+                  <p style={{ fontSize: "11px", fontWeight: 600, color: "#64748B", marginBottom: "4px" }}>
+                    Observações:
+                  </p>
+                  <p style={{ fontSize: "11px", color: "#475569" }}>{payload.observacoes}</p>
+                </div>
+              )}
+
+              {payload.pendente_faturamento && (
+                <div
+                  style={{
+                    marginTop: "12px",
+                    padding: "8px 12px",
+                    background: "#FEF3C7",
+                    border: "1px solid #F59E0B",
+                    borderRadius: "6px",
+                    textAlign: "center",
+                  }}
+                >
+                  <p style={{ fontSize: "11px", fontWeight: 600, color: "#92400E" }}>
+                    ⚠️ ORÇAMENTO PENDENTE DE FATURAMENTO
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
