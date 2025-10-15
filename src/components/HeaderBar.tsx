@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 interface HeaderBarProps {
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   backTo?: string;
   actions?: React.ReactNode;

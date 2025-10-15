@@ -229,6 +229,9 @@ const App = () => (
                 }
               />
 
+              {/* Redirect /orcamento-novo to /orcamentos/novo */}
+              <Route path="/orcamento-novo" element={<Navigate to="/orcamentos/novo" replace />} />
+
               <Route
                 path="/orcamentos/novo/zero"
                 element={

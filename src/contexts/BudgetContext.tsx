@@ -563,7 +563,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         ...state.form.metadata!,
         criado_em: new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
-        status: "rascunho",
+        status: "rascunho" as const,
       },
     };
   }, [state.form]);

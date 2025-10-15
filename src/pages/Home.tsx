@@ -107,7 +107,6 @@ export default function Home() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [items, setItems] = useState<UploadItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [recent, setRecent] = useState<TransferRow[]>([]);
   const dropRef = useRef<HTMLDivElement | null>(null);
 
   const userId = (profile as any)?.id || (profile as any)?.user_id || null;
@@ -129,21 +128,11 @@ export default function Home() {
     fetchClubeNews();
   }, []);
 
-  const loadRecent = async () => {
-    if (!userId) return;
-    const { data, error } = await supabase
-      .from("transfers")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(12);
-    if (!error) setRecent((data as TransferRow[]) || []);
-  };
+  // Removed loadRecent function - transfers table doesn't exist
 
   useEffect(() => {
     if (transferOpen) {
       setItems([]);
-      loadRecent();
     }
   }, [transferOpen]);
 
@@ -198,7 +187,7 @@ export default function Home() {
   };
 
   const uploadOne = async (item: UploadItem): Promise<UploadItem> => {
-    let updated = { ...item, status: "uploading" as const, progress: 15 };
+    let updated: UploadItem = { ...item, status: "uploading", progress: 15 };
     setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
     try {
       const safeName = `${Date.now()}-${slugify(item.name)}`;
@@ -241,15 +230,8 @@ export default function Home() {
   const saveRegister = async () => {
     try {
       setSaving(true);
-      const payload = {
-        user_id: userId,
-        files: items.map((i) => ({ name: i.name, size: i.size, path: i.path, url: i.url })),
-        link: null,
-        note: "supabase-storage",
-      };
-      const { error } = await supabase.from("transfers").insert(payload as any);
-      if (error) throw error;
-      await loadRecent();
+      // Transfers table doesn't exist in schema - functionality disabled
+      console.log("Transfer functionality disabled - table not found");
     } catch (e) {
       console.error(e);
     } finally {
@@ -622,57 +604,6 @@ export default function Home() {
                   {saving ? "💾 Salvando..." : "Salvar registro"}
                 </Button>
               </div>
-
-              {/* Últimos envios */}
-              {recent.length > 0 && (
-                <GlassCard className="p-6">
-                  <h4 className="font-semibold text-white mb-4 text-lg">📁 Últimos Envios</h4>
-                  <div className="max-h-60 overflow-auto space-y-3">
-                    {recent.map((r) => (
-                      <div key={r.id} className="p-4 rounded-xl backdrop-blur-md bg-white/5 border border-white/10">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-medium text-white">
-                            {new Date(r.created_at).toLocaleString("pt-BR")}
-                          </div>
-                          {r.files?.some((f) => f.url) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const urls = r.files
-                                  ?.map((f) => f.url)
-                                  .filter(Boolean)
-                                  .join("\n");
-                                if (urls) navigator.clipboard.writeText(urls);
-                              }}
-                              className="backdrop-blur-md bg-white/5 border-white/20 text-white hover:bg-white/10"
-                            >
-                              <Copy className="w-4 h-4 mr-1" /> Copiar links
-                            </Button>
-                          )}
-                        </div>
-                        <ul className="space-y-1">
-                          {r.files?.map((f, idx) => (
-                            <li key={idx} className="flex items-center justify-between text-sm text-white/70">
-                              <span className="truncate flex-1">{f.name}</span>
-                              {f.url && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 px-2 ml-2 text-blue-300 hover:text-blue-200 hover:bg-blue-500/20"
-                                  onClick={() => window.open(f.url as string, "_blank")}
-                                >
-                                  Abrir
-                                </Button>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              )}
             </div>
           </DialogContent>
         </Dialog>
