@@ -1,6 +1,18 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Save, FileText, Plus, Trash2, AlertCircle, Star, Zap, TrendingUp, Calculator } from "lucide-react";
+import {
+  Save,
+  FileText,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Star,
+  Zap,
+  TrendingUp,
+  Calculator,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +46,7 @@ interface QuoteFilm {
   desconto: number | string;
   tem_opcoes?: boolean;
   opcoes?: FilmOption[];
+  opcoes_expandidas?: boolean;
 }
 
 interface QuoteAudio {
@@ -306,8 +319,30 @@ export default function OrcamentoNovo() {
                   desconto: 0,
                   tem_opcoes: false,
                   opcoes: [],
+                  opcoes_expandidas: false,
                 },
               ],
+            }
+          : c,
+      ),
+    }));
+  };
+
+  const toggleOpcoesExpandidas = (campId: string, quoteId: string) => {
+    setData((prev) => ({
+      ...prev,
+      campanhas: prev.campanhas?.map((c) =>
+        c.id === campId
+          ? {
+              ...c,
+              quotes_film: c.quotes_film.map((q) =>
+                q.id === quoteId
+                  ? {
+                      ...q,
+                      opcoes_expandidas: !q.opcoes_expandidas,
+                    }
+                  : q,
+              ),
             }
           : c,
       ),
@@ -385,6 +420,7 @@ export default function OrcamentoNovo() {
                   ? {
                       ...q,
                       opcoes: (q.opcoes || []).filter((opt) => opt.id !== optionId),
+                      tem_opcoes: (q.opcoes?.length || 0) > 1,
                     }
                   : q,
               ),
@@ -631,7 +667,7 @@ export default function OrcamentoNovo() {
                   </div>
                   <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
                     <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                    <span>Revise os totais antes de salvar</span>
+                    <span>Adicione opções para diferentes versões da mesma cotação</span>
                   </div>
                 </div>
               </div>
@@ -1003,20 +1039,201 @@ export default function OrcamentoNovo() {
                                     </div>
                                   </div>
 
+                                  {/* Seção de Opções */}
+                                  <div className="border-t pt-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                      <div>
+                                        <h5 className="font-semibold text-lg text-gray-900">Opções da Cotação</h5>
+                                        <p className="text-sm text-gray-600">
+                                          Adicione diferentes versões ou alternativas para esta cotação
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => toggleOpcoesExpandidas(camp.id, q.id)}
+                                          className="gap-2"
+                                        >
+                                          {q.opcoes_expandidas ? (
+                                            <>
+                                              <ChevronUp className="h-4 w-4" />
+                                              Ocultar Opções
+                                            </>
+                                          ) : (
+                                            <>
+                                              <ChevronDown className="h-4 w-4" />
+                                              Ver Opções
+                                            </>
+                                          )}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          onClick={() => addOptionToQuote(camp.id, q.id)}
+                                          className="gap-2 bg-orange-600 hover:bg-orange-700"
+                                        >
+                                          <Plus className="h-4 w-4" />
+                                          Nova Opção
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    <AnimatePresence>
+                                      {q.opcoes_expandidas && (
+                                        <motion.div
+                                          initial={{ opacity: 0, height: 0 }}
+                                          animate={{ opacity: 1, height: "auto" }}
+                                          exit={{ opacity: 0, height: 0 }}
+                                          className="space-y-4"
+                                        >
+                                          {q.opcoes && q.opcoes.length > 0 ? (
+                                            q.opcoes.map((option, optionIndex) => {
+                                              const optionFinal = toNum(option.valor) - toNum(option.desconto);
+                                              return (
+                                                <motion.div
+                                                  key={option.id}
+                                                  initial={{ opacity: 0, y: 10 }}
+                                                  animate={{ opacity: 1, y: 0 }}
+                                                  exit={{ opacity: 0, y: -10 }}
+                                                  className="p-4 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50 space-y-4"
+                                                >
+                                                  <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                      <Badge
+                                                        variant="outline"
+                                                        className="bg-orange-100 text-orange-700"
+                                                      >
+                                                        Opção {optionIndex + 1}
+                                                      </Badge>
+                                                      <h6 className="font-semibold text-orange-900">{option.nome}</h6>
+                                                    </div>
+                                                    <Button
+                                                      type="button"
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      onClick={() => removeOptionFromQuote(camp.id, q.id, option.id)}
+                                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    >
+                                                      <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                  </div>
+
+                                                  <div className="grid md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                      <Label className="text-sm font-semibold">Nome da Opção</Label>
+                                                      <Input
+                                                        value={option.nome}
+                                                        onChange={(e) =>
+                                                          updateOptionInQuote(camp.id, q.id, option.id, {
+                                                            nome: e.target.value,
+                                                          })
+                                                        }
+                                                        placeholder="Ex.: Versão reduzida, Com locução, etc."
+                                                        className="h-10"
+                                                      />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                      <Label className="text-sm font-semibold">Escopo da Opção</Label>
+                                                      <Input
+                                                        value={option.escopo}
+                                                        onChange={(e) =>
+                                                          updateOptionInQuote(camp.id, q.id, option.id, {
+                                                            escopo: e.target.value,
+                                                          })
+                                                        }
+                                                        placeholder="Descreva o escopo específico desta opção"
+                                                        className="h-10"
+                                                      />
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="grid md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                      <Label className="text-sm font-semibold">Valor (R$)</Label>
+                                                      <CurrencyInput
+                                                        value={option.valor}
+                                                        onChange={(value: number) =>
+                                                          updateOptionInQuote(camp.id, q.id, option.id, {
+                                                            valor: value,
+                                                          })
+                                                        }
+                                                        className="h-10"
+                                                      />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                      <Label className="text-sm font-semibold">Desconto (R$)</Label>
+                                                      <CurrencyInput
+                                                        value={option.desconto}
+                                                        onChange={(value: number) =>
+                                                          updateOptionInQuote(camp.id, q.id, option.id, {
+                                                            desconto: value,
+                                                          })
+                                                        }
+                                                        className="h-10"
+                                                      />
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="flex justify-between items-center pt-3 border-t border-orange-200">
+                                                    <div className="space-y-1">
+                                                      <div className="text-sm font-semibold text-gray-700">
+                                                        Valor Final da Opção
+                                                      </div>
+                                                      <div className="text-xl font-bold text-orange-600">
+                                                        {money(optionFinal)}
+                                                      </div>
+                                                    </div>
+                                                    {optionFinal < finalForCard && (
+                                                      <Badge className="bg-green-600 text-white">💰 Melhor Valor</Badge>
+                                                    )}
+                                                  </div>
+                                                </motion.div>
+                                              );
+                                            })
+                                          ) : (
+                                            <div className="text-center py-8 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50">
+                                              <FileText className="h-12 w-12 text-orange-400 mx-auto mb-3" />
+                                              <p className="text-orange-600 font-medium mb-2">
+                                                Nenhuma opção adicionada
+                                              </p>
+                                              <p className="text-orange-500 text-sm mb-4">
+                                                Adicione opções para diferentes versões desta cotação
+                                              </p>
+                                              <Button
+                                                onClick={() => addOptionToQuote(camp.id, q.id)}
+                                                className="bg-orange-600 hover:bg-orange-700"
+                                              >
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Adicionar Primeira Opção
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+
                                   <div className="flex justify-between items-center pt-6 border-t">
                                     <div className="space-y-2">
-                                      <div className="text-sm font-semibold text-gray-700">Valor Final</div>
+                                      <div className="text-sm font-semibold text-gray-700">Valor Final da Cotação</div>
                                       <div className="text-3xl font-bold text-green-600">{money(finalForCard)}</div>
+                                      {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
+                                        <div className="text-xs text-gray-500">
+                                          Considerando a opção mais barata entre {q.opcoes.length + 1} alternativas
+                                        </div>
+                                      )}
                                     </div>
-                                    <Button
-                                      size="lg"
-                                      variant="outline"
-                                      onClick={() => removeQuoteFilmFrom(camp.id, q.id)}
-                                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                                    >
-                                      <Trash2 className="h-5 w-5 mr-2" />
-                                      Remover Cotação
-                                    </Button>
+                                    <div className="flex items-center gap-3">
+                                      <Button
+                                        size="lg"
+                                        variant="outline"
+                                        onClick={() => removeQuoteFilmFrom(camp.id, q.id)}
+                                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                      >
+                                        <Trash2 className="h-5 w-5 mr-2" />
+                                        Remover Cotação
+                                      </Button>
+                                    </div>
                                   </div>
                                 </motion.div>
                               );
@@ -1282,11 +1499,11 @@ export default function OrcamentoNovo() {
                     </li>
                     <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
                       <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                      <span>Sistema calcula automaticamente os melhores valores</span>
+                      <span>Use opções para diferentes versões da mesma cotação</span>
                     </li>
                     <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
                       <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                      <span>Revise os totais antes de salvar</span>
+                      <span>Sistema calcula automaticamente os melhores valores</span>
                     </li>
                   </ul>
                 </CardContent>
