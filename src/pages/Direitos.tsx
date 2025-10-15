@@ -6,73 +6,114 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RefreshCcw, Download, Settings, ArrowLeft, Plus, ExternalLink, ClipboardPaste, Filter, Eye, FileText } from "lucide-react";
+import {
+  RefreshCcw,
+  Download,
+  Settings,
+  ArrowLeft,
+  Plus,
+  ExternalLink,
+  ClipboardPaste,
+  Filter,
+  Eye,
+  FileText,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 // ===== Types =====
-type RightRow = {
+interface RightRow {
   id?: string;
   client: string | null;
   product: string | null;
   title: string | null;
-  contract_signed_production: string | null; // ISO
-  first_air: string | null; // ISO
-  expire_date: string | null; // ISO
+  contract_signed_production: string | null;
+  first_air: string | null;
+  expire_date: string | null;
   link_drive: string | null;
   status_label: string | null;
-  idempotent_key?: string; // pode não existir no schema (fallback trata)
-};
+  idempotent_key?: string;
+}
+
+interface ParsedRow {
+  ap?: string | null;
+  client?: string | null;
+  product?: string | null;
+  title?: string | null;
+  assinatura_elenco?: string | null;
+  assinatura_producao?: string | null;
+  primeira_veiculacao?: string | null;
+  validade?: string | null;
+  data_expira?: string | null;
+  link_copia?: string | null;
+  status?: string | null;
+}
+
+type StatusFilter = "ALL" | "ACTIVE" | "DUE30" | "EXPIRED";
 
 const TODAY = new Date();
 
 // ===== Utils =====
-function toISODate(d: Date | null) {
-  if (!d || isNaN(d.getTime())) return null;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+function toISODate(date: Date | null): string | null {
+  if (!date || isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
-function addMonths(date: Date, months: number) {
-  const d = new Date(date.getTime());
-  const day = d.getDate();
-  d.setMonth(d.getMonth() + months);
-  if (d.getDate() < day) d.setDate(0); // ajuste fim de mês
-  return d;
-}
+function addMonths(date: Date, months: number): Date {
+  const newDate = new Date(date.getTime());
+  const day = newDate.getDate();
 
-function parseBrDate(s?: string | null): Date | null {
-  if (!s) return null;
-  const cleaned = s
-    .toString()
-    .trim()
-    .replace(/11h|12h|10h|9h|8h|7h|6h|5h|4h|3h|2h|1h/gi, "") // remove “11h” etc.
-    .replace(/[^\d\/\-]/g, "");
-  if (!cleaned) return null;
+  newDate.setMonth(newDate.getMonth() + months);
 
-  // ISO
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
-    const d = new Date(cleaned + "T00:00:00");
-    return isNaN(d.getTime()) ? null : d;
+  // Ajuste para fim de mês
+  if (newDate.getDate() < day) {
+    newDate.setDate(0);
   }
 
-  // dd/mm/yyyy
-  const m = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (!m) return null;
-  const dd = parseInt(m[1], 10);
-  const mm = parseInt(m[2], 10) - 1;
-  let yyyy = parseInt(m[3], 10);
-  if (yyyy < 100) yyyy += 2000;
-  const d = new Date(yyyy, mm, dd);
-  return isNaN(d.getTime()) ? null : d;
+  return newDate;
+}
+
+function parseBrDate(dateString?: string | null): Date | null {
+  if (!dateString) return null;
+
+  const cleaned = dateString
+    .toString()
+    .trim()
+    .replace(/[1-9]h/gi, "") // Remove horários como "11h", "9h", etc.
+    .replace(/[^\d\/\-]/g, "");
+
+  if (!cleaned) return null;
+
+  // Formato ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    const date = new Date(cleaned + "T00:00:00");
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  // Formato dd/mm/yyyy
+  const match = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (!match) return null;
+
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1;
+  let year = parseInt(match[3], 10);
+
+  if (year < 100) year += 2000;
+
+  const date = new Date(year, month, day);
+  return isNaN(date.getTime()) ? null : date;
 }
 
 function monthsFromLabel(validade: string | null | undefined): number | null {
   if (!validade) return null;
-  const m = validade.toLowerCase().match(/(\d+)\s*mes/);
-  return m ? parseInt(m[1], 10) : null;
+
+  const match = validade.toLowerCase().match(/(\d+)\s*mes/);
+  return match ? parseInt(match[1], 10) : null;
 }
 
 function computeExpireDate(
@@ -81,43 +122,59 @@ function computeExpireDate(
   validadeLabel: string | null,
 ): string | null {
   if (explicitExpireISO) return explicitExpireISO;
-  const base = firstAirISO ? new Date(firstAirISO) : null;
+
+  const baseDate = firstAirISO ? new Date(firstAirISO) : null;
   const months = monthsFromLabel(validadeLabel);
-  if (base && months) return toISODate(addMonths(base, months));
+
+  if (baseDate && months) {
+    return toISODate(addMonths(baseDate, months));
+  }
+
   return null;
 }
 
-function computeStatus(expireISO: string | null, firstAirISO: string | null, provided?: string | null): string | null {
-  if (provided && provided.trim()) return provided.trim().toUpperCase();
+function computeStatus(
+  expireISO: string | null,
+  firstAirISO: string | null,
+  providedStatus?: string | null,
+): string | null {
+  if (providedStatus?.trim()) {
+    return providedStatus.trim().toUpperCase();
+  }
+
   if (!expireISO) return null;
 
-  const exp = new Date(expireISO);
-  const diffDays = Math.floor((exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
+  const expireDate = new Date(expireISO);
+  const diffDays = Math.floor((expireDate.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Se vencido
   if (diffDays < 0) return "VENCIDO";
-  
-  // Se menor de 30 dias para vencer
   if (diffDays <= 30) return "A VENCER (30d)";
-
-  // Se data igual ou maior que hoje → EM USO
-  if (exp >= TODAY) return "EM USO";
+  if (expireDate >= TODAY) return "EM USO";
 
   return "DENTRO DO PRAZO";
 }
 
-function mkIdemKey(client: string | null, product: string | null, title: string | null, ap?: string | null) {
-  const norm = (v?: string | null) => (v || "").trim().toLowerCase().replace(/\s+/g, " ");
-  return [norm(client), norm(product), norm(title), norm(ap)].join("::");
+function createIdempotentKey(
+  client: string | null,
+  product: string | null,
+  title: string | null,
+  ap?: string | null,
+): string {
+  const normalize = (value?: string | null) => (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+  return [normalize(client), normalize(product), normalize(title), normalize(ap)].filter(Boolean).join("::");
 }
 
-function pill(status: string | null) {
+function getStatusPillClass(status: string | null): string {
   if (!status) return "bg-gray-100 text-gray-700";
-  const s = status.toLowerCase();
-  if (s.includes("vencido")) return "bg-red-100 text-red-700";
-  if (s.includes("vencer")) return "bg-amber-100 text-amber-700";
-  if (s.includes("renovado")) return "bg-blue-100 text-blue-700";
-  if (s.includes("em uso")) return "bg-green-100 text-green-700";
+
+  const normalizedStatus = status.toLowerCase();
+
+  if (normalizedStatus.includes("vencido")) return "bg-red-100 text-red-700";
+  if (normalizedStatus.includes("vencer")) return "bg-amber-100 text-amber-700";
+  if (normalizedStatus.includes("renovado")) return "bg-blue-100 text-blue-700";
+  if (normalizedStatus.includes("em uso")) return "bg-green-100 text-green-700";
+
   return "bg-gray-100 text-gray-700";
 }
 
@@ -129,39 +186,43 @@ export default function Direitos() {
 
   const [rights, setRights] = useState<RightRow[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [sheetId, setSheetId] = useState("1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw");
   const [syncing, setSyncing] = useState(false);
-
-  // import via colar
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [defaultClient, setDefaultClient] = useState("");
   const [importing, setImporting] = useState(false);
 
-  // filtros
+  // Filtros
   const params = new URLSearchParams(location.search);
   const initialClient = params.get("client") || "";
   const [clientFilter, setClientFilter] = useState(initialClient);
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DUE30" | "EXPIRED">("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   useEffect(() => {
     loadRights();
   }, []);
 
   useEffect(() => {
-    if (initialClient) setClientFilter(initialClient);
+    if (initialClient) {
+      setClientFilter(initialClient);
+    }
   }, [initialClient]);
 
   async function loadRights() {
     setLoading(true);
     try {
       const { data, error } = await supabase.from("rights").select("*").order("expire_date", { ascending: true });
+
       if (error) throw error;
+
       setRights((data as RightRow[]) || []);
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Erro ao carregar", variant: "destructive" });
+    } catch (error) {
+      console.error("Erro ao carregar direitos:", error);
+      toast({
+        title: "Erro ao carregar direitos",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -169,25 +230,32 @@ export default function Direitos() {
 
   async function syncFromSheets() {
     if (!sheetId.trim()) {
-      toast({ title: "Sheet ID obrigatório", variant: "destructive" });
+      toast({
+        title: "Sheet ID obrigatório",
+        variant: "destructive",
+      });
       return;
     }
+
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("rights_sync", {
         body: { sheetId: sheetId.trim() },
       });
+
       if (error) throw error;
+
       toast({
         title: "Sincronização concluída!",
         description: `${data?.records || 0} registros sincronizados.`,
       });
+
       await loadRights();
-    } catch (e: any) {
-      console.error(e);
+    } catch (error: any) {
+      console.error("Erro na sincronização:", error);
       toast({
         title: "Erro ao sincronizar",
-        description: e?.message || "Erro desconhecido",
+        description: error?.message || "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -197,41 +265,35 @@ export default function Direitos() {
 
   function exportToCSV() {
     const headers = ["Cliente", "Produto", "Título", "Status", "Vencimento", "Primeira Veiculação", "Link"];
-    const rows = rights.map((r) => [
-      r.client || "",
-      r.product || "",
-      r.title || "",
-      r.status_label || "—",
-      r.expire_date || "—",
-      r.first_air || "—",
-      r.link_drive || "",
+    const rows = rights.map((right) => [
+      right.client || "",
+      right.product || "",
+      right.title || "",
+      right.status_label || "—",
+      right.expire_date || "—",
+      right.first_air || "—",
+      right.link_drive || "",
     ]);
-    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((field) => `"${field.replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `direitos_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `direitos_${TODAY.toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   // ===== Parse da planilha colada =====
-  type ParsedRow = {
-    ap?: string | null;
-    client?: string | null;
-    product?: string | null;
-    title?: string | null;
-    assinatura_elenco?: string | null;
-    assinatura_producao?: string | null;
-    primeira_veiculacao?: string | null;
-    validade?: string | null;
-    data_expira?: string | null;
-    link_copia?: string | null;
-    status?: string | null;
-  };
-
-  function normalizeHeader(h: string) {
-    return h
+  function normalizeHeader(header: string): string {
+    return header
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -243,20 +305,27 @@ export default function Direitos() {
     if (line.includes("\t")) return "tab";
     if (line.includes(";")) return "semicolon";
     if (line.includes(",")) return "comma";
-    return "spaces"; // 2+ spaces
+    return "spaces";
   }
 
-  function splitSmart(line: string, mode: ReturnType<typeof guessDelimiter>): string[] {
-    if (mode === "tab") return line.split("\t").map((s) => s.trim());
-    if (mode === "semicolon") return line.split(";").map((s) => s.trim());
-    if (mode === "comma") return line.split(",").map((s) => s.trim());
-    // fallback: 2+ spaces
-    return line.split(/\s{2,}/).map((s) => s.trim());
+  function splitLine(line: string, delimiter: ReturnType<typeof guessDelimiter>): string[] {
+    switch (delimiter) {
+      case "tab":
+        return line.split("\t").map((cell) => cell.trim());
+      case "semicolon":
+        return line.split(";").map((cell) => cell.trim());
+      case "comma":
+        return line.split(",").map((cell) => cell.trim());
+      case "spaces":
+        return line.split(/\s{2,}/).map((cell) => cell.trim());
+      default:
+        return [line.trim()];
+    }
   }
 
-  function lineLooksLikeHeader(cells: string[]) {
+  function isHeaderLine(cells: string[]): boolean {
     const joined = cells.join(" ").toLowerCase();
-    return [
+    const keywords = [
       "ap",
       "cliente",
       "produto",
@@ -273,26 +342,26 @@ export default function Direitos() {
       "expira",
       "link",
       "status",
-    ].some((k) => joined.includes(k));
+    ];
+
+    return keywords.some((keyword) => joined.includes(keyword));
   }
 
-  function parsePastedTable(raw: string): ParsedRow[] {
-    const lines = raw
+  function parsePastedTable(rawText: string): ParsedRow[] {
+    const lines = rawText
       .replace(/\r/g, "")
       .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
-    if (!lines.length) return [];
+    if (lines.length === 0) return [];
 
-    const mode = guessDelimiter(lines[0]);
-    let startIdx = 1;
-    let headerCells = splitSmart(lines[0], mode);
-    let headerIsReal = lineLooksLikeHeader(headerCells);
+    const delimiter = guessDelimiter(lines[0]);
+    let startIndex = 1;
+    let headerCells = splitLine(lines[0], delimiter);
+    let hasHeader = isHeaderLine(headerCells);
 
-    // se a primeira linha NÃO parece cabeçalho, cria mapeamento posicional padrão
-    if (!headerIsReal) {
-      // padrão para: AP | PRODUTO | TITULO | ASS. ELENCO | ASS. PRODUÇÃO | PRIMEIRA VEIC. | VALIDADE | DATA EXPIRA | LINK | STATUS | (CLIENTE opcional)
+    if (!hasHeader) {
       headerCells = [
         "AP",
         "PRODUTO",
@@ -306,111 +375,132 @@ export default function Direitos() {
         "STATUS",
         "CLIENTE",
       ];
-      startIdx = 0; // primeira linha já é dado
+      startIndex = 0;
     }
 
     const headerMap: Record<number, string> = {};
-    headerCells.forEach((h, idx) => {
-      const n = normalizeHeader(h);
-      if (n === "ap") headerMap[idx] = "ap";
-      else if (n.startsWith("cliente")) headerMap[idx] = "client";
-      else if (n.startsWith("produto")) headerMap[idx] = "product";
-      else if (n.startsWith("titulo") || n.startsWith("título")) headerMap[idx] = "title";
-      else if (n.includes("elenco")) headerMap[idx] = "assinatura_elenco";
-      else if (n.includes("producao") || n.includes("produção")) headerMap[idx] = "assinatura_producao";
-      else if (n.includes("primeira") || n.includes("veiculacao") || n.includes("veiculação"))
-        headerMap[idx] = "primeira_veiculacao";
-      else if (n.includes("validade")) headerMap[idx] = "validade";
-      else if (n.includes("expira")) headerMap[idx] = "data_expira";
-      else if (n.includes("link")) headerMap[idx] = "link_copia";
-      else if (n.includes("status")) headerMap[idx] = "status";
-      else headerMap[idx] = n;
+    headerCells.forEach((header, index) => {
+      const normalizedHeader = normalizeHeader(header);
+
+      if (normalizedHeader === "ap") headerMap[index] = "ap";
+      else if (normalizedHeader.startsWith("cliente")) headerMap[index] = "client";
+      else if (normalizedHeader.startsWith("produto")) headerMap[index] = "product";
+      else if (normalizedHeader.startsWith("titulo")) headerMap[index] = "title";
+      else if (normalizedHeader.includes("elenco")) headerMap[index] = "assinatura_elenco";
+      else if (normalizedHeader.includes("producao")) headerMap[index] = "assinatura_producao";
+      else if (normalizedHeader.includes("primeira") || normalizedHeader.includes("veiculacao"))
+        headerMap[index] = "primeira_veiculacao";
+      else if (normalizedHeader.includes("validade")) headerMap[index] = "validade";
+      else if (normalizedHeader.includes("expira")) headerMap[index] = "data_expira";
+      else if (normalizedHeader.includes("link")) headerMap[index] = "link_copia";
+      else if (normalizedHeader.includes("status")) headerMap[index] = "status";
+      else headerMap[index] = normalizedHeader;
     });
 
-    const out: ParsedRow[] = [];
-    for (let i = startIdx; i < lines.length; i++) {
-      const cells = splitSmart(lines[i], mode);
-      if (cells.every((c) => c === "")) continue;
+    const result: ParsedRow[] = [];
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const cells = splitLine(lines[i], delimiter);
+      if (cells.every((cell) => cell === "")) continue;
 
       const row: ParsedRow = {};
-      cells.forEach((c, idx) => {
-        const key = headerMap[idx];
-        if (!key) return;
-        (row as any)[key] = c || null;
+      cells.forEach((cell, index) => {
+        const key = headerMap[index];
+        if (key) {
+          (row as any)[key] = cell || null;
+        }
       });
 
-      if (!row.client && defaultClient.trim()) row.client = defaultClient.trim();
-      out.push(row);
+      if (!row.client && defaultClient.trim()) {
+        row.client = defaultClient.trim();
+      }
+
+      result.push(row);
     }
-    return out;
+
+    return result;
   }
 
-  // Upsert com fallback (idempotent_key → client,product,title)
-  async function upsertWithFallback(batch: RightRow[]) {
-    // 1) tenta com idempotent_key
+  async function upsertRightsBatch(batch: RightRow[]) {
     try {
-      const { error } = await supabase
-        .from("rights")
-        .upsert(batch, { onConflict: "idempotent_key", ignoreDuplicates: false, count: "exact" });
+      const { error } = await supabase.from("rights").upsert(batch, {
+        onConflict: "idempotent_key",
+        ignoreDuplicates: false,
+      });
+
       if (error) throw error;
       return;
-    } catch (e: any) {
-      const msg = (e?.message || "").toLowerCase();
-      const hint = msg.includes("idempotent_key") || msg.includes("column") || msg.includes("does not exist");
-      if (!hint) throw e; // outro erro (RLS, etc.)
-      // 2) refaz sem a coluna e conflitando pela trinca
-      const slim = batch.map(({ idempotent_key, ...rest }) => rest);
-      const { error: e2 } = await supabase
-        .from("rights")
-        .upsert(slim, { onConflict: "client,product,title", ignoreDuplicates: false, count: "exact" });
-      if (e2) throw e2;
+    } catch (error: any) {
+      const errorMessage = (error?.message || "").toLowerCase();
+      const isIdempotentKeyError =
+        errorMessage.includes("idempotent_key") ||
+        errorMessage.includes("column") ||
+        errorMessage.includes("does not exist");
+
+      if (!isIdempotentKeyError) throw error;
+
+      const slimBatch = batch.map(({ idempotent_key, ...rest }) => rest);
+      const { error: upsertError } = await supabase.from("rights").upsert(slimBatch, {
+        onConflict: "client,product,title",
+        ignoreDuplicates: false,
+      });
+
+      if (upsertError) throw upsertError;
     }
   }
 
   async function handlePasteImport() {
     setImporting(true);
+
     try {
       const parsed = parsePastedTable(pasteText);
-      if (!parsed.length) {
-        toast({ title: "Nada para importar", variant: "destructive" });
+      if (parsed.length === 0) {
+        toast({
+          title: "Nada para importar",
+          variant: "destructive",
+        });
         return;
       }
 
-      const build = (p: ParsedRow): RightRow => {
-        const client = (p.client || defaultClient || "").trim() || null;
-        const product = (p.product || "").trim() || null;
-        const title = (p.title || "").trim() || null;
+      const buildRightRow = (parsedRow: ParsedRow): RightRow => {
+        const client = (parsedRow.client || defaultClient || "").trim() || null;
+        const product = (parsedRow.product || "").trim() || null;
+        const title = (parsedRow.title || "").trim() || null;
 
-        const firstAirISO = toISODate(parseBrDate(p.primeira_veiculacao));
-        const explicitExpireISO = toISODate(parseBrDate(p.data_expira));
-        const expireISO = computeExpireDate(explicitExpireISO, firstAirISO, p.validade || null);
-        const status = computeStatus(expireISO, firstAirISO, p.status || null);
+        const firstAirISO = toISODate(parseBrDate(parsedRow.primeira_veiculacao));
+        const explicitExpireISO = toISODate(parseBrDate(parsedRow.data_expira));
+        const expireISO = computeExpireDate(explicitExpireISO, firstAirISO, parsedRow.validade || null);
+        const status = computeStatus(expireISO, firstAirISO, parsedRow.status || null);
 
         return {
           client,
           product,
           title,
-          contract_signed_production: toISODate(parseBrDate(p.assinatura_producao)),
+          contract_signed_production: toISODate(parseBrDate(parsedRow.assinatura_producao)),
           first_air: firstAirISO,
           expire_date: expireISO,
-          link_drive: (p.link_copia || "").trim() || null,
+          link_drive: (parsedRow.link_copia || "").trim() || null,
           status_label: status,
-          idempotent_key: mkIdemKey(client, product, title, p.ap || null),
+          idempotent_key: createIdempotentKey(client, product, title, parsedRow.ap || null),
         };
       };
 
-      const batch = parsed.map(build).filter((r) => r.client && r.title);
-      if (!batch.length) {
-        toast({ title: "Linhas sem Cliente/Título.", variant: "destructive" });
+      const batch = parsed.map(buildRightRow).filter((row) => row.client && row.title);
+
+      if (batch.length === 0) {
+        toast({
+          title: "Linhas sem Cliente/Título",
+          variant: "destructive",
+        });
         return;
       }
 
-      // Verificar duplicidades antes de inserir
+      // Remover duplicatas
       const uniqueMap = new Map<string, RightRow>();
       let duplicatesCount = 0;
-      
+
       for (const row of batch) {
-        const key = mkIdemKey(row.client, row.product, row.title, null);
+        const key = createIdempotentKey(row.client, row.product, row.title, null);
         if (uniqueMap.has(key)) {
           duplicatesCount++;
         } else {
@@ -421,30 +511,35 @@ export default function Direitos() {
       const uniqueBatch = Array.from(uniqueMap.values());
 
       if (duplicatesCount > 0) {
-        toast({ 
-          title: `${duplicatesCount} duplicata(s) removida(s)`, 
-          description: `${uniqueBatch.length} registros únicos serão importados.` 
+        toast({
+          title: `${duplicatesCount} duplicata(s) removida(s)`,
+          description: `${uniqueBatch.length} registros únicos serão importados.`,
         });
       }
 
-      // chunk para payload grande
-      const chunkSize = 200;
-      let total = 0;
-      for (let i = 0; i < uniqueBatch.length; i += chunkSize) {
-        const chunk = uniqueBatch.slice(i, i + chunkSize);
-        await upsertWithFallback(chunk);
-        total += chunk.length;
+      // Processar em chunks
+      const CHUNK_SIZE = 200;
+      let totalProcessed = 0;
+
+      for (let i = 0; i < uniqueBatch.length; i += CHUNK_SIZE) {
+        const chunk = uniqueBatch.slice(i, i + CHUNK_SIZE);
+        await upsertRightsBatch(chunk);
+        totalProcessed += chunk.length;
       }
 
-      toast({ title: "Importação concluída", description: `${total} registro(s) processado(s).` });
+      toast({
+        title: "Importação concluída",
+        description: `${totalProcessed} registro(s) processado(s).`,
+      });
+
       setPasteOpen(false);
       setPasteText("");
       await loadRights();
-    } catch (e: any) {
-      console.error(e);
+    } catch (error: any) {
+      console.error("Erro na importação:", error);
       toast({
         title: "Erro ao importar",
-        description: e?.message || "Verifique o formato da planilha.",
+        description: error?.message || "Verifique o formato da planilha.",
         variant: "destructive",
       });
     } finally {
@@ -454,41 +549,62 @@ export default function Direitos() {
 
   // ===== Derivados / UI =====
   const clients = useMemo(() => {
-    const set = new Set<string>();
-    rights.forEach((r) => r.client && set.add(r.client));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    const clientSet = new Set<string>();
+    rights.forEach((right) => {
+      if (right.client) clientSet.add(right.client);
+    });
+    return Array.from(clientSet).sort((a, b) => a.localeCompare(b));
   }, [rights]);
 
-  const filtered = useMemo(() => {
-    let list = rights;
-    if (clientFilter) list = list.filter((r) => (r.client || "") === clientFilter);
-    if (statusFilter === "ACTIVE") {
-      list = list.filter((r) => r.expire_date && new Date(r.expire_date) >= TODAY);
-    } else if (statusFilter === "DUE30") {
-      list = list.filter((r) => {
-        if (!r.expire_date) return false;
-        const exp = new Date(r.expire_date);
-        const diffDays = Math.floor((exp.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays <= 30;
-      });
-    } else if (statusFilter === "EXPIRED") {
-      list = list.filter((r) => r.expire_date && new Date(r.expire_date) < TODAY);
+  const filteredRights = useMemo(() => {
+    let filtered = rights;
+
+    if (clientFilter) {
+      filtered = filtered.filter((right) => right.client === clientFilter);
     }
-    return list;
+
+    switch (statusFilter) {
+      case "ACTIVE":
+        filtered = filtered.filter((right) => right.expire_date && new Date(right.expire_date) >= TODAY);
+        break;
+      case "DUE30":
+        filtered = filtered.filter((right) => {
+          if (!right.expire_date) return false;
+          const expireDate = new Date(right.expire_date);
+          const diffDays = Math.floor((expireDate.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays <= 30;
+        });
+        break;
+      case "EXPIRED":
+        filtered = filtered.filter((right) => right.expire_date && new Date(right.expire_date) < TODAY);
+        break;
+      default:
+        break;
+    }
+
+    return filtered;
   }, [rights, clientFilter, statusFilter]);
 
-  const counts = useMemo(() => {
-    const expired = rights.filter((r) => r.status_label?.toUpperCase().includes("VENCIDO")).length;
-    const due30 = rights.filter((r) => r.status_label?.toUpperCase().includes("VENCER")).length;
-    const inUse = rights.filter((r) => r.status_label?.toUpperCase() === "EM USO").length;
-    return { expired, due30, inUse, total: rights.length };
+  const statusCounts = useMemo(() => {
+    const expired = rights.filter((right) => right.status_label?.toUpperCase().includes("VENCIDO")).length;
+
+    const due30 = rights.filter((right) => right.status_label?.toUpperCase().includes("VENCER")).length;
+
+    const inUse = rights.filter((right) => right.status_label?.toUpperCase() === "EM USO").length;
+
+    return {
+      expired,
+      due30,
+      inUse,
+      total: rights.length,
+    };
   }, [rights]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => navigate("/")} className="hover:bg-muted">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -502,24 +618,25 @@ export default function Direitos() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
             {/* Importar colando */}
             <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700" variant="default">
+                <Button className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                   <ClipboardPaste className="h-4 w-4" />
                   Colar da Planilha
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-3xl">
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Importar colando da planilha</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-3 md:col-span-1">
-                      <Label>Cliente padrão (se não vier na coluna)</Label>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-1">
+                      <Label htmlFor="default-client">Cliente padrão (se não vier na coluna)</Label>
                       <Input
+                        id="default-client"
                         placeholder="Ex.: BYD"
                         value={defaultClient}
                         onChange={(e) => setDefaultClient(e.target.value)}
@@ -528,10 +645,11 @@ export default function Direitos() {
                         Se a planilha tiver coluna <strong>CLIENTE</strong>, ela prevalece.
                       </p>
                     </div>
-                    <div className="col-span-3 md:col-span-2">
-                      <Label>Conteúdo (cole direto do Excel / Google Sheets)</Label>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="paste-content">Conteúdo (cole direto do Excel / Google Sheets)</Label>
                       <textarea
-                        className="w-full h-56 rounded-md border p-3 text-sm"
+                        id="paste-content"
+                        className="w-full h-48 rounded-md border p-3 text-sm resize-vertical"
                         placeholder={`Aceita com ou sem cabeçalho.\nCabeçalhos suportados:\nAP | PRODUTO | TITULO | ASSINATURA CONTRATO ELENCO | ASSINATURA CONTRATO DE PRODUÇÃO | PRIMEIRA VEICULAÇÃO | VALIDADE | DATA QUE EXPIRA | LINK CÓPIA | STATUS | CLIENTE`}
                         value={pasteText}
                         onChange={(e) => setPasteText(e.target.value)}
@@ -542,13 +660,13 @@ export default function Direitos() {
                     <Button variant="outline" onClick={() => setPasteOpen(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handlePasteImport} disabled={importing} className="gap-2">
+                    <Button onClick={handlePasteImport} disabled={importing || !pasteText.trim()} className="gap-2">
                       {importing ? (
                         <RefreshCcw className="h-4 w-4 animate-spin" />
                       ) : (
                         <ClipboardPaste className="h-4 w-4" />
                       )}
-                      {importing ? "Importando..." : "Importar & Atualizar"}
+                      {importing ? "Importando..." : "Importar"}
                     </Button>
                   </div>
                 </div>
@@ -568,7 +686,7 @@ export default function Direitos() {
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2">
                   <Settings className="h-4 w-4" />
-                  Sincronizar Google Sheets
+                  Sincronizar
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -577,8 +695,9 @@ export default function Direitos() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">Sheet ID</label>
+                    <Label htmlFor="sheet-id">Sheet ID</Label>
                     <Input
+                      id="sheet-id"
                       value={sheetId}
                       onChange={(e) => setSheetId(e.target.value)}
                       placeholder="1UF-P79wkW3HMs9zMFgICtepX1bEL8Q5T_avZngeMGhw"
@@ -609,34 +728,34 @@ export default function Direitos() {
         </div>
 
         {/* Filtros */}
-        <div className="flex items-center justify-between mb-4 gap-3">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 gap-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
             <Button
               size="sm"
-              variant={clientFilter ? "outline" : "default"}
+              variant={!clientFilter ? "default" : "outline"}
               onClick={() => {
                 setClientFilter("");
                 navigate("/direitos");
               }}
             >
-              Todos
+              Todos os Clientes
             </Button>
-            {clients.map((c) => (
+            {clients.map((client) => (
               <Button
-                key={c}
+                key={client}
                 size="sm"
-                variant={clientFilter === c ? "default" : "outline"}
+                variant={clientFilter === client ? "default" : "outline"}
                 onClick={() => {
-                  setClientFilter(c);
-                  navigate(`/direitos?client=${encodeURIComponent(c)}`);
+                  setClientFilter(client);
+                  navigate(`/direitos?client=${encodeURIComponent(client)}`);
                 }}
               >
-                {c}
+                {client}
               </Button>
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <Button
               size="sm"
@@ -670,52 +789,51 @@ export default function Direitos() {
         </div>
 
         {/* Cards resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-blue-900 flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 Total de Direitos
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-900">{counts.total}</div>
+              <div className="text-3xl font-bold text-blue-900">{statusCounts.total}</div>
             </CardContent>
           </Card>
 
           <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100 shadow-lg">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-red-900 flex items-center gap-2">
                 <ExternalLink className="h-4 w-4" />
                 Vencidos
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-red-900">{counts.expired}</div>
+              <div className="text-3xl font-bold text-red-900">{statusCounts.expired}</div>
             </CardContent>
           </Card>
 
           <Card className="border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 shadow-lg">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-amber-900 flex items-center gap-2">
-                <RefreshCcw className="h-4 w-4" />
-                A Vencer (30d)
+                <RefreshCcw className="h-4 w-4" />A Vencer (30d)
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-amber-900">{counts.due30}</div>
+              <div className="text-3xl font-bold text-amber-900">{statusCounts.due30}</div>
             </CardContent>
           </Card>
 
           <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-green-100 shadow-lg">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-green-900 flex items-center gap-2">
                 <Eye className="h-4 w-4" />
                 Em Uso
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-900">{counts.inUse}</div>
+              <div className="text-3xl font-bold text-green-900">{statusCounts.inUse}</div>
             </CardContent>
           </Card>
         </div>
@@ -739,30 +857,33 @@ export default function Direitos() {
                   {loading ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                        Carregando...
+                        <div className="flex items-center justify-center gap-2">
+                          <RefreshCcw className="h-4 w-4 animate-spin" />
+                          Carregando...
+                        </div>
                       </td>
                     </tr>
-                  ) : filtered.length === 0 ? (
+                  ) : filteredRights.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                         Nenhum direito encontrado para o filtro atual.
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((r) => (
-                      <tr key={r.id || r.idempotent_key} className="hover:bg-muted/50">
-                        <td className="px-4 py-3 text-sm">{r.client}</td>
-                        <td className="px-4 py-3 text-sm">{r.product}</td>
+                    filteredRights.map((right) => (
+                      <tr key={right.id || right.idempotent_key} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-4 py-3 text-sm">{right.client || "—"}</td>
+                        <td className="px-4 py-3 text-sm">{right.product || "—"}</td>
                         <td className="px-4 py-3 text-sm">
                           <div className="flex items-center gap-2">
-                            {r.title}
-                            {r.link_drive && (
+                            <span>{right.title || "—"}</span>
+                            {right.link_drive && (
                               <a
-                                href={r.link_drive}
+                                href={right.link_drive}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:text-primary/80"
-                                title="Abrir cópia"
+                                className="text-primary hover:text-primary/80 transition-colors"
+                                title="Abrir cópia no Drive"
                               >
                                 <ExternalLink className="h-3 w-3" />
                               </a>
@@ -770,16 +891,16 @@ export default function Direitos() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {r.first_air ? new Date(r.first_air).toLocaleDateString("pt-BR") : "—"}
+                          {right.first_air ? new Date(right.first_air).toLocaleDateString("pt-BR") : "—"}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {r.expire_date ? new Date(r.expire_date).toLocaleDateString("pt-BR") : "—"}
+                          {right.expire_date ? new Date(right.expire_date).toLocaleDateString("pt-BR") : "—"}
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pill(r.status_label)}`}
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusPillClass(right.status_label)}`}
                           >
-                            {r.status_label || "—"}
+                            {right.status_label || "—"}
                           </span>
                         </td>
                       </tr>
@@ -799,6 +920,7 @@ export default function Direitos() {
 function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     client: "",
     product: "",
@@ -808,70 +930,97 @@ function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
     link_drive: "",
   });
 
-  const save = async () => {
-    if (!form.client || !form.product || !form.title) {
-      toast({ title: "Preencha os campos obrigatórios", variant: "destructive" });
+  const handleSave = async () => {
+    if (!form.client.trim() || !form.product.trim() || !form.title.trim()) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha Cliente, Produto e Título",
+        variant: "destructive",
+      });
       return;
     }
+
+    setSaving(true);
+
     try {
-      const idem = mkIdemKey(form.client, form.product, form.title, null);
+      const idempotentKey = createIdempotentKey(form.client, form.product, form.title, null);
       const expireISO = null;
       const status = computeStatus(expireISO, form.first_air || null, null);
 
-      // tenta com idempotent_key; se faltar, usa trinca
+      const rightData = {
+        client: form.client.trim(),
+        product: form.product.trim(),
+        title: form.title.trim(),
+        contract_signed_production: form.contract_signed_production || null,
+        first_air: form.first_air || null,
+        link_drive: form.link_drive.trim() || null,
+        expire_date: expireISO,
+        status_label: status,
+        idempotent_key: idempotentKey,
+      };
+
       try {
-        const { error } = await supabase.from("rights").upsert(
-          [
-            {
-              client: form.client,
-              product: form.product,
-              title: form.title,
-              contract_signed_production: form.contract_signed_production || null,
-              first_air: form.first_air || null,
-              link_drive: form.link_drive || null,
-              expire_date: expireISO,
-              status_label: status,
-              idempotent_key: idem,
-            },
-          ],
-          { onConflict: "idempotent_key", ignoreDuplicates: false },
-        );
+        const { error } = await supabase.from("rights").upsert([rightData], {
+          onConflict: "idempotent_key",
+          ignoreDuplicates: false,
+        });
+
         if (error) throw error;
-      } catch (e: any) {
-        const msg = (e?.message || "").toLowerCase();
-        if (msg.includes("idempotent_key") || msg.includes("does not exist")) {
-          const { error: e2 } = await supabase.from("rights").upsert(
-            [
-              {
-                client: form.client,
-                product: form.product,
-                title: form.title,
-                contract_signed_production: form.contract_signed_production || null,
-                first_air: form.first_air || null,
-                link_drive: form.link_drive || null,
-                expire_date: expireISO,
-                status_label: status,
-              },
-            ],
-            { onConflict: "client,product,title", ignoreDuplicates: false },
-          );
-          if (e2) throw e2;
+      } catch (error: any) {
+        const errorMessage = (error?.message || "").toLowerCase();
+        if (errorMessage.includes("idempotent_key") || errorMessage.includes("does not exist")) {
+          const { idempotent_key, ...slimData } = rightData;
+          const { error: upsertError } = await supabase.from("rights").upsert([slimData], {
+            onConflict: "client,product,title",
+            ignoreDuplicates: false,
+          });
+
+          if (upsertError) throw upsertError;
         } else {
-          throw e;
+          throw error;
         }
       }
 
-      toast({ title: "Direito salvo!" });
+      toast({ title: "Direito salvo com sucesso!" });
       setOpen(false);
-      setForm({ client: "", product: "", title: "", contract_signed_production: "", first_air: "", link_drive: "" });
+      setForm({
+        client: "",
+        product: "",
+        title: "",
+        contract_signed_production: "",
+        first_air: "",
+        link_drive: "",
+      });
+
       await onAdded();
-    } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err?.message, variant: "destructive" });
+    } catch (error: any) {
+      console.error("Erro ao salvar direito:", error);
+      toast({
+        title: "Erro ao salvar",
+        description: error?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      setForm({
+        client: "",
+        product: "",
+        title: "",
+        contract_signed_production: "",
+        first_air: "",
+        link_drive: "",
+      });
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button className="gap-2">
           <Plus className="h-4 w-4" />
@@ -882,49 +1031,69 @@ function AddRightDialog({ onAdded }: { onAdded: () => Promise<void> | void }) {
         <DialogHeader>
           <DialogTitle>Adicionar Novo Direito</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Cliente *</Label>
-            <Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Produto *</Label>
-            <Input value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} />
-          </div>
-          <div className="col-span-2 space-y-2">
-            <Label>Título do Filme *</Label>
-            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Data de Assinatura (Produção)</Label>
+            <Label htmlFor="client">Cliente *</Label>
             <Input
+              id="client"
+              value={form.client}
+              onChange={(e) => setForm({ ...form, client: e.target.value })}
+              placeholder="Nome do cliente"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="product">Produto *</Label>
+            <Input
+              id="product"
+              value={form.product}
+              onChange={(e) => setForm({ ...form, product: e.target.value })}
+              placeholder="Nome do produto"
+            />
+          </div>
+          <div className="md:col-span-2 space-y-2">
+            <Label htmlFor="title">Título do Filme *</Label>
+            <Input
+              id="title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="Título do conteúdo"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="contract-date">Data de Assinatura (Produção)</Label>
+            <Input
+              id="contract-date"
               type="date"
               value={form.contract_signed_production}
               onChange={(e) => setForm({ ...form, contract_signed_production: e.target.value })}
             />
           </div>
           <div className="space-y-2">
-            <Label>Primeira Veiculação</Label>
+            <Label htmlFor="first-air">Primeira Veiculação</Label>
             <Input
+              id="first-air"
               type="date"
               value={form.first_air}
               onChange={(e) => setForm({ ...form, first_air: e.target.value })}
             />
           </div>
-          <div className="col-span-2 space-y-2">
-            <Label>Link do Drive (opcional)</Label>
+          <div className="md:col-span-2 space-y-2">
+            <Label htmlFor="drive-link">Link do Drive (opcional)</Label>
             <Input
+              id="drive-link"
               value={form.link_drive}
               onChange={(e) => setForm({ ...form, link_drive: e.target.value })}
               placeholder="https://drive.google.com/..."
             />
           </div>
         </div>
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="flex justify-end gap-2 mt-6">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
-          <Button onClick={save}>Salvar</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Salvando..." : "Salvar"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
