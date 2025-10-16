@@ -362,7 +362,105 @@ export default function Finance() {
 
   const comparisonActive = !!compareYM;
 
-  /* ===== Colar/Analisar ===== */
+  /* ===== Colar do Clipboard diretamente ===== */
+  async function handlePasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast({
+          title: "Clipboard vazio",
+          description: "Cole os dados do Excel primeiro (Ctrl+C no Excel, depois clique no botão)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const records = splitIntoRecords(text.trim());
+      if (records.length === 0) {
+        toast({
+          title: "Nenhum dado válido encontrado",
+          description: "Certifique-se de copiar a tabela completa do Excel",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { events, ymDetected } = recordsToEvents(records, selectedYM ?? null);
+      const ymImport = ymDetected || selectedYM;
+
+      if (!ymImport) {
+        toast({
+          title: "Selecione o mês",
+          description: "Não identifiquei a competência. Selecione um mês na barra superior.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!betweenInclusive(ymImport, MIN_YM, nowYM())) {
+        toast({
+          title: "Período bloqueado",
+          description: `Somente meses a partir de ${toPTMonthLabel(MIN_YM)}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Dedup
+      const uniq = new Map<string, EventRevenue>();
+      for (const e of events) {
+        const key = [(e.cliente ?? "").trim().toUpperCase(), ym(e.ref_month), e.total_cents ?? 0].join("|");
+        uniq.set(key, e);
+      }
+      const uniqueEvents = Array.from(uniq.values()).map((e) => ({ ...e, ref_month: storeRefMonth(ymImport!) }));
+
+      const ok = window.confirm(
+        `Isso vai substituir ${toPTMonthLabel(ymImport)} por ${uniqueEvents.length} itens.\n` +
+          `Receita total: ${formatBRL(uniqueEvents.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100)}\n\n` +
+          `Deseja continuar?`,
+      );
+      if (!ok) return;
+
+      // Apaga e insere
+      const start = `${ymImport}-01`;
+      const end = `${nextYM(ymImport)}-01`;
+      const delRange = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
+      if (delRange.error) throw delRange.error;
+
+      try {
+        const delEq = await supabase.from("finance_events").delete().eq("ref_month", ymImport);
+        if (delEq.error) {
+          const msg = String(delEq.error.message || "");
+          const isTypeErr = /invalid input syntax for type date|cannot cast|operator does not exist/i.test(msg);
+          if (!isTypeErr) throw delEq.error;
+        }
+      } catch (_) {}
+
+      const ins = await supabase.from("finance_events").insert(uniqueEvents);
+      if (ins.error) throw ins.error;
+
+      toast({
+        title: "Importação concluída",
+        description: `Substituí ${toPTMonthLabel(ymImport)} com ${uniqueEvents.length} itens.`,
+      });
+      setSelectedYM(ymImport);
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      // Se falhou ao ler clipboard, abre o dialog manual
+      if (e.name === "NotAllowedError" || e.message?.includes("clipboard")) {
+        setPasteOpen(true);
+      } else {
+        toast({
+          title: "Erro ao importar",
+          description: e?.message ?? "Falha desconhecida ao gravar no banco.",
+          variant: "destructive",
+        });
+      }
+    }
+  }
+
+  /* ===== Colar/Analisar (fallback manual) ===== */
   function handlePasteAnalyze() {
     const text = pasteText.trim();
     if (!text) {
@@ -525,7 +623,7 @@ export default function Finance() {
 
             {canEdit && (
               <>
-                <Button variant="default" className="gap-2" onClick={() => setPasteOpen(true)}>
+                <Button variant="default" className="gap-2" onClick={handlePasteFromClipboard}>
                   <ClipboardPaste className="h-4 w-4" />
                   Zerar e colar do Excel
                 </Button>
