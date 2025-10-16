@@ -85,8 +85,8 @@ function generateAllowedMonths(minYM: string, maxYM: string) {
   }
   return list.reverse();
 }
-// persistimos sempre como "YYYY-MM"
-const storeRefMonth = (ymStr: string) => ymStr;
+// persistimos sempre como "YYYY-MM-01" para compatibilidade com tipo DATE
+const storeRefMonth = (ymStr: string) => `${ymStr}-01`;
 
 function summarizeClients(rows: EventRevenue[]): ClientSummary[] {
   const map: Record<string, ClientSummary> = {};
@@ -421,20 +421,11 @@ export default function Finance() {
       );
       if (!ok) return;
 
-      // Apaga e insere
+      // Apaga e insere (agora ref_month já vem como YYYY-MM-01)
       const start = `${ymImport}-01`;
       const end = `${nextYM(ymImport)}-01`;
       const delRange = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
       if (delRange.error) throw delRange.error;
-
-      try {
-        const delEq = await supabase.from("finance_events").delete().eq("ref_month", ymImport);
-        if (delEq.error) {
-          const msg = String(delEq.error.message || "");
-          const isTypeErr = /invalid input syntax for type date|cannot cast|operator does not exist/i.test(msg);
-          if (!isTypeErr) throw delEq.error;
-        }
-      } catch (_) {}
 
       const ins = await supabase.from("finance_events").insert(uniqueEvents);
       if (ins.error) throw ins.error;
@@ -532,26 +523,12 @@ export default function Finance() {
     if (!ok) return;
 
     try {
-      // --- APAGA O MÊS SEM USAR LIKE ---
-      // 1) Apaga por faixa (cobre DATE e TEXT no formato YYYY-MM-DD)
+      // Apaga e insere (ref_month já vem como YYYY-MM-01)
       const start = `${ymImport}-01`;
       const end = `${nextYM(ymImport)}-01`;
       const delRange = await supabase.from("finance_events").delete().gte("ref_month", start).lt("ref_month", end);
       if (delRange.error) throw delRange.error;
 
-      // 2) Apaga por igualdade a 'YYYY-MM' (cobre quando ref_month é TEXT puro)
-      try {
-        const delEq = await supabase.from("finance_events").delete().eq("ref_month", ymImport);
-        if (delEq.error) {
-          const msg = String(delEq.error.message || "");
-          const isTypeErr = /invalid input syntax for type date|cannot cast|operator does not exist/i.test(msg);
-          if (!isTypeErr) throw delEq.error; // ignora erro se a coluna for DATE
-        }
-      } catch (_) {
-        /* ignore casting/type errors */
-      }
-
-      // 3) Insere o faturamento do mês
       const ins = await supabase.from("finance_events").insert(uniqueEvents);
       if (ins.error) throw ins.error;
 
