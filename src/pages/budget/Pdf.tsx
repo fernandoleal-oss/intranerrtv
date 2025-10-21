@@ -532,6 +532,7 @@ export default function BudgetPdf() {
 
               {/* Total */}
               <div
+                className="avoid-break"
                 style={{
                   marginTop: "24px",
                   padding: "20px",
@@ -551,6 +552,7 @@ export default function BudgetPdf() {
               {/* Observações */}
               {payload.observacoes && (
                 <div
+                  className="avoid-break"
                   style={{
                     marginTop: "20px",
                     padding: "16px",
@@ -728,7 +730,7 @@ export default function BudgetPdf() {
 
                             {/* Opções lado a lado (2 colunas) */}
                             {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
-                              <div style={{ marginTop: 12 }}>
+                              <div className="avoid-break" style={{ marginTop: 12 }}>
                                 <p className="text-[11px] font-semibold mb-3" style={{ color: "#475569" }}>
                                   Opções disponíveis:
                                 </p>
@@ -956,6 +958,7 @@ export default function BudgetPdf() {
               {/* Total Geral */}
               {totalGeral > 0 && (
                 <div
+                  className="avoid-break"
                   style={{
                     padding: "16px",
                     background: "#FFFFFF",
@@ -974,6 +977,7 @@ export default function BudgetPdf() {
               {/* Observações */}
               {payload.observacoes && (
                 <div
+                  className="avoid-break"
                   style={{
                     marginTop: "16px",
                     padding: "12px",
@@ -991,6 +995,7 @@ export default function BudgetPdf() {
 
               {payload.pendente_faturamento && (
                 <div
+                  className="avoid-break"
                   style={{
                     marginTop: "12px",
                     padding: "8px 12px",
