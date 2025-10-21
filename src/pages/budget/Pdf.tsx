@@ -292,6 +292,8 @@ export default function BudgetPdf() {
           @page { size: A4 portrait; margin: 15mm 20mm; }
           .no-print { display: none !important; }
           .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+          .allow-break { page-break-inside: auto; break-inside: auto; }
+          .page-break-before { page-break-before: auto; break-before: auto; }
         }
         .print-content {
           width: 210mm;
@@ -307,6 +309,15 @@ export default function BudgetPdf() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 8px;
+        }
+        .campaign-section {
+          page-break-inside: auto;
+          break-inside: auto;
+        }
+        .supplier-card {
+          page-break-inside: avoid;
+          break-inside: avoid;
+          margin-bottom: 12px;
         }
       `}</style>
 
@@ -414,7 +425,7 @@ export default function BudgetPdf() {
 
           {/* Orçamento de Imagem */}
           {isImageBudget && (
-            <div className="avoid-break mb-8">
+            <div className="allow-break mb-8">
               {/* Cabeçalho Assets */}
               <div
                 style={{
@@ -452,7 +463,7 @@ export default function BudgetPdf() {
                   return (
                     <div
                       key={idx}
-                      className="rounded-lg p-4"
+                      className="avoid-break rounded-lg p-4"
                       style={{
                         backgroundColor: "#FFFFFF",
                         border: "1px solid #E2E8F0",
@@ -573,7 +584,7 @@ export default function BudgetPdf() {
             const globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
 
             return (
-              <div key={camp.id || campIdx} className="avoid-break mb-8">
+              <div key={camp.id || campIdx} className="campaign-section page-break-before mb-8">
                 {/* Cabeçalho da campanha */}
                 <div
                   style={{
@@ -601,7 +612,7 @@ export default function BudgetPdf() {
 
                 {/* PRODUTORAS DE FILME */}
                 {films.length > 0 && (
-                  <div style={{ marginBottom: "20px" }}>
+                  <div className="allow-break" style={{ marginBottom: "20px" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <Film className="h-4 w-4 text-blue-600" />
                       <h3 style={{ fontWeight: 700, fontSize: "16px", color: "#1E293B" }}>Produtoras de Filme</h3>
@@ -620,7 +631,7 @@ export default function BudgetPdf() {
                         return (
                           <div
                             key={f.id || idx}
-                            className="rounded-lg p-4"
+                            className="supplier-card rounded-lg p-4"
                             style={{
                               backgroundColor: cardBg,
                               border: cardBorder,
@@ -805,7 +816,7 @@ export default function BudgetPdf() {
 
                 {/* PRODUTORAS DE ÁUDIO */}
                 {camp.inclui_audio && audios.length > 0 && (
-                  <div>
+                  <div className="allow-break">
                     <div className="flex items-center gap-2 mb-3">
                       <Music className="h-4 w-4 text-purple-600" />
                       <h3 style={{ fontWeight: 700, fontSize: "16px", color: "#1E293B" }}>Produtoras de Áudio</h3>
@@ -817,7 +828,7 @@ export default function BudgetPdf() {
                         return (
                           <div
                             key={a.id || idx}
-                            className="rounded-lg p-4"
+                            className="supplier-card rounded-lg p-4"
                             style={{
                               backgroundColor: isEscolhido ? "#F8FAFF" : "#FFFFFF",
                               border: isEscolhido ? "2px solid #4F46E5" : "1px solid #E2E8F0",
