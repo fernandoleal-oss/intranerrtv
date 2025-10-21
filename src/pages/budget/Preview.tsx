@@ -117,6 +117,9 @@ export default function BudgetPreview() {
   const campanhas = data.campanhas || [{ nome: "Campanha Única", categorias: [] }];
   const combinarModo = data.combinarModo || "separado";
   const honorarioPerc = data.honorarioPerc || 15;
+  
+  // Detectar se é orçamento de imagem
+  const isImageBudget = data.assets && Array.isArray(data.assets);
 
   const getMaisBarato = (cat: any) => {
     if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
@@ -215,7 +218,33 @@ export default function BudgetPreview() {
                   <p className="font-medium">{data.job}</p>
                 </div>
               )}
-              {campanhas.length > 1 && (
+              {data.producer && (
+                <>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Produtor:</span>
+                    <p className="font-medium">{data.producer.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">E-mail do Produtor:</span>
+                    <p className="font-medium">{data.producer.email}</p>
+                  </div>
+                </>
+              )}
+              {isImageBudget && data.banco && (
+                <div>
+                  <span className="text-sm text-muted-foreground">Banco de Imagens:</span>
+                  <p className="font-medium">
+                    {data.banco === 'shutterstock' ? 'Shutterstock' : data.banco === 'getty' ? 'Getty Images' : 'Personalizado'}
+                  </p>
+                </div>
+              )}
+              {isImageBudget && data.midias && (
+                <div>
+                  <span className="text-sm text-muted-foreground">Mídias:</span>
+                  <p className="font-medium">{data.midias}</p>
+                </div>
+              )}
+              {campanhas.length > 1 && !isImageBudget && (
                 <div>
                   <span className="text-sm text-muted-foreground">Modo de Apresentação:</span>
                   <p className="font-medium">
@@ -227,8 +256,75 @@ export default function BudgetPreview() {
           </CardContent>
         </Card>
 
-        {/* Campanhas */}
-        {campanhas.map((campanha: any, campIdx: number) => {
+        {/* Orçamento de Imagem */}
+        {isImageBudget && (
+          <>
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Assets de Imagem</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {data.assets.map((asset: any, idx: number) => (
+                    <div key={idx} className="p-4 border rounded-lg">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">{asset.type === 'video' ? '🎥' : '📷'}</span>
+                            <h4 className="font-semibold">{asset.title || `Asset ${idx + 1}`}</h4>
+                          </div>
+                          {asset.id && (
+                            <p className="text-sm text-muted-foreground">ID: {asset.id}</p>
+                          )}
+                          {asset.customDescription && (
+                            <p className="text-sm text-muted-foreground mt-1">{asset.customDescription}</p>
+                          )}
+                          {asset.chosenLicense && (
+                            <Badge variant="secondary" className="mt-2">
+                              {asset.chosenLicense}
+                            </Badge>
+                          )}
+                          {asset.pageUrl && (
+                            <a 
+                              href={asset.pageUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline mt-2 inline-block"
+                            >
+                              Ver no banco de imagens →
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">Valor</p>
+                          <p className="font-bold text-lg">{BRL(asset.price || 0)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Geral para Imagem */}
+            <Card className="border-2 border-primary">
+              <CardHeader>
+                <CardTitle>Total Geral</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
+                  <span className="font-bold text-lg">Total Geral</span>
+                  <span className="font-bold text-2xl text-primary">
+                    {BRL(data.assets.reduce((sum: number, a: any) => sum + (a.price || 0), 0))}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* Campanhas - Apenas para orçamentos não-imagem */}
+        {!isImageBudget && campanhas.map((campanha: any, campIdx: number) => {
           const categoriasVisiveis = (campanha.categorias || []).filter((c: any) => c.visivel !== false);
           const subtotalCampanha = calcularTotalCampanha(campanha);
           const honorarioCampanha = subtotalCampanha * (honorarioPerc / 100);
@@ -352,40 +448,42 @@ export default function BudgetPreview() {
           );
         })}
 
-        {/* Total Geral */}
-        <Card className="border-2 border-primary">
-          <CardHeader>
-            <CardTitle>
-              {combinarModo === "somar" && campanhas.length > 1 ? "Consolidado Final" : "Total Geral"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {combinarModo === "somar" && campanhas.length > 1 && (
-                <>
-                  {campanhas.map((camp: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
-                      <span className="font-medium">{camp.nome}</span>
-                      <span className="font-bold">{BRL(calcularTotalCampanha(camp))}</span>
+        {/* Total Geral - Apenas para orçamentos não-imagem */}
+        {!isImageBudget && (
+          <Card className="border-2 border-primary">
+            <CardHeader>
+              <CardTitle>
+                {combinarModo === "somar" && campanhas.length > 1 ? "Consolidado Final" : "Total Geral"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {combinarModo === "somar" && campanhas.length > 1 && (
+                  <>
+                    {campanhas.map((camp: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
+                        <span className="font-medium">{camp.nome}</span>
+                        <span className="font-bold">{BRL(calcularTotalCampanha(camp))}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
+                      <span className="font-medium">Subtotal Consolidado</span>
+                      <span className="font-bold">{BRL(totalGeralCampanhas)}</span>
                     </div>
-                  ))}
-                  <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                    <span className="font-medium">Subtotal Consolidado</span>
-                    <span className="font-bold">{BRL(totalGeralCampanhas)}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-secondary/40 rounded-lg">
-                    <span className="font-medium">Honorário ({honorarioPerc}%)</span>
-                    <span className="font-bold">{BRL(totalGeralCampanhas * (honorarioPerc / 100))}</span>
-                  </div>
-                </>
-              )}
-              <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
-                <span className="font-bold text-lg">Total Geral</span>
-                <span className="font-bold text-2xl text-primary">{BRL(totalComHonorario)}</span>
+                    <div className="flex justify-between items-center p-3 bg-secondary/40 rounded-lg">
+                      <span className="font-medium">Honorário ({honorarioPerc}%)</span>
+                      <span className="font-bold">{BRL(totalGeralCampanhas * (honorarioPerc / 100))}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
+                  <span className="font-bold text-lg">Total Geral</span>
+                  <span className="font-bold text-2xl text-primary">{BRL(totalComHonorario)}</span>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Observações */}
         {data.observacoes && (

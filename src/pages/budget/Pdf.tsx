@@ -119,6 +119,9 @@ export default function BudgetPdf() {
 
   const payload = data?.payload ?? {};
   const campanhas: CampaignQuotes[] = Array.isArray(payload.campanhas) ? payload.campanhas : [];
+  
+  // Detectar se é orçamento de imagem
+  const isImageBudget = data?.type === 'imagem' && payload.assets && Array.isArray(payload.assets);
 
   const totaisPorCampanha = useMemo(() => {
     return campanhas.map((camp) => {
@@ -409,8 +412,155 @@ export default function BudgetPdf() {
             </div>
           </div>
 
+          {/* Orçamento de Imagem */}
+          {isImageBudget && (
+            <div className="avoid-break mb-8">
+              {/* Cabeçalho Assets */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+                  borderLeft: "4px solid #E6191E",
+                  padding: "16px 20px",
+                  marginBottom: "16px",
+                  borderRadius: "0 8px 8px 0",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-gray-600" />
+                  <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>
+                    Assets de Imagem
+                  </h2>
+                </div>
+                {payload.banco && (
+                  <p style={{ fontSize: "12px", color: "#64748B", marginTop: "8px" }}>
+                    Banco: {payload.banco === 'shutterstock' ? 'Shutterstock' : payload.banco === 'getty' ? 'Getty Images' : 'Personalizado'}
+                  </p>
+                )}
+                {payload.midias && (
+                  <p style={{ fontSize: "12px", color: "#64748B" }}>
+                    Mídias: {payload.midias}
+                  </p>
+                )}
+              </div>
+
+              {/* Lista de Assets */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {payload.assets.map((asset: any, idx: number) => {
+                  const price = asset.price || 0;
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-lg p-4"
+                      style={{
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                      }}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1 pr-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 style={{ fontWeight: 700, fontSize: "14px", color: "#1E293B" }}>
+                              {asset.type === 'video' ? '🎥' : '📷'} {asset.title || `Asset ${idx + 1}`}
+                            </h4>
+                          </div>
+                          
+                          {asset.id && (
+                            <p style={{ fontSize: "11px", color: "#64748B", marginBottom: "4px" }}>
+                              ID: {asset.id}
+                            </p>
+                          )}
+                          
+                          {asset.customDescription && (
+                            <p style={{ fontSize: "12px", color: "#475569", marginBottom: "6px" }}>
+                              {asset.customDescription}
+                            </p>
+                          )}
+                          
+                          {asset.chosenLicense && (
+                            <div style={{ 
+                              display: "inline-block",
+                              fontSize: "11px", 
+                              padding: "3px 8px",
+                              borderRadius: "4px",
+                              backgroundColor: "#F1F5F9",
+                              color: "#475569",
+                              marginTop: "6px"
+                            }}>
+                              {asset.chosenLicense}
+                            </div>
+                          )}
+                          
+                          {asset.pageUrl && (
+                            <div style={{ marginTop: "8px" }}>
+                              <a 
+                                href={asset.pageUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ fontSize: "11px", color: "#3B82F6", textDecoration: "underline" }}
+                              >
+                                Ver no banco de imagens
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ fontSize: "12px", color: "#64748B", marginBottom: "2px" }}>Valor</p>
+                          <span style={{ fontSize: "16px", fontWeight: "bold", color: "#1E293B" }}>
+                            {money(price)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Total */}
+              <div
+                style={{
+                  marginTop: "24px",
+                  padding: "20px",
+                  borderRadius: "8px",
+                  backgroundColor: "#F8FAFC",
+                  border: "2px solid #E6191E",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>Total Geral</span>
+                  <span style={{ fontSize: "24px", fontWeight: "bold", color: "#E6191E" }}>
+                    {money(payload.assets.reduce((sum: number, a: any) => sum + (a.price || 0), 0))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Observações */}
+              {payload.observacoes && (
+                <div
+                  style={{
+                    marginTop: "20px",
+                    padding: "16px",
+                    borderRadius: "8px",
+                    backgroundColor: "#FFFBEB",
+                    border: "1px solid #FCD34D",
+                  }}
+                >
+                  <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#92400E", marginBottom: "8px" }}>
+                    Observações
+                  </h3>
+                  <p style={{ fontSize: "12px", color: "#78350F", whiteSpace: "pre-wrap" }}>
+                    {payload.observacoes}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Campanhas */}
-          {campanhas.map((camp, campIdx) => {
+          {!isImageBudget && campanhas.map((camp, campIdx) => {
             const filmSel = pickFilm(camp.quotes_film || []);
             const audioSel = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
             const campTotal = (filmSel ? lowestQuoteValue(filmSel) : 0) + (audioSel ? finalAudioValue(audioSel) : 0);
@@ -751,8 +901,8 @@ export default function BudgetPdf() {
             );
           })}
 
-          {/* Resumo Financeiro */}
-          {(totaisPorCampanha.length > 0 || totalGeral > 0) && (
+          {/* Resumo Financeiro - Apenas para orçamentos não-imagem */}
+          {!isImageBudget && (totaisPorCampanha.length > 0 || totalGeral > 0) && (
             <div
               className="avoid-break mt-8 p-6 rounded-xl border"
               style={{

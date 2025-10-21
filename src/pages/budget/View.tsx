@@ -87,6 +87,9 @@ export default function BudgetView() {
 
   const payload = data.payload;
   const campanhas = payload.campanhas || [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
+  
+  // Detectar se é orçamento de imagem
+  const isImageBudget = data.type === 'imagem' && payload.assets && Array.isArray(payload.assets);
 
   const getMaisBarato = (cat: any) => {
     if (!cat.fornecedores || cat.fornecedores.length === 0) return null;
@@ -169,16 +172,99 @@ export default function BudgetView() {
                 <p className="text-sm text-muted-foreground mb-1">Produto</p>
                 <p className="font-medium">{payload.produto || "-"}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Job</p>
-                <p className="font-medium">{payload.job || "-"}</p>
-              </div>
+              {!isImageBudget && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Job</p>
+                  <p className="font-medium">{payload.job || "-"}</p>
+                </div>
+              )}
+              {isImageBudget && payload.producer && (
+                <>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Produtor</p>
+                    <p className="font-medium">{payload.producer.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Banco de Imagens</p>
+                    <p className="font-medium">
+                      {payload.banco === 'shutterstock' ? 'Shutterstock' : 
+                       payload.banco === 'getty' ? 'Getty Images' : 'Personalizado'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Mídias</p>
+                    <p className="font-medium">{payload.midias || "-"}</p>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Campanhas */}
-        {campanhas.map((campanha: any, campIdx: number) => {
+        {/* Orçamento de Imagem */}
+        {isImageBudget && (
+          <>
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Assets de Imagem</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {payload.assets.map((asset: any, idx: number) => (
+                  <div key={idx} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 pr-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xl">{asset.type === 'video' ? '🎥' : '📷'}</span>
+                          <h4 className="font-bold text-lg">{asset.title || `Asset ${idx + 1}`}</h4>
+                        </div>
+                        {asset.id && (
+                          <p className="text-sm text-muted-foreground mb-1">ID: {asset.id}</p>
+                        )}
+                        {asset.customDescription && (
+                          <p className="text-sm text-muted-foreground mb-2">{asset.customDescription}</p>
+                        )}
+                        {asset.chosenLicense && (
+                          <div className="inline-block px-3 py-1 bg-secondary rounded-md text-sm font-medium mt-2">
+                            {asset.chosenLicense}
+                          </div>
+                        )}
+                        {asset.pageUrl && (
+                          <a 
+                            href={asset.pageUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline mt-2 inline-block"
+                          >
+                            Ver no banco de imagens →
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground mb-1">Valor</p>
+                        <span className="font-bold text-xl">{formatCurrency(asset.price || 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Total para Imagem */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-center text-xl font-bold">
+                  <span>Total Geral:</span>
+                  <span className="text-primary">
+                    {formatCurrency(payload.assets.reduce((sum: number, a: any) => sum + (a.price || 0), 0))}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* Campanhas - Apenas para orçamentos não-imagem */}
+        {!isImageBudget && campanhas.map((campanha: any, campIdx: number) => {
           const categoriasVisiveis = (campanha.categorias || [])
             .filter((c: any) => c.visivel !== false)
             .filter((c: any) => {
@@ -304,23 +390,25 @@ export default function BudgetView() {
           );
         })}
 
-        {/* Total Geral */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-3">
-              {campanhas.map((camp: any, idx: number) => (
-                <div key={idx} className="flex justify-between text-lg">
-                  <span className="font-medium">{camp.nome}:</span>
-                  <span className="font-semibold">{formatCurrency(calcularTotalCampanha(camp))}</span>
+        {/* Total Geral - Apenas para orçamentos não-imagem */}
+        {!isImageBudget && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-3">
+                {campanhas.map((camp: any, idx: number) => (
+                  <div key={idx} className="flex justify-between text-lg">
+                    <span className="font-medium">{camp.nome}:</span>
+                    <span className="font-semibold">{formatCurrency(calcularTotalCampanha(camp))}</span>
+                  </div>
+                ))}
+                <div className="pt-3 border-t-2 flex justify-between items-center text-xl font-bold">
+                  <span>Total Geral Sugerido:</span>
+                  <span className="text-primary">{formatCurrency(totalGeral)}</span>
                 </div>
-              ))}
-              <div className="pt-3 border-t-2 flex justify-between items-center text-xl font-bold">
-                <span>Total Geral Sugerido:</span>
-                <span className="text-primary">{formatCurrency(totalGeral)}</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Observações */}
         {payload.observacoes && (
