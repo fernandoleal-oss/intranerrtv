@@ -47,6 +47,23 @@ interface CampaignQuotes {
   inclui_audio?: boolean;
   quotes_film?: QuoteFilm[];
   quotes_audio?: QuoteAudio[];
+  categorias?: Array<{
+    nome: string;
+    visivel?: boolean;
+    modoPreco?: string;
+    observacao?: string;
+    fornecedores?: Array<{
+      id?: string;
+      nome?: string;
+      valor?: number;
+      desconto?: number;
+      escopo?: string;
+      diretor?: string;
+      tratamento?: string;
+      tem_opcoes?: boolean;
+      opcoes?: FilmOption[];
+    }>;
+  }>;
 }
 
 interface BudgetData {
@@ -588,16 +605,46 @@ export default function BudgetPdf() {
 
           {/* Campanhas */}
           {!isImageBudget && campanhas.map((camp, campIdx) => {
-            const filmSel = pickFilm(camp.quotes_film || []);
-            const audioSel = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
-            const campTotal = (filmSel ? lowestQuoteValue(filmSel) : 0) + (audioSel ? finalAudioValue(audioSel) : 0);
-
-            const films = camp.quotes_film || [];
-            const audios = camp.quotes_audio || [];
-
-            if (films.length === 0 && (!camp.inclui_audio || audios.length === 0)) return null;
-
-            const globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
+            // Suporte para estrutura antiga (quotes_film/quotes_audio)
+            const hasOldStructure = camp.quotes_film || camp.quotes_audio;
+            
+            // Suporte para estrutura nova (categorias/fornecedores)
+            const categorias = camp.categorias || [];
+            const hasNewStructure = categorias.length > 0;
+            
+            if (!hasOldStructure && !hasNewStructure) return null;
+            
+            // Variáveis para estrutura antiga
+            let filmSel: QuoteFilm | null = null;
+            let audioSel: QuoteAudio | null = null;
+            let campTotal = 0;
+            let films: QuoteFilm[] = [];
+            let audios: QuoteAudio[] = [];
+            let globalMinFilm = Infinity;
+            
+            if (hasOldStructure) {
+              filmSel = pickFilm(camp.quotes_film || []);
+              audioSel = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
+              campTotal = (filmSel ? lowestQuoteValue(filmSel) : 0) + (audioSel ? finalAudioValue(audioSel) : 0);
+              films = camp.quotes_film || [];
+              audios = camp.quotes_audio || [];
+              globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
+            } else if (hasNewStructure) {
+              // Nova estrutura: soma todos os fornecedores mais baratos de cada categoria visível
+              campTotal = categorias
+                .filter((cat: any) => cat.visivel !== false)
+                .reduce((sum: number, cat: any) => {
+                  if (cat.modoPreco === "fechado" && cat.fornecedores?.length > 0) {
+                    const maisBarato = cat.fornecedores.reduce((min: any, f: any) => {
+                      const valor = (f.valor || 0) - (f.desconto || 0);
+                      const minValor = (min.valor || 0) - (min.desconto || 0);
+                      return valor < minValor ? f : min;
+                    });
+                    return sum + ((maisBarato.valor || 0) - (maisBarato.desconto || 0));
+                  }
+                  return sum;
+                }, 0);
+            }
 
             return (
               <div key={camp.id || campIdx} className="campaign-section page-break-before mb-8">
@@ -924,6 +971,219 @@ export default function BudgetPdf() {
                     </div>
                   </div>
                 )}
+                
+                {/* NOVA ESTRUTURA: Categorias com Fornecedores */}
+                {hasNewStructure && categorias.map((cat: any, catIdx: number) => {
+                  if (cat.visivel === false) return null;
+                  if (cat.modoPreco !== "fechado" || !cat.fornecedores || cat.fornecedores.length === 0) return null;
+                  
+                  const fornecedores = cat.fornecedores;
+                  const maisBarato = fornecedores.reduce((min: any, f: any) => {
+                    const valor = (f.valor || 0) - (f.desconto || 0);
+                    const minValor = (min.valor || 0) - (min.desconto || 0);
+                    return valor < minValor ? f : min;
+                  });
+                  const globalMinFornecedor = Math.min(...fornecedores.map((f: any) => (f.valor || 0) - (f.desconto || 0)));
+                  
+                  return (
+                    <div key={catIdx} className="allow-break" style={{ marginBottom: "20px" }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        {cat.nome?.toLowerCase().includes('filme') && <Film className="h-4 w-4 text-blue-600" />}
+                        {cat.nome?.toLowerCase().includes('audio') || cat.nome?.toLowerCase().includes('áudio') && <Music className="h-4 w-4 text-purple-600" />}
+                        <h3 style={{ fontWeight: 700, fontSize: "16px", color: "#1E293B" }}>
+                          {cat.nome || `Categoria ${catIdx + 1}`}
+                        </h3>
+                      </div>
+                      
+                      {cat.observacao && (
+                        <div style={{ 
+                          marginBottom: "12px", 
+                          padding: "12px",
+                          backgroundColor: "#FFFBEB",
+                          border: "1px solid #FCD34D",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          color: "#78350F",
+                          whiteSpace: "pre-wrap"
+                        }}>
+                          {cat.observacao}
+                        </div>
+                      )}
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                        {fornecedores.map((f: any, fIdx: number) => {
+                          const valorFinal = (f.valor || 0) - (f.desconto || 0);
+                          const isMaisBarato = Math.abs(valorFinal - globalMinFornecedor) < 0.005;
+                          const destaque = isMaisBarato;
+                          const cardBg = destaque ? "#F0FDF4" : "#FFFFFF";
+                          const cardBorder = destaque ? "2px solid #16A34A" : "1px solid #E2E8F0";
+                          const shadow = destaque ? "0 4px 12px rgba(22, 163, 74, 0.15)" : "0 2px 4px rgba(0,0,0,0.05)";
+                          
+                          return (
+                            <div
+                              key={f.id || fIdx}
+                              className="supplier-card rounded-lg p-4"
+                              style={{
+                                backgroundColor: cardBg,
+                                border: cardBorder,
+                                boxShadow: shadow,
+                                position: "relative",
+                                overflow: "hidden",
+                              }}
+                            >
+                              {destaque && (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: "3px",
+                                    background: "linear-gradient(90deg, #16A34A, #22C55E)",
+                                  }}
+                                />
+                              )}
+                              
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex-1 pr-4">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {isMaisBarato && (
+                                      <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
+                                    )}
+                                    <p
+                                      className={`font-bold ${destaque ? "text-base" : "text-sm"}`}
+                                      style={{ color: "#1E293B" }}
+                                    >
+                                      {f.nome || `Fornecedor ${fIdx + 1}`}
+                                    </p>
+                                    {destaque && (
+                                      <span
+                                        style={{
+                                          fontSize: "10px",
+                                          fontWeight: 700,
+                                          color: "#16A34A",
+                                          background: "#DCFCE7",
+                                          padding: "2px 8px",
+                                          borderRadius: "12px",
+                                          marginLeft: "8px",
+                                        }}
+                                      >
+                                        MELHOR PREÇO
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="space-y-1">
+                                    {f.diretor && (
+                                      <p className="text-[11px]" style={{ color: "#475569" }}>
+                                        <span className="font-semibold">Diretor:</span> {f.diretor}
+                                      </p>
+                                    )}
+                                    {f.tratamento && (
+                                      <p className="text-[11px]" style={{ color: "#475569" }}>
+                                        <span className="font-semibold">Tratamento:</span> {f.tratamento}
+                                      </p>
+                                    )}
+                                  </div>
+                                  
+                                  {f.escopo && (
+                                    <div
+                                      className="mt-3 p-3 rounded border"
+                                      style={{
+                                        backgroundColor: "#F8FAFC",
+                                        border: "1px solid #E2E8F0",
+                                        fontSize: "11px",
+                                        lineHeight: "1.5",
+                                        color: "#475569",
+                                        whiteSpace: "pre-wrap"
+                                      }}
+                                    >
+                                      {f.escopo}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="text-right flex-shrink-0">
+                                  <span
+                                    className={`font-bold ${destaque ? "text-lg" : "text-base"}`}
+                                    style={{ color: destaque ? "#16A34A" : "#1E293B" }}
+                                  >
+                                    {money(valorFinal)}
+                                  </span>
+                                  {toNum(f.desconto) > 0 && (
+                                    <p className="text-[10px] mt-1" style={{ color: "#64748B" }}>
+                                      Desconto: {money(toNum(f.desconto))}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Opções (se houver) */}
+                              {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
+                                <div className="avoid-break" style={{ marginTop: 12 }}>
+                                  <p className="text-[11px] font-semibold mb-3" style={{ color: "#475569" }}>
+                                    Opções disponíveis:
+                                  </p>
+                                  <div className="grid-opts">
+                                    {f.opcoes.map((opc: any, oIdx: number) => {
+                                      const valorOpc = toNum(opc.valor) - toNum(opc.desconto);
+                                      const isOpcMaisBarata = Math.abs(valorOpc - valorFinal) < 0.005;
+                                      
+                                      return (
+                                        <div
+                                          key={opc.id || oIdx}
+                                          style={{
+                                            padding: "10px 12px",
+                                            backgroundColor: isOpcMaisBarata ? "#F0FDF4" : "#F8FAFC",
+                                            border: isOpcMaisBarata ? "2px solid #16A34A" : "1px solid #E2E8F0",
+                                            borderRadius: 8,
+                                            fontSize: 11,
+                                            position: "relative",
+                                          }}
+                                        >
+                                          {isOpcMaisBarata && (
+                                            <div
+                                              style={{
+                                                position: "absolute",
+                                                top: -1,
+                                                left: -1,
+                                                right: -1,
+                                                height: "2px",
+                                                backgroundColor: "#16A34A",
+                                                borderRadius: "8px 8px 0 0",
+                                              }}
+                                            />
+                                          )}
+                                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                            <div style={{ flex: 1 }}>
+                                              <p style={{ fontWeight: 700, marginBottom: 4, color: "#1E293B" }}>
+                                                {opc.nome || `Opção ${oIdx + 1}`}
+                                              </p>
+                                              {opc.escopo && (
+                                                <p style={{ fontSize: 10, color: "#64748B", lineHeight: "1.4" }}>
+                                                  {opc.escopo}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                              <span style={{ fontWeight: 700, color: "#1E293B" }}>
+                                                {money(valorOpc)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
