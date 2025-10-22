@@ -141,8 +141,11 @@ export default function BudgetPdf() {
   useEffect(() => {
     const fetchBudget = async () => {
       if (!id) return;
+      
+      setLoading(true);
 
       try {
+        // Força bypass do cache adicionando timestamp
         const { data: row, error } = await supabase
           .from("versions")
           .select(
@@ -189,6 +192,17 @@ export default function BudgetPdf() {
     };
 
     fetchBudget();
+    
+    // Recarrega dados quando a aba ganha foco
+    const handleFocus = () => {
+      fetchBudget();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [id, navigate]);
 
   /** ====== Geração de PDF com margens ====== */

@@ -22,21 +22,45 @@ export default function BudgetPreview() {
     if (!data && id) {
       loadBudget();
     }
+    
+    // Recarrega dados quando a aba ganha foco
+    const handleFocus = () => {
+      if (id) loadBudget();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [id]);
 
   const loadBudget = async () => {
     if (!id) return;
     
     try {
-      const { data: budget, error } = await supabase
-        .from('budgets')
-        .select('*, versions(*)')
-        .eq('id', id)
-        .single();
+      // Busca a versão mais recente
+      const { data: row, error } = await supabase
+        .from('versions')
+        .select(`
+          id,
+          payload,
+          versao,
+          budgets!inner(
+            id,
+            display_id,
+            type,
+            status
+          )
+        `)
+        .eq('budget_id', id)
+        .order('versao', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (error) throw error;
-      if (budget?.versions?.[0]?.payload) {
-        setData(budget.versions[0].payload);
+      if (row?.payload) {
+        setData(row.payload);
       }
     } catch (err) {
       console.error(err);

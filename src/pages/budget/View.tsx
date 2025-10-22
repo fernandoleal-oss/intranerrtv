@@ -26,6 +26,8 @@ export default function BudgetView() {
   useEffect(() => {
     const fetchBudget = async () => {
       if (!id) return;
+      
+      setLoading(true);
 
       try {
         const { data: row, error } = await supabase
@@ -70,6 +72,17 @@ export default function BudgetView() {
     };
 
     fetchBudget();
+    
+    // Recarrega dados quando a aba ganha foco
+    const handleFocus = () => {
+      fetchBudget();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [id, navigate]);
 
   const formatCurrency = (value: number) =>
