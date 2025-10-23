@@ -222,49 +222,77 @@ export default function BudgetPdf() {
     };
   }, [id, navigate]);
 
-  /** ====== Geração de PDF com texto extraível ====== */
+  /** ====== Geração de PDF com margens ====== */
   const handleGeneratePdf = async () => {
     if (!contentRef.current || !data) return;
     setGenerating(true);
     try {
       const element = contentRef.current;
-      
-      const pdf = new jsPDF({ 
-        orientation: "portrait", 
-        unit: "mm", 
-        format: "a4",
-        compress: true
+
+      const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+      const canvas = await html2canvas(element, {
+        scale,
+        useCORS: true,
+        backgroundColor: "#FFFFFF",
+        logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
 
-      // Usa o método html() do jsPDF que mantém o texto extraível
-      await pdf.html(element, {
-        callback: (doc) => {
-          // nome do arquivo
-          const cliente = String(payload.cliente || "cliente");
-          const produto = String(payload.produto || "produto");
-          const num = data.budget_number || "000";
-          const clean = (t: string) =>
-            t
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .replace(/[^a-z0-9]/gi, "_")
-              .replace(/_+/g, "_")
-              .toLowerCase();
-          doc.save(`${clean(cliente)}_${clean(produto)}_${num}.pdf`);
-          toast({ title: "PDF gerado com sucesso!" });
-        },
-        x: 12,
-        y: 12,
-        width: 186, // A4 width (210mm) - margins (12mm each side)
-        windowWidth: 794, // A4 width in pixels at 96 DPI
-        margin: [12, 12, 12, 12],
-        autoPaging: 'text',
-        html2canvas: {
-          scale: 0.264583, // Conversion factor for better quality (96 DPI to mm)
-          useCORS: true,
-          letterRendering: true,
-        }
-      });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageWmm = pdf.internal.pageSize.getWidth();
+      const pageHmm = pdf.internal.pageSize.getHeight();
+
+      const margin = 12;
+      const usableW = pageWmm - margin * 2;
+      const usableH = pageHmm - margin * 2;
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const pxPerMm = cw / usableW;
+      const pageHPx = Math.ceil(usableH * pxPerMm);
+
+      let y = 0;
+      let pageIndex = 0;
+
+      while (y < ch) {
+        const srcH = Math.min(pageHPx, ch - y);
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = cw;
+        pageCanvas.height = srcH;
+        const ctx = pageCanvas.getContext("2d")!;
+        ctx.imageSmoothingEnabled = true;
+        // @ts-ignore
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(canvas, 0, y, cw, srcH, 0, 0, cw, srcH);
+
+        const img = pageCanvas.toDataURL("image/png");
+        if (pageIndex > 0) pdf.addPage();
+
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pageWmm, pageHmm, "F");
+
+        const isLast = y + srcH >= ch;
+        const hMm = isLast ? srcH / pxPerMm : usableH;
+        pdf.addImage(img, "PNG", margin, margin, usableW, hMm);
+
+        y += srcH;
+        pageIndex++;
+      }
+
+      // nome do arquivo
+      const cliente = String(payload.cliente || "cliente");
+      const produto = String(payload.produto || "produto");
+      const num = data.budget_number || "000";
+      const clean = (t: string) =>
+        t
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/gi, "_")
+          .replace(/_+/g, "_")
+          .toLowerCase();
+      pdf.save(`${clean(cliente)}_${clean(produto)}_${num}.pdf`);
+      toast({ title: "PDF gerado com sucesso!" });
     } catch (err: any) {
       toast({
         title: "Erro ao gerar PDF",
