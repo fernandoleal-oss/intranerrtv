@@ -136,6 +136,65 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
   // Nova estrutura (fornecedores com fases)
   const [fornecedores, setFornecedores] = useState<FornecedorComFases[]>([]);
 
+  // Função para carregar exemplo dos PDFs
+  const carregarExemploPeDirty = () => {
+    setEstrutura("fornecedores");
+    setCliente("Multimix");
+    setProduto("Assets 3D");
+    setJob("OC_916");
+    
+    setFornecedores([
+      {
+        id: crypto.randomUUID(),
+        nome: "ESTÚDIO PÉ GRANDE",
+        contato: "contato@estudiopegrande.com.br",
+        fases: [
+          {
+            id: crypto.randomUUID(),
+            nome: "Fase 1 - Assets 3D",
+            itens: [
+              { id: crypto.randomUUID(), nome: "PACOTE (MODELAGEM + 6 STILLS)", valor: 49200, prazo: "30 dias", observacao: "Produção 3D de 02 (dois) SKUs Multimix" },
+              { id: crypto.randomUUID(), nome: "5 STILLS EXTRAS", valor: 27500, prazo: "18 dias", observacao: "" },
+              { id: crypto.randomUUID(), nome: "1 STILL EXTRA", valor: 5860, prazo: "7 dias", observacao: "" },
+            ],
+          },
+          {
+            id: crypto.randomUUID(),
+            nome: "Fase 2 - Assets 3D",
+            itens: [
+              { id: crypto.randomUUID(), nome: "PACOTE 1 (MODELAGEM + 9 STILLS)", valor: 63700, prazo: "35 dias", observacao: "Produção 3D de 03 (três) SKUs Multimix" },
+              { id: crypto.randomUUID(), nome: "PACOTE 2 (9 STILLS, SEM MODELAGEM)", valor: 56700, prazo: "30 dias", observacao: "Apenas renderização, sem modelagem" },
+              { id: crypto.randomUUID(), nome: "5 STILLS EXTRAS", valor: 27500, prazo: "18 dias", observacao: "" },
+              { id: crypto.randomUUID(), nome: "1 STILL EXTRA", valor: 5860, prazo: "7 dias", observacao: "" },
+            ],
+          },
+        ],
+      },
+      {
+        id: crypto.randomUUID(),
+        nome: "DIRTY WORD",
+        contato: "",
+        fases: [
+          {
+            id: crypto.randomUUID(),
+            nome: "Shooting e Renders",
+            itens: [
+              { id: crypto.randomUUID(), nome: "Embalagens", valor: 55000, prazo: "", observacao: "" },
+              { id: crypto.randomUUID(), nome: "Balas", valor: 60000, prazo: "", observacao: "" },
+              { id: crypto.randomUUID(), nome: "Pacote", valor: 110000, prazo: "", observacao: "" },
+              { id: crypto.randomUUID(), nome: "Ervas Unitario", valor: 30000, prazo: "", observacao: "" },
+              { id: crypto.randomUUID(), nome: "Pacote Ervas", valor: 270000, prazo: "", observacao: "Pacote completo" },
+              { id: crypto.randomUUID(), nome: "Renders (qualquer um) - unitario", valor: 20000, prazo: "", observacao: "" },
+              { id: crypto.randomUUID(), nome: "Shooting até 10 fotos", valor: 150000, prazo: "", observacao: "Valor pra levantar a diária + tratamento" },
+            ],
+          },
+        ],
+      },
+    ]);
+    
+    toast({ title: "Exemplo carregado!", description: "Orçamento Pé Grande + Dirty Word carregado" });
+  };
+
   // Load initial data
   useEffect(() => {
     if (initialPayload) {
@@ -705,6 +764,13 @@ export function BudgetForm({ budgetId, versionId, initialPayload, onSaveSuccess 
               </div>
             )}
           </div>
+          {estrutura === "fornecedores" && (
+            <div className="mt-4">
+              <Button onClick={carregarExemploPeDirty} variant="outline" size="sm" className="gap-2">
+                📄 Carregar Exemplo (Pé Grande + Dirty Word)
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
