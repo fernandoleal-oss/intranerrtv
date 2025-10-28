@@ -30,7 +30,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 /* ========== Tipos/constantes ========== */
 
@@ -366,7 +365,7 @@ export default function Finance() {
   const topClientsSelected = useMemo(() => summarizeClients(curRows), [curRows]);
   const topClientsCompare = useMemo(() => summarizeClients(compareRows), [compareRows]);
 
-  // NOVO: Dados para o gráfico de faturamento mensal
+  // NOVO: Dados para o gráfico de faturamento mensal (simplificado sem recharts)
   const monthlyRevenueData = useMemo(() => {
     const monthlyTotals: { [key: string]: number } = {};
     
@@ -615,7 +614,12 @@ export default function Finance() {
             <AnnualTotalsDialog />
 
             {/* NOVO: Botão para gráfico de faturamento */}
-            <Button variant="outline" className="gap-2" onClick={() => setShowRevenueChart(true)}>
+            <Button 
+              variant="outline" 
+              className="gap-2" 
+              onClick={() => setShowRevenueChart(true)}
+              disabled={monthlyRevenueData.length === 0}
+            >
               <BarChart3 className="h-4 w-4" />
               Gráfico Faturamento
             </Button>
@@ -768,7 +772,7 @@ export default function Finance() {
 
       <ImportSpreadsheetModal open={showImportModal} onOpenChange={setShowImportModal} onImportComplete={loadData} />
 
-      {/* NOVO: Modal do gráfico de faturamento mensal */}
+      {/* NOVO: Modal do gráfico de faturamento mensal (simplificado) */}
       <RevenueChartModal 
         open={showRevenueChart}
         onOpenChange={setShowRevenueChart}
@@ -893,7 +897,7 @@ export default function Finance() {
   );
 }
 
-/** NOVO: Componente do Modal do Gráfico de Faturamento */
+/** NOVO: Componente do Modal do Gráfico de Faturamento (simplificado) */
 function RevenueChartModal({ 
   open, 
   onOpenChange, 
@@ -903,47 +907,67 @@ function RevenueChartModal({
   onOpenChange: (open: boolean) => void; 
   data: { month: string; revenue: number }[];
 }) {
+  const maxRevenue = Math.max(...data.map(d => d.revenue), 0);
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="text-base">Faturamento Mensal</DialogTitle>
         </DialogHeader>
-        <div className="h-96">
+        <div className="space-y-6">
           {data.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="month" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  interval={0}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis 
-                  tickFormatter={(value) => formatBRL(value)}
-                  width={80}
-                />
-                <Tooltip 
-                  formatter={(value: number) => [formatBRL(value), "Faturamento"]}
-                  labelFormatter={(label) => `Mês: ${label}`}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
-                  name="Faturamento"
-                  dot={{ r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <>
+              {/* Gráfico simplificado com barras */}
+              <div className="h-80 border rounded-lg p-6 bg-gradient-to-b from-slate-50 to-white">
+                <div className="flex items-end justify-between h-64 gap-2">
+                  {data.map((item, index) => {
+                    const height = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0;
+                    return (
+                      <div key={index} className="flex flex-col items-center flex-1">
+                        <div className="text-xs text-gray-600 mb-2 text-center min-h-[40px]">
+                          {item.month}
+                        </div>
+                        <div
+                          className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t transition-all duration-500 hover:from-blue-500 hover:to-blue-300 cursor-pointer"
+                          style={{ height: `${height}%` }}
+                          title={`${item.month}: ${formatBRL(item.revenue)}`}
+                        />
+                        <div className="text-xs text-gray-700 mt-2 font-medium">
+                          {formatBRL(item.revenue)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tabela de dados */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Detalhamento por Mês</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {data.map((item, index) => (
+                      <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="font-medium text-gray-700">{item.month}</span>
+                        <span className="font-bold text-green-600">{formatBRL(item.revenue)}</span>
+                      </div>
+                    ))}
+                    {/* Total */}
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                      <span className="font-bold text-gray-900">Total Geral</span>
+                      <span className="font-bold text-blue-600">
+                        {formatBRL(data.reduce((sum, item) => sum + item.revenue, 0))}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           ) : (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center h-32">
               <p className="text-muted-foreground">Nenhum dado disponível para exibir o gráfico</p>
             </div>
           )}
