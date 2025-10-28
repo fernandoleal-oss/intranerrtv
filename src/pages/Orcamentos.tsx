@@ -16,6 +16,10 @@ import {
   Calendar,
   User,
   Package,
+  Upload,
+  FileUp,
+  Brain,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +36,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -47,6 +61,22 @@ interface Budget {
   created_at: string;
 }
 
+interface ExtractedBudgetData {
+  fornecedor: string;
+  fases: Array<{
+    nome: string;
+    itens: Array<{
+      descricao: string;
+      valor: number;
+      prazo?: string;
+    }>;
+    total: number;
+  }>;
+  total_geral: number;
+  prazos_entregas: string[];
+  observacoes: string[];
+}
+
 export default function Orcamentos() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -55,6 +85,13 @@ export default function Orcamentos() {
   const [search, setSearch] = useState("");
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados para o upload de PDF
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [extractedData, setExtractedData] = useState<ExtractedBudgetData | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     loadBudgets();
@@ -72,7 +109,7 @@ export default function Orcamentos() {
           status,
           created_at,
           versions!inner(payload, total_geral)
-        `,
+        `
         )
         .order("created_at", { ascending: false });
 
@@ -100,6 +137,162 @@ export default function Orcamentos() {
       toast({ title: "Erro ao carregar orçamentos", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Função para processar upload de PDF
+  const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Formato inválido",
+        description: "Por favor, selecione um arquivo PDF",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      toast({
+        title: "Arquivo muito grande",
+        description: "O PDF deve ter menos de 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+    setExtractedData(null);
+
+    try {
+      // Simular progresso de upload
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Criar FormData para upload
+      const formData = new FormData();
+      formData.append("pdf", file);
+
+      // Fazer upload para o endpoint de processamento
+      const response = await fetch("/api/process-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+
+      if (!response.ok) {
+        throw new Error("Falha no processamento do PDF");
+      }
+
+      const result = await response.json();
+      
+      setUploadProgress(100);
+      setExtractedData(result.data);
+      
+      toast({
+        title: "PDF processado com sucesso!",
+        description: `Orçamento extraído de ${result.data.fornecedor}`,
+      });
+
+    } catch (error) {
+      console.error("Erro no upload:", error);
+      toast({
+        title: "Erro ao processar PDF",
+        description: "Não foi possível extrair os dados do orçamento",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
+    }
+  };
+
+  // Função para criar orçamento a partir dos dados extraídos
+  const createBudgetFromExtractedData = async () => {
+    if (!extractedData) return;
+
+    setProcessing(true);
+    try {
+      // Gerar ID de exibição
+      const timestamp = new Date().getTime();
+      const displayId = `ORC-${timestamp.toString().slice(-6)}`;
+
+      // Criar estrutura do payload
+      const payload = {
+        cliente: "Cliente a definir",
+        produto: "Produto a definir",
+        produtor: "Produtor a definir",
+        fornecedor: extractedData.fornecedor,
+        fases: extractedData.fases.map(fase => ({
+          nome: fase.nome,
+          itens: fase.itens.map(item => ({
+            descricao: item.descricao,
+            quantidade: 1,
+            unidade: "un",
+            valor_unitario: item.valor,
+            valor_total: item.valor,
+            prazo: item.prazo || ""
+          })),
+          total: fase.total
+        })),
+        observacoes: extractedData.observacoes,
+        prazos_entregas: extractedData.prazos_entregas
+      };
+
+      // Inserir no banco de dados
+      const { data: budgetData, error: budgetError } = await supabase
+        .from("budgets")
+        .insert({
+          display_id: displayId,
+          type: "filme", // Tipo padrão, pode ser ajustado depois
+          status: "rascunho"
+        })
+        .select()
+        .single();
+
+      if (budgetError) throw budgetError;
+
+      // Criar versão do orçamento
+      const { error: versionError } = await supabase
+        .from("budget_versions")
+        .insert({
+          budget_id: budgetData.id,
+          payload: payload,
+          total_geral: extractedData.total_geral,
+          version_number: 1
+        });
+
+      if (versionError) throw versionError;
+
+      toast({
+        title: "Orçamento criado!",
+        description: `Orçamento ${displayId} criado a partir do PDF`,
+      });
+
+      setUploadDialogOpen(false);
+      setExtractedData(null);
+      loadBudgets(); // Recarregar lista
+
+    } catch (error) {
+      console.error("Erro ao criar orçamento:", error);
+      toast({
+        title: "Erro ao criar orçamento",
+        description: "Não foi possível salvar os dados extraídos",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -217,6 +410,179 @@ export default function Orcamentos() {
         backTo="/"
         actions={
           <div className="flex gap-2">
+            {/* Botão de Upload de PDF com IA */}
+            <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-green-500 text-green-700 hover:bg-green-50 hover:text-green-800"
+                >
+                  <Brain className="h-4 w-4" />
+                  Extrair de PDF
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-green-600" />
+                    Extrair Orçamento de PDF
+                  </DialogTitle>
+                  <DialogDescription>
+                    Faça upload de PDFs de fornecedores e a IA extrairá automaticamente as informações do orçamento
+                  </DialogDescription>
+                </DialogHeader>
+
+                <Tabs defaultValue="upload" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="upload">Upload de PDF</TabsTrigger>
+                    <TabsTrigger value="preview" disabled={!extractedData}>
+                      Pré-visualização
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="upload" className="space-y-4">
+                    <Card className="border-2 border-dashed border-green-300 bg-green-50/50">
+                      <CardContent className="p-6 text-center">
+                        <FileUp className="h-12 w-12 mx-auto text-green-600 mb-4" />
+                        <h3 className="text-lg font-semibold text-green-900 mb-2">
+                          Upload de PDF do Fornecedor
+                        </h3>
+                        <p className="text-green-700 mb-4">
+                          A IA vai extrair automaticamente: fornecedor, fases, itens, valores e prazos
+                        </p>
+                        
+                        <div className="space-y-4">
+                          <Input
+                            type="file"
+                            accept=".pdf"
+                            onChange={handlePdfUpload}
+                            disabled={uploading}
+                            className="cursor-pointer"
+                          />
+                          
+                          {uploading && (
+                            <div className="space-y-2">
+                              <Progress value={uploadProgress} className="h-2" />
+                              <p className="text-sm text-green-700">
+                                Processando PDF... {uploadProgress}%
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-4 p-4 bg-blue-50 rounded-lg text-left">
+                          <h4 className="font-semibold text-blue-900 mb-2">📋 Formatos suportados:</h4>
+                          <ul className="text-sm text-blue-700 space-y-1">
+                            <li>• PDFs de fornecedores de produção</li>
+                            <li>• Orçamentos de pós-produção</li>
+                            <li>• Propostas comerciais</li>
+                            <li>• Cotações de serviços</li>
+                          </ul>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="preview">
+                    {extractedData && (
+                      <div className="space-y-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg">
+                              Dados Extraídos - {extractedData.fornecedor}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            {/* Fornecedor */}
+                            <div>
+                              <h4 className="font-semibold text-gray-900 mb-2">Fornecedor</h4>
+                              <p className="text-gray-700">{extractedData.fornecedor}</p>
+                            </div>
+
+                            {/* Fases e Itens */}
+                            <div>
+                              <h4 className="font-semibold text-gray-900 mb-3">Estrutura do Orçamento</h4>
+                              <div className="space-y-3">
+                                {extractedData.fases.map((fase, index) => (
+                                  <Card key={index} className="bg-gray-50">
+                                    <CardHeader className="pb-3">
+                                      <CardTitle className="text-sm flex justify-between">
+                                        <span>{fase.nome}</span>
+                                        <span className="text-green-600">{formatCurrency(fase.total)}</span>
+                                      </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="pt-0">
+                                      <div className="space-y-2">
+                                        {fase.itens.map((item, itemIndex) => (
+                                          <div key={itemIndex} className="flex justify-between text-sm py-1 border-b border-gray-200">
+                                            <span className="text-gray-700">{item.descricao}</span>
+                                            <span className="font-medium">{formatCurrency(item.valor)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Total Geral */}
+                            <div className="bg-green-50 p-4 rounded-lg">
+                              <div className="flex justify-between items-center">
+                                <span className="font-semibold text-green-900">Total Geral</span>
+                                <span className="text-xl font-bold text-green-700">
+                                  {formatCurrency(extractedData.total_geral)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Observações */}
+                            {extractedData.observacoes.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Observações</h4>
+                                <ul className="text-sm text-gray-700 space-y-1">
+                                  {extractedData.observacoes.map((obs, idx) => (
+                                    <li key={idx}>• {obs}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        <div className="flex gap-3 justify-end">
+                          <Button
+                            variant="outline"
+                            onClick={() => setExtractedData(null)}
+                            disabled={processing}
+                          >
+                            Voltar
+                          </Button>
+                          <Button
+                            onClick={createBudgetFromExtractedData}
+                            disabled={processing}
+                            className="gap-2 bg-green-600 hover:bg-green-700"
+                          >
+                            {processing ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Criando...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4" />
+                                Criar Orçamento
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </DialogContent>
+            </Dialog>
+
             <Button
               onClick={() => navigate("/orcamento-novo")}
               className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
@@ -363,13 +729,26 @@ export default function Orcamentos() {
                   ? "Tente ajustar os filtros ou termos de busca"
                   : "Comece criando seu primeiro orçamento"}
               </p>
-              <Button
-                onClick={() => navigate("/orcamento-novo")}
-                className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              >
-                <Plus className="h-4 w-4" />
-                Criar Primeiro Orçamento
-              </Button>
+              <div className="flex gap-3 justify-center">
+                <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-green-500 text-green-700 hover:bg-green-50"
+                    >
+                      <Brain className="h-4 w-4" />
+                      Extrair de PDF
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
+                <Button
+                  onClick={() => navigate("/orcamento-novo")}
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Criar Primeiro Orçamento
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
