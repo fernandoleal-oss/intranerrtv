@@ -7,14 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea"; // se não tiver, troque por <textarea>
-import { BudgetForm } from "@/components/BudgetForm";
-import { BudgetProvider } from "@/contexts/BudgetContext";
+import { Textarea } from "@/components/ui/textarea";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, FileText, Home, AlertCircle, RefreshCw, Save, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Home, AlertCircle, RefreshCw, Save, Download } from "lucide-react";
+import OrcamentoNovo from "./OrcamentoNovo";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc" | string;
 
@@ -27,6 +26,7 @@ interface VersionRow {
     display_id: string;
     type: BudgetType;
     status: string;
+    budget_number: string;
   } | null;
 }
 
@@ -38,139 +38,12 @@ interface BudgetData {
   payload: Record<string, any>;
   version_id: string;
   versao: number;
+  budget_number: string;
 }
 
 /** util */
 function isUUID(v?: string) {
   return !!v?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-}
-
-/** formata número pt-BR */
-const money = (n: number | undefined) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
-
-/** parse simples: aceita "1.234,56" e "1234.56" */
-const parseCurrency = (val: string | number | undefined): number => {
-  if (typeof val === "number") return isFinite(val) ? val : 0;
-  if (!val) return 0;
-  const clean = String(val)
-    .replace(/[R$\s]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  const n = Number(clean);
-  return isFinite(n) ? n : 0;
-};
-
-/** Draft local apenas com o que vamos editar: tem_opcoes/opcoes */
-type OptionDraft = {
-  id: string;
-  nome: string;
-  escopo?: string;
-  valor?: number;
-  desconto?: number;
-};
-type FornecedorDraft = {
-  id?: string; // opcional — muitos payloads não têm id por fornecedor
-  nome?: string; // usado só para referência visual
-  tem_opcoes: boolean;
-  opcoes: OptionDraft[];
-};
-type CategoriaDraft = {
-  id?: string;
-  nome?: string;
-  modoPreco?: string;
-  fornecedores: FornecedorDraft[];
-};
-type CampanhaDraft = {
-  id?: string;
-  nome?: string;
-  categorias: CategoriaDraft[];
-};
-type OptionsDraft = CampanhaDraft[];
-
-/** extrai campanhas/categorias/fornecedores do payload para nosso draft */
-function extractOptionsDraft(payload: any): OptionsDraft {
-  if (!payload) return [];
-  const baseCampanhas = Array.isArray(payload.campanhas)
-    ? payload.campanhas
-    : [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
-
-  return baseCampanhas.map((camp: any) => ({
-    id: camp.id,
-    nome: camp.nome,
-    categorias: (camp.categorias || []).map((cat: any) => ({
-      id: cat.id,
-      nome: cat.nome,
-      modoPreco: cat.modoPreco,
-      fornecedores: (cat.fornecedores || []).map((f: any, idx: number) => ({
-        id: f.id ?? String(idx),
-        nome: f.nome,
-        tem_opcoes: Boolean(f.tem_opcoes),
-        opcoes: Array.isArray(f.opcoes)
-          ? f.opcoes.map((o: any, j: number) => ({
-              id: o.id ?? `${idx}-${j}`,
-              nome: o.nome ?? `Opção ${j + 1}`,
-              escopo: o.escopo ?? "",
-              valor: parseCurrency(o.valor),
-              desconto: parseCurrency(o.desconto),
-            }))
-          : [],
-      })),
-    })),
-  }));
-}
-
-/** aplica o draft de volta no payload original (merge não destrutivo) */
-function applyOptionsDraftOnPayload(payload: any, draft: OptionsDraft): any {
-  if (!payload) return payload;
-  const hasCampanhas = Array.isArray(payload.campanhas);
-  const baseCampanhas = hasCampanhas
-    ? payload.campanhas
-    : [{ nome: "Campanha Única", categorias: payload.categorias || [] }];
-
-  const merged = baseCampanhas.map((camp: any, campIdx: number) => {
-    const draftCamp = draft[campIdx];
-    const categorias = (camp.categorias || []).map((cat: any, catIdx: number) => {
-      const draftCat = draftCamp?.categorias?.[catIdx];
-
-      if (cat.modoPreco !== "fechado") {
-        return cat; // só alteramos fornecedores em modo fechado
-      }
-
-      const fornecedores = (cat.fornecedores || []).map((f: any, fIdx: number) => {
-        const draftF = draftCat?.fornecedores?.[fIdx];
-        if (!draftF) return f;
-
-        // aplica tem_opcoes/opcoes preservando o resto do fornecedor
-        const nextF = { ...f, tem_opcoes: draftF.tem_opcoes };
-
-        if (draftF.tem_opcoes) {
-          nextF.opcoes = (draftF.opcoes || []).map((o: OptionDraft) => ({
-            id: o.id,
-            nome: o.nome,
-            escopo: o.escopo ?? "",
-            valor: parseCurrency(o.valor ?? 0),
-            desconto: parseCurrency(o.desconto ?? 0),
-          }));
-        } else {
-          // desliga completamente
-          delete nextF.opcoes;
-        }
-
-        return nextF;
-      });
-
-      return { ...cat, fornecedores };
-    });
-
-    return { ...camp, categorias };
-  });
-
-  // devolve no mesmo formato (com campanhas ou com categorias na raiz)
-  if (hasCampanhas) {
-    return { ...payload, campanhas: merged };
-  }
-  return { ...payload, categorias: merged[0]?.categorias || [] };
 }
 
 export default function BudgetEdit() {
@@ -181,19 +54,11 @@ export default function BudgetEdit() {
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
   const [data, setData] = useState<BudgetData | null>(null);
-  const [optionsDraft, setOptionsDraft] = useState<OptionsDraft>([]);
-  const [savingOptions, setSavingOptions] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
 
   const title = useMemo(
     () => (data ? `Editar Orçamento — ${data.display_id} • ${String(data.type).toUpperCase()}` : "Editar Orçamento"),
-    [data],
-  );
-
-  // só informativo; mantemos antes de qualquer return
-  const totalQuotesFilme = useMemo(
-    () => (data?.payload?.campanhas || []).reduce((acc: number, c: any) => acc + (c?.quotes_film?.length || 0), 0),
     [data],
   );
 
@@ -211,6 +76,7 @@ export default function BudgetEdit() {
       payload: row.payload || {},
       version_id: row.id,
       versao: row.versao ?? 1,
+      budget_number: row.budgets.budget_number || "000",
     };
   };
 
@@ -245,7 +111,8 @@ export default function BudgetEdit() {
               id,
               display_id,
               type,
-              status
+              status,
+              budget_number
             )
           `,
           )
@@ -261,8 +128,6 @@ export default function BudgetEdit() {
         if (!mapped) throw new Error("not_found");
 
         setData(mapped);
-        // inicializa draft das opções com base no payload carregado
-        setOptionsDraft(extractOptionsDraft(mapped.payload));
 
         if (silent) {
           toast({ title: "Atualizado", description: "Dados recarregados." });
@@ -291,152 +156,21 @@ export default function BudgetEdit() {
     return () => abortRef.current?.abort();
   }, [id, fetchBudget]);
 
-  /** Salva APENAS as mudanças de opções (tem_opcoes/opcoes) criando uma nova versão */
-  const saveSupplierOptions = async () => {
-    if (!data) return;
-    setSavingOptions(true);
-    try {
-      // revalida versão atual
-      const { data: row, error } = await supabase
-        .from("versions")
-        .select("versao, payload")
-        .eq("budget_id", data.id)
-        .order("versao", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      const currentPayload = row?.payload ?? data.payload;
-      const nextPayload = applyOptionsDraftOnPayload(currentPayload, optionsDraft);
-      const nextVersao = (row?.versao ?? data.versao ?? 1) + 1;
-
-      const { error: insertErr } = await supabase.from("versions").insert([
-        {
-          budget_id: data.id,
-          versao: nextVersao,
-          payload: nextPayload as any,
-          total_geral: 0, // se existir a coluna
-        },
-      ]);
-
-      if (insertErr) throw insertErr;
-
-      toast({ title: "Opções salvas!", description: `Nova versão #${nextVersao} criada.` });
-      // recarrega dados para manter tela coerente
-      await fetchBudget(true);
-    } catch (err: any) {
-      toast({
-        title: "Erro ao salvar opções",
-        description: err?.message ?? "Tente novamente.",
-        variant: "destructive",
-      });
-    } finally {
-      setSavingOptions(false);
-    }
-  };
-
-  const handleSaveClick = () => {
-    // segue usando o BudgetForm para salvar “o resto”
-    if (data?.id) {
-      window.dispatchEvent(
-        new CustomEvent("budget:save", {
-          detail: { budgetId: data.id, versionId: data.version_id },
-        }),
-      );
-      toast({
-        title: "Solicitado",
-        description: "Salvando alterações do formulário…",
-      });
-    }
-  };
-
-  // ------------- UI helpers para o draft ----------------
-  const toggleFornecedorOpcoes = (campIdx: number, catIdx: number, fornIdx: number, value: boolean) => {
-    setOptionsDraft((prev) => {
-      const clone = structuredClone(prev);
-      const f = clone?.[campIdx]?.categorias?.[catIdx]?.fornecedores?.[fornIdx];
-      if (!f) return prev;
-      f.tem_opcoes = value;
-      if (value && (!Array.isArray(f.opcoes) || f.opcoes.length === 0)) {
-        f.opcoes = [
-          {
-            id: crypto.randomUUID(),
-            nome: "Opção 1",
-            escopo: "",
-            valor: 0,
-            desconto: 0,
-          },
-        ];
-      }
-      if (!value) {
-        f.opcoes = [];
-      }
-      return clone;
+  const handleSaveSuccess = async (budgetId: string) => {
+    toast({
+      title: "✅ Orçamento atualizado!",
+      description: "Redirecionando para visualização...",
     });
-  };
-
-  const addOpcao = (campIdx: number, catIdx: number, fornIdx: number) => {
-    setOptionsDraft((prev) => {
-      const clone = structuredClone(prev);
-      const f = clone?.[campIdx]?.categorias?.[catIdx]?.fornecedores?.[fornIdx];
-      if (!f) return prev;
-      const nextIndex = (f.opcoes?.length || 0) + 1;
-      f.opcoes = [
-        ...(f.opcoes || []),
-        {
-          id: crypto.randomUUID(),
-          nome: `Opção ${nextIndex}`,
-          escopo: "",
-          valor: 0,
-          desconto: 0,
-        },
-      ];
-      f.tem_opcoes = true;
-      return clone;
-    });
-  };
-
-  const removeOpcao = (campIdx: number, catIdx: number, fornIdx: number, opcId: string) => {
-    setOptionsDraft((prev) => {
-      const clone = structuredClone(prev);
-      const f = clone?.[campIdx]?.categorias?.[catIdx]?.fornecedores?.[fornIdx];
-      if (!f) return prev;
-      f.opcoes = (f.opcoes || []).filter((o: OptionDraft) => o.id !== opcId);
-      return clone;
-    });
-  };
-
-  const updateOpcao = (
-    campIdx: number,
-    catIdx: number,
-    fornIdx: number,
-    opcId: string,
-    updates: Partial<OptionDraft>,
-  ) => {
-    setOptionsDraft((prev) => {
-      const clone = structuredClone(prev);
-      const f = clone?.[campIdx]?.categorias?.[catIdx]?.fornecedores?.[fornIdx];
-      if (!f) return prev;
-      f.opcoes = (f.opcoes || []).map((o: OptionDraft) =>
-        o.id === opcId
-          ? {
-              ...o,
-              ...updates,
-              valor: parseCurrency(updates.valor ?? o.valor ?? 0),
-              desconto: parseCurrency(updates.desconto ?? o.desconto ?? 0),
-            }
-          : o,
-      );
-      return clone;
-    });
+    // Recarrega os dados para garantir que estamos vendo a versão mais recente
+    await fetchBudget(true);
+    navigate(`/budget/${budgetId}/pdf`);
   };
 
   // ---------------- Renders condicionais ----------------
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <div className="container mx-auto px-6 py-8">
           <LoadingState message="Carregando orçamento..." />
         </div>
@@ -446,7 +180,7 @@ export default function BudgetEdit() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <div className="container mx-auto px-6 py-8">
           <EmptyState
             icon={AlertCircle}
@@ -466,27 +200,34 @@ export default function BudgetEdit() {
     );
   }
 
+  // Se for orçamento de imagem, redirecionar para o editor específico
+  if (data.type === "imagem") {
+    navigate(`/budget/${data.id}/edit-image`);
+    return null;
+  }
+
   return (
-    <BudgetProvider>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="container mx-auto px-6 py-8">
-          {/* Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-6 py-4">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between mb-8"
+            className="flex items-center justify-between"
           >
             <div className="flex items-center gap-4">
-              <Button onClick={() => navigate(-1)} variant="ghost" size="sm" className="nav-button gap-2">
+              <Button onClick={() => navigate(-1)} variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Voltar
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-white">Editar Orçamento</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Editar Orçamento</h1>
                 <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  <p className="text-white/70">{data.display_id}</p>
+                  <p className="text-gray-600">{data.display_id}</p>
                   <StatusBadge status={data.status} />
-                  <span className="text-white/50 text-sm capitalize">• {String(data.type)}</span>
+                  <span className="text-gray-500 text-sm capitalize">• {String(data.type)}</span>
+                  <span className="text-gray-500 text-sm">• Nº {data.budget_number}</span>
                 </div>
               </div>
             </div>
@@ -495,214 +236,291 @@ export default function BudgetEdit() {
               <Button
                 onClick={() => fetchBudget(true)}
                 variant="outline"
-                className="nav-button gap-2"
+                className="gap-2"
                 disabled={refetching}
               >
                 <RefreshCw className={`h-4 w-4 ${refetching ? "animate-spin" : ""}`} />
                 Atualizar
               </Button>
 
-              <Button
-                onClick={handleSaveClick}
-                variant="secondary"
-                className="nav-button gap-2"
-                title="Salvar alterações do formulário (atalho: Ctrl/Cmd+S)"
+              <Button 
+                onClick={() => navigate(`/budget/${data.id}/pdf`)} 
+                variant="outline" 
+                className="gap-2"
               >
-                <Save className="h-4 w-4" />
-                Salvar (Form)
-              </Button>
-
-              <Button onClick={() => navigate(`/budget/${data.id}/pdf`)} className="btn-gradient gap-2">
-                <FileText className="h-4 w-4" />
+                <Download className="h-4 w-4" />
                 Ver PDF
               </Button>
 
-              <Button onClick={() => navigate("/")} variant="outline" className="nav-button gap-2">
+              <Button onClick={() => navigate("/orcamentos")} variant="outline" className="gap-2">
                 <Home className="h-4 w-4" />
-                Início
+                Orçamentos
               </Button>
             </div>
           </motion.div>
+        </div>
+      </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Coluna principal com BudgetForm */}
-            <motion.div
-              key={data.version_id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.06 }}
-              className="lg:col-span-2"
-            >
-              <BudgetForm budgetId={data.id} versionId={data.version_id} initialPayload={data.payload} />
-              {/* info extra opcional */}
-              <div className="mt-4 text-white/70 text-sm">
-                Cotações (Filme) no payload: <b>{totalQuotesFilme}</b>
-              </div>
-            </motion.div>
+      {/* Conteúdo Principal - Usando o OrcamentoNovo com modo de edição */}
+      <div className="container mx-auto px-6 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <BudgetEditForm 
+            budgetData={data}
+            onSaveSuccess={handleSaveSuccess}
+            onRefresh={fetchBudget}
+          />
+        </motion.div>
+      </div>
+    </div>
+  );
+}
 
-            {/* Painel lateral: Opções de Fornecedores */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-24 space-y-6">
-                <Card className="border-2 border-emerald-200/60">
-                  <CardHeader>
-                    <CardTitle className="text-emerald-700">Opções de Fornecedores (modo fechado)</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {optionsDraft.length === 0 && (
-                      <div className="text-sm text-muted-foreground">
-                        Nenhuma campanha/categoria modo fechado encontrada no payload.
-                      </div>
-                    )}
+// Componente interno para edição que estende o OrcamentoNovo
+interface BudgetEditFormProps {
+  budgetData: BudgetData;
+  onSaveSuccess: (budgetId: string) => void;
+  onRefresh: (silent?: boolean) => void;
+}
 
-                    {optionsDraft.map((camp, campIdx) => (
-                      <div key={campIdx} className="space-y-3">
-                        <div className="text-sm font-semibold text-emerald-800">
-                          {camp.nome || `Campanha ${campIdx + 1}`}
-                        </div>
+function BudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: BudgetEditFormProps) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
 
-                        {camp.categorias.map((cat, catIdx) => {
-                          if (cat.modoPreco !== "fechado") return null;
-                          return (
-                            <div key={catIdx} className="rounded-md border p-3 bg-emerald-50/40 space-y-3">
-                              <div className="text-sm font-medium">
-                                Categoria:{" "}
-                                <span className="font-semibold">{cat.nome || `Categoria ${catIdx + 1}`}</span>
-                              </div>
+  // Preparar os dados para o formulário de edição
+  const initialData = useMemo(() => {
+    const payload = budgetData.payload || {};
+    
+    return {
+      ...payload,
+      // Garantir que campos obrigatórios estejam presentes
+      type: payload.type || budgetData.type,
+      cliente: payload.cliente || "",
+      produto: payload.produto || "",
+      // Garantir que arrays existam
+      campanhas: Array.isArray(payload.campanhas) ? payload.campanhas : [],
+      fornecedores: Array.isArray(payload.fornecedores) ? payload.fornecedores : [],
+      totais_campanhas: Array.isArray(payload.totais_campanhas) ? payload.totais_campanhas : [],
+    };
+  }, [budgetData]);
 
-                              {cat.fornecedores.length === 0 && (
-                                <div className="text-xs text-muted-foreground">Sem fornecedores.</div>
-                              )}
+  const handleSave = async (formData: any) => {
+    setSaving(true);
+    try {
+      // Preparar payload para atualização
+      const payload = {
+        ...formData,
+        // Manter campos importantes
+        id: budgetData.id,
+        display_id: budgetData.display_id,
+        budget_number: budgetData.budget_number,
+      };
 
-                              {cat.fornecedores.map((f, fornIdx) => (
-                                <div key={fornIdx} className="rounded-md border bg-white p-3 space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="text-sm font-semibold">{f.nome || `Fornecedor ${fornIdx + 1}`}</div>
-                                    <div className="flex items-center gap-2">
-                                      <Switch
-                                        checked={!!f.tem_opcoes}
-                                        onCheckedChange={(v) => toggleFornecedorOpcoes(campIdx, catIdx, fornIdx, v)}
-                                      />
-                                      <span className="text-xs text-muted-foreground">Múltiplas opções</span>
-                                    </div>
-                                  </div>
+      // Criar nova versão
+      const { error: versionError } = await supabase.from("versions").insert([
+        {
+          budget_id: budgetData.id,
+          versao: budgetData.versao + 1,
+          payload: payload as any,
+          total_geral: formData.total || 0,
+        },
+      ]);
 
-                                  {!!f.tem_opcoes && (
-                                    <div className="space-y-2">
-                                      <div className="flex justify-between items-center">
-                                        <div className="text-xs font-medium text-muted-foreground">
-                                          Opções ({f.opcoes.length})
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="gap-1"
-                                          onClick={() => addOpcao(campIdx, catIdx, fornIdx)}
-                                        >
-                                          <Plus className="h-3 w-3" />
-                                          Adicionar opção
-                                        </Button>
-                                      </div>
+      if (versionError) throw versionError;
 
-                                      {f.opcoes.length === 0 && (
-                                        <div className="text-xs text-muted-foreground">Nenhuma opção adicionada.</div>
-                                      )}
+      // Atualizar status do budget se necessário
+      const { error: budgetError } = await supabase
+        .from("budgets")
+        .update({ 
+          updated_at: new Date().toISOString(),
+          status: formData.status || budgetData.status
+        })
+        .eq("id", budgetData.id);
 
-                                      <div className="space-y-3">
-                                        {f.opcoes.map((o) => (
-                                          <div key={o.id} className="rounded border p-3">
-                                            <div className="flex items-center gap-2">
-                                              <Input
-                                                value={o.nome}
-                                                onChange={(e) =>
-                                                  updateOpcao(campIdx, catIdx, fornIdx, o.id, {
-                                                    nome: e.target.value,
-                                                  })
-                                                }
-                                                placeholder="Nome da opção"
-                                              />
-                                              <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="text-destructive"
-                                                onClick={() => removeOpcao(campIdx, catIdx, fornIdx, o.id)}
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </div>
+      if (budgetError) throw budgetError;
 
-                                            <div className="mt-2">
-                                              <Label className="text-xs">Escopo</Label>
-                                              {/* se não tiver Textarea, troque por <textarea className="w-full" .../> */}
-                                              <Textarea
-                                                value={o.escopo || ""}
-                                                onChange={(e) =>
-                                                  updateOpcao(campIdx, catIdx, fornIdx, o.id, {
-                                                    escopo: e.target.value,
-                                                  })
-                                                }
-                                                placeholder="Descreva o escopo dessa opção"
-                                                className="min-h-[70px] text-sm"
-                                              />
-                                            </div>
+      toast({
+        title: "✅ Orçamento atualizado!",
+        description: `Versão ${budgetData.versao + 1} salva com sucesso.`,
+      });
 
-                                            <div className="grid grid-cols-2 gap-2 mt-2">
-                                              <div>
-                                                <Label className="text-xs">Valor (R$)</Label>
-                                                <Input
-                                                  inputMode="decimal"
-                                                  value={o.valor ?? ""}
-                                                  onChange={(e) =>
-                                                    updateOpcao(campIdx, catIdx, fornIdx, o.id, {
-                                                      valor: parseCurrency(e.target.value),
-                                                    })
-                                                  }
-                                                  placeholder="0,00"
-                                                />
-                                              </div>
-                                              <div>
-                                                <Label className="text-xs">Desconto (R$)</Label>
-                                                <Input
-                                                  inputMode="decimal"
-                                                  value={o.desconto ?? ""}
-                                                  onChange={(e) =>
-                                                    updateOpcao(campIdx, catIdx, fornIdx, o.id, {
-                                                      desconto: parseCurrency(e.target.value),
-                                                    })
-                                                  }
-                                                  placeholder="0,00"
-                                                />
-                                              </div>
-                                            </div>
+      onSaveSuccess(budgetData.id);
+      
+    } catch (err: any) {
+      console.error("[edit-budget] error:", err);
+      toast({
+        title: "Erro ao atualizar orçamento",
+        description: err?.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-                                            <div className="text-right mt-2 text-xs">
-                                              <span className="font-semibold">Valor final: </span>
-                                              <span className="font-bold">
-                                                {money((o.valor || 0) - (o.desconto || 0))}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
+  // Se não temos dados suficientes, mostrar loading
+  if (!initialData.cliente || !initialData.produto) {
+    return (
+      <Card className="shadow-lg">
+        <CardContent className="p-8 text-center">
+          <LoadingState message="Preparando formulário de edição..." />
+        </CardContent>
+      </Card>
+    );
+  }
 
-                    <Button onClick={saveSupplierOptions} disabled={savingOptions} className="w-full">
-                      {savingOptions ? "Salvando opções..." : "Salvar Opções (cria nova versão)"}
-                    </Button>
-                  </CardContent>
-                </Card>
+  return (
+    <div className="space-y-6">
+      {/* Banner de Informação de Edição */}
+      <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-lg">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="bg-blue-100 p-3 rounded-xl">
+              <AlertCircle className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-blue-900 text-lg">Editando Orçamento</h3>
+              <div className="grid md:grid-cols-2 gap-3 text-sm text-blue-800">
+                <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <span>
+                    <strong>Nº {budgetData.budget_number}</strong> • {budgetData.display_id}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <span>
+                    Versão atual: <strong>{budgetData.versao}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <span>As alterações criarão uma nova versão do orçamento</span>
+                </div>
+                <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <span>Status atual: <StatusBadge status={budgetData.status} /></span>
+                </div>
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Formulário de Edição - Usando lógica similar ao OrcamentoNovo */}
+      <Card className="shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-green-50 to-white rounded-t-lg">
+          <CardTitle className="flex items-center gap-3 text-xl">
+            <Save className="h-6 w-6 text-green-600" />
+            Formulário de Edição
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <EditFormContent 
+            initialData={initialData}
+            onSave={handleSave}
+            saving={saving}
+            budgetNumber={budgetData.budget_number}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Componente do formulário de edição
+interface EditFormContentProps {
+  initialData: any;
+  onSave: (data: any) => void;
+  saving: boolean;
+  budgetNumber: string;
+}
+
+function EditFormContent({ initialData, onSave, saving, budgetNumber }: EditFormContentProps) {
+  const [formData, setFormData] = useState(initialData);
+
+  // Atualizar dados do formulário
+  const updateFormData = (updates: any) => {
+    setFormData((prev: any) => ({ ...prev, ...updates }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Campos básicos */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <Label htmlFor="cliente" className="flex items-center gap-1 text-sm font-semibold">
+            Cliente <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="cliente"
+            value={formData.cliente || ""}
+            onChange={(e) => updateFormData({ cliente: e.target.value })}
+            placeholder="Nome do cliente"
+            className="h-12"
+            required
+          />
+        </div>
+        
+        <div className="space-y-3">
+          <Label htmlFor="produto" className="flex items-center gap-1 text-sm font-semibold">
+            Produto <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="produto"
+            value={formData.produto || ""}
+            onChange={(e) => updateFormData({ produto: e.target.value })}
+            placeholder="Nome do produto"
+            className="h-12"
+            required
+          />
         </div>
       </div>
-    </BudgetProvider>
+
+      {/* Botões de ação */}
+      <div className="flex gap-3 pt-6 border-t">
+        <Button
+          type="submit"
+          disabled={saving}
+          className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg"
+        >
+          {saving ? (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              Salvando...
+            </div>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              Salvar Alterações (Nova Versão)
+            </>
+          )}
+        </Button>
+        
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => window.history.back()}
+          className="gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Cancelar
+        </Button>
+      </div>
+
+      {/* Informação da versão */}
+      <div className="text-sm text-gray-500 text-center">
+        Esta ação criará a versão {initialData.versao ? initialData.versao + 1 : 1} do orçamento {budgetNumber}
+      </div>
+    </form>
   );
 }
