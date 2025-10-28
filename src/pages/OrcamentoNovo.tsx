@@ -25,8 +25,10 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
+type BudgetStructure = "categorias" | "fornecedores_fases";
 
 interface FilmOption {
   id: string;
@@ -65,6 +67,28 @@ interface Campaign {
   quotes_audio: QuoteAudio[];
 }
 
+// NOVA ESTRUTURA: Fornecedores → Fases → Itens
+interface FornecedorItem {
+  id: string;
+  nome: string;
+  valor: number;
+  prazo: string;
+  observacao: string;
+}
+
+interface FornecedorFase {
+  id: string;
+  nome: string;
+  itens: FornecedorItem[];
+}
+
+interface Fornecedor {
+  id: string;
+  nome: string;
+  contato: string;
+  fases: FornecedorFase[];
+}
+
 interface TotaisCampanha {
   campId: string;
   nome: string;
@@ -75,6 +99,7 @@ interface TotaisCampanha {
 
 interface BudgetData {
   type: BudgetType;
+  estrutura: BudgetStructure;
   produtor?: string;
   email?: string;
   cliente?: string;
@@ -90,6 +115,7 @@ interface BudgetData {
   quotes_film?: QuoteFilm[];
   quotes_audio?: QuoteAudio[];
   campanhas?: Campaign[];
+  fornecedores?: Fornecedor[];
   totais_campanhas?: TotaisCampanha[];
   total: number;
   pendente_faturamento?: boolean;
@@ -194,6 +220,7 @@ export default function OrcamentoNovo() {
 
   const [data, setData] = useState<BudgetData>({
     type: "filme",
+    estrutura: "categorias",
     quotes_film: [],
     quotes_audio: [],
     total: 0,
@@ -209,6 +236,7 @@ export default function OrcamentoNovo() {
         quotes_audio: [],
       },
     ],
+    fornecedores: [],
     totais_campanhas: [],
   });
 
@@ -260,7 +288,311 @@ export default function OrcamentoNovo() {
     });
   }, []);
 
-  // Handlers de campanhas e cotações
+  // Carregar exemplo dos PDFs
+  const loadExampleData = () => {
+    const exemploFornecedores: Fornecedor[] = [
+      {
+        id: crypto.randomUUID(),
+        nome: "ESTÚDIO PÉ GRANDE",
+        contato: "",
+        fases: [
+          {
+            id: crypto.randomUUID(),
+            nome: "Multimix Assets 3D - Fase 1",
+            itens: [
+              {
+                id: crypto.randomUUID(),
+                nome: "PACOTE (MODELAGEM + 6 STILLS)",
+                valor: 49200,
+                prazo: "30 dias",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "5 STILLS EXTRAS",
+                valor: 27500,
+                prazo: "18 dias",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "1 STILL EXTRA",
+                valor: 5860,
+                prazo: "18 dias",
+                observacao: ""
+              }
+            ]
+          },
+          {
+            id: crypto.randomUUID(),
+            nome: "Multimix Assets 3D - Fase 2",
+            itens: [
+              {
+                id: crypto.randomUUID(),
+                nome: "PACOTE 1 (MODELAGEM + 9 STILLS)",
+                valor: 63700,
+                prazo: "35 dias",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "PACOTE 2 (MODELAGEM + 8 STILLS)",
+                valor: 56700,
+                prazo: "35 dias",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "5 STILLS EXTRAS",
+                valor: 27500,
+                prazo: "18 dias",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "1 STILL EXTRA",
+                valor: 5860,
+                prazo: "18 dias",
+                observacao: ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        id: crypto.randomUUID(),
+        nome: "DIRTY WORD",
+        contato: "",
+        fases: [
+          {
+            id: crypto.randomUUID(),
+            nome: "Shooting e Renders",
+            itens: [
+              {
+                id: crypto.randomUUID(),
+                nome: "Embalagens",
+                valor: 55000,
+                prazo: "",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "Balas",
+                valor: 60000,
+                prazo: "",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "Pacote",
+                valor: 110000,
+                prazo: "",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "Ervas Unitario",
+                valor: 30000,
+                prazo: "",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "Pacote Ervas",
+                valor: 270000,
+                prazo: "",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "Renders unitário",
+                valor: 20000,
+                prazo: "",
+                observacao: ""
+              },
+              {
+                id: crypto.randomUUID(),
+                nome: "Shooting até 10 fotos",
+                valor: 150000,
+                prazo: "",
+                observacao: ""
+              }
+            ]
+          }
+        ]
+      }
+    ];
+
+    setData(prev => ({
+      ...prev,
+      estrutura: "fornecedores_fases",
+      fornecedores: exemploFornecedores
+    }));
+
+    toast({
+      title: "Exemplo carregado!",
+      description: "Dados do Estúdio Pé Grande e Dirty Word foram pré-preenchidos.",
+    });
+  };
+
+  // Handlers para estrutura de Fornecedores → Fases
+  const addFornecedor = () => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: [
+        ...(prev.fornecedores || []),
+        {
+          id: crypto.randomUUID(),
+          nome: "",
+          contato: "",
+          fases: []
+        }
+      ]
+    }));
+  };
+
+  const updateFornecedor = (id: string, updates: Partial<Fornecedor>) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f => 
+        f.id === id ? { ...f, ...updates } : f
+      )
+    }));
+  };
+
+  const removeFornecedor = (id: string) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.filter(f => f.id !== id)
+    }));
+  };
+
+  const addFaseToFornecedor = (fornecedorId: string) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f =>
+        f.id === fornecedorId
+          ? {
+              ...f,
+              fases: [
+                ...f.fases,
+                {
+                  id: crypto.randomUUID(),
+                  nome: "",
+                  itens: []
+                }
+              ]
+            }
+          : f
+      )
+    }));
+  };
+
+  const updateFaseInFornecedor = (fornecedorId: string, faseId: string, updates: Partial<FornecedorFase>) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f =>
+        f.id === fornecedorId
+          ? {
+              ...f,
+              fases: f.fases.map(fase =>
+                fase.id === faseId ? { ...fase, ...updates } : fase
+              )
+            }
+          : f
+      )
+    }));
+  };
+
+  const removeFaseFromFornecedor = (fornecedorId: string, faseId: string) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f =>
+        f.id === fornecedorId
+          ? {
+              ...f,
+              fases: f.fases.filter(fase => fase.id !== faseId)
+            }
+          : f
+      )
+    }));
+  };
+
+  const addItemToFase = (fornecedorId: string, faseId: string) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f =>
+        f.id === fornecedorId
+          ? {
+              ...f,
+              fases: f.fases.map(fase =>
+                fase.id === faseId
+                  ? {
+                      ...fase,
+                      itens: [
+                        ...fase.itens,
+                        {
+                          id: crypto.randomUUID(),
+                          nome: "",
+                          valor: 0,
+                          prazo: "",
+                          observacao: ""
+                        }
+                      ]
+                    }
+                  : fase
+              )
+            }
+          : f
+      )
+    }));
+  };
+
+  const updateItemInFase = (fornecedorId: string, faseId: string, itemId: string, updates: Partial<FornecedorItem>) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f =>
+        f.id === fornecedorId
+          ? {
+              ...f,
+              fases: f.fases.map(fase =>
+                fase.id === faseId
+                  ? {
+                      ...fase,
+                      itens: fase.itens.map(item =>
+                        item.id === itemId ? { ...item, ...updates } : item
+                      )
+                    }
+                  : fase
+              )
+            }
+          : f
+      )
+    }));
+  };
+
+  const removeItemFromFase = (fornecedorId: string, faseId: string, itemId: string) => {
+    setData((prev) => ({
+      ...prev,
+      fornecedores: prev.fornecedores?.map(f =>
+        f.id === fornecedorId
+          ? {
+              ...f,
+              fases: f.fases.map(fase =>
+                fase.id === faseId
+                  ? {
+                      ...fase,
+                      itens: fase.itens.filter(item => item.id !== itemId)
+                    }
+                  : fase
+              )
+            }
+          : f
+      )
+    }));
+  };
+
+  // Handlers de campanhas e cotações (estrutura antiga)
   const addCampaign = () => {
     setData((prev) => ({
       ...prev,
@@ -509,26 +841,46 @@ export default function OrcamentoNovo() {
 
   // Cálculo dos totais
   useEffect(() => {
-    const camps = data.campanhas || [];
-    if (camps.length === 0) return;
+    if (data.estrutura === "categorias") {
+      const camps = data.campanhas || [];
+      if (camps.length === 0) return;
 
-    const baseCampanhas: TotaisCampanha[] = camps.map((c) => {
-      const { filmVal, audioVal, subtotal } = calcCampanhaPartes(c);
-      return {
-        campId: c.id,
-        nome: c.nome,
-        filmVal,
-        audioVal,
-        subtotal,
-      };
-    });
+      const baseCampanhas: TotaisCampanha[] = camps.map((c) => {
+        const { filmVal, audioVal, subtotal } = calcCampanhaPartes(c);
+        return {
+          campId: c.id,
+          nome: c.nome,
+          filmVal,
+          audioVal,
+          subtotal,
+        };
+      });
 
-    setData((prev) => ({
-      ...prev,
-      totais_campanhas: baseCampanhas,
-      total: 0,
-    }));
-  }, [data.campanhas]);
+      const total = baseCampanhas.reduce((sum, camp) => sum + camp.subtotal, 0);
+
+      setData((prev) => ({
+        ...prev,
+        totais_campanhas: baseCampanhas,
+        total,
+      }));
+    } else if (data.estrutura === "fornecedores_fases") {
+      const fornecedores = data.fornecedores || [];
+      let total = 0;
+
+      fornecedores.forEach(fornecedor => {
+        fornecedor.fases.forEach(fase => {
+          fase.itens.forEach(item => {
+            total += item.valor;
+          });
+        });
+      });
+
+      setData(prev => ({
+        ...prev,
+        total
+      }));
+    }
+  }, [data.campanhas, data.fornecedores, data.estrutura]);
 
   const handleSave = async () => {
     if (!data.cliente?.trim()) {
@@ -540,15 +892,29 @@ export default function OrcamentoNovo() {
       return;
     }
 
-    // Validar se todas as campanhas têm pelo menos uma cotação de filme
-    const campanhasSemFilme = data.campanhas?.filter((camp) => camp.quotes_film.length === 0);
-    if (campanhasSemFilme && campanhasSemFilme.length > 0) {
-      toast({
-        title: "Cotações incompletas",
-        description: `A campanha "${campanhasSemFilme[0].nome}" precisa de pelo menos uma cotação de filme`,
-        variant: "destructive",
-      });
-      return;
+    // Validações baseadas na estrutura
+    if (data.estrutura === "categorias") {
+      const campanhasSemFilme = data.campanhas?.filter((camp) => camp.quotes_film.length === 0);
+      if (campanhasSemFilme && campanhasSemFilme.length > 0) {
+        toast({
+          title: "Cotações incompletas",
+          description: `A campanha "${campanhasSemFilme[0].nome}" precisa de pelo menos uma cotação de filme`,
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (data.estrutura === "fornecedores_fases") {
+      const fornecedoresSemItens = data.fornecedores?.filter(f => 
+        f.fases.length === 0 || f.fases.every(fase => fase.itens.length === 0)
+      );
+      if (fornecedoresSemItens && fornecedoresSemItens.length > 0) {
+        toast({
+          title: "Fornecedores incompletos",
+          description: `Todos os fornecedores precisam ter pelo menos um item`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setSaving(true);
@@ -571,7 +937,7 @@ export default function OrcamentoNovo() {
           budget_id: budgetData.id,
           versao: 1,
           payload: payload as any,
-          total_geral: 0,
+          total_geral: data.total,
         },
       ]);
 
@@ -603,6 +969,816 @@ export default function OrcamentoNovo() {
     () => (data.campanhas || []).reduce((acc, c) => acc + c.quotes_audio.length, 0),
     [data.campanhas],
   );
+
+  // Renderização da estrutura de Fornecedores → Fases
+  const renderFornecedoresFases = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900">Fornecedores e Fases</h3>
+            <p className="text-sm text-muted-foreground">Estruture por fornecedor → fase → itens</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button 
+              onClick={loadExampleData} 
+              variant="outline" 
+              className="gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
+            >
+              📄 Carregar Exemplo (Pé Grande + Dirty Word)
+            </Button>
+            <Button onClick={addFornecedor} className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg">
+              <Plus className="h-5 w-5" />
+              Novo Fornecedor
+            </Button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {(data.fornecedores || []).map((fornecedor, index) => {
+            const totalFornecedor = fornecedor.fases.reduce((totalFase, fase) => 
+              totalFase + fase.itens.reduce((totalItem, item) => totalItem + item.valor, 0), 0
+            );
+
+            return (
+              <motion.div
+                key={fornecedor.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Card className="border-l-4 border-l-green-500 shadow-xl">
+                  <CardHeader className="pb-4 bg-gradient-to-r from-green-50 to-white rounded-t-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <Badge variant="default" className="bg-green-600 text-white px-3 py-1 text-sm">
+                          Fornecedor {index + 1}
+                        </Badge>
+                        <CardTitle className="text-xl">{fornecedor.nome || "Novo Fornecedor"}</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeFornecedor(fornecedor.id)}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-6 pt-6">
+                    {/* Dados do Fornecedor */}
+                    <div className="grid md:grid-cols-2 gap-6 p-6 bg-gray-50 rounded-xl border">
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Nome do Fornecedor *</Label>
+                        <Input
+                          value={fornecedor.nome}
+                          onChange={(e) => updateFornecedor(fornecedor.id, { nome: e.target.value })}
+                          placeholder="Ex.: ESTÚDIO PÉ GRANDE"
+                          className="h-12"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Contato</Label>
+                        <Input
+                          value={fornecedor.contato}
+                          onChange={(e) => updateFornecedor(fornecedor.id, { contato: e.target.value })}
+                          placeholder="E-mail ou telefone"
+                          className="h-12"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Fases */}
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold text-xl text-gray-900">Fases</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {fornecedor.fases.length === 0
+                              ? "Adicione fases para este fornecedor"
+                              : `${fornecedor.fases.length} fase(s) cadastrada(s)`}
+                          </p>
+                        </div>
+                        <Button
+                          size="lg"
+                          onClick={() => addFaseToFornecedor(fornecedor.id)}
+                          className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg"
+                        >
+                          <Plus className="h-5 w-5" />
+                          Nova Fase
+                        </Button>
+                      </div>
+
+                      <div className="space-y-6">
+                        {fornecedor.fases.map((fase, faseIndex) => {
+                          const totalFase = fase.itens.reduce((total, item) => total + item.valor, 0);
+
+                          return (
+                            <motion.div
+                              key={fase.id}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="border-2 border-gray-200 rounded-xl p-6 space-y-6 bg-white shadow-md"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <Badge variant="outline" className="bg-blue-100 text-blue-700">
+                                    Fase {faseIndex + 1}
+                                  </Badge>
+                                  <h5 className="font-semibold text-lg text-gray-900">
+                                    {fase.nome || "Nova Fase"}
+                                  </h5>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => removeFaseFromFornecedor(fornecedor.id, fase.id)}
+                                  className="text-red-600 border-red-200 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+
+                              <div className="space-y-3">
+                                <Label className="text-sm font-semibold">Nome da Fase *</Label>
+                                <Input
+                                  value={fase.nome}
+                                  onChange={(e) => updateFaseInFornecedor(fornecedor.id, fase.id, { nome: e.target.value })}
+                                  placeholder="Ex.: Multimix Assets 3D - Fase 1"
+                                  className="h-12"
+                                />
+                              </div>
+
+                              {/* Itens da Fase */}
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h6 className="font-semibold text-gray-900">Itens da Fase</h6>
+                                    <p className="text-sm text-muted-foreground">
+                                      {fase.itens.length === 0
+                                        ? "Adicione itens a esta fase"
+                                        : `${fase.itens.length} item(ns) cadastrado(s)`}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => addItemToFase(fornecedor.id, fase.id)}
+                                    className="gap-2 bg-orange-600 hover:bg-orange-700"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    Novo Item
+                                  </Button>
+                                </div>
+
+                                <div className="space-y-4">
+                                  {fase.itens.map((item, itemIndex) => (
+                                    <motion.div
+                                      key={item.id}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className="p-4 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50 space-y-4"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <Badge variant="outline" className="bg-orange-100 text-orange-700">
+                                            Item {itemIndex + 1}
+                                          </Badge>
+                                          <h6 className="font-semibold text-orange-900">{item.nome || "Novo Item"}</h6>
+                                        </div>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeItemFromFase(fornecedor.id, fase.id, item.id)}
+                                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+
+                                      <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label className="text-sm font-semibold">Nome do Item *</Label>
+                                          <Input
+                                            value={item.nome}
+                                            onChange={(e) => updateItemInFase(fornecedor.id, fase.id, item.id, { nome: e.target.value })}
+                                            placeholder="Ex.: PACOTE (MODELAGEM + 6 STILLS)"
+                                            className="h-10"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label className="text-sm font-semibold">Valor (R$) *</Label>
+                                          <CurrencyInput
+                                            value={item.valor}
+                                            onChange={(value: number) => updateItemInFase(fornecedor.id, fase.id, item.id, { valor: value })}
+                                            className="h-10"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label className="text-sm font-semibold">Prazo</Label>
+                                          <Input
+                                            value={item.prazo}
+                                            onChange={(e) => updateItemInFase(fornecedor.id, fase.id, item.id, { prazo: e.target.value })}
+                                            placeholder="Ex.: 30 dias"
+                                            className="h-10"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label className="text-sm font-semibold">Observação</Label>
+                                          <Input
+                                            value={item.observacao}
+                                            onChange={(e) => updateItemInFase(fornecedor.id, fase.id, item.id, { observacao: e.target.value })}
+                                            placeholder="Observações adicionais"
+                                            className="h-10"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="flex justify-between items-center pt-3 border-t border-orange-200">
+                                        <div className="space-y-1">
+                                          <div className="text-sm font-semibold text-gray-700">Valor do Item</div>
+                                          <div className="text-xl font-bold text-orange-600">
+                                            {money(item.valor)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  ))}
+                                </div>
+
+                                {fase.itens.length > 0 && (
+                                  <div className="flex justify-between items-center pt-4 border-t">
+                                    <div className="space-y-2">
+                                      <div className="text-sm font-semibold text-gray-700">Total da Fase</div>
+                                      <div className="text-2xl font-bold text-blue-600">{money(totalFase)}</div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {fornecedor.fases.length > 0 && (
+                      <div className="flex justify-between items-center pt-6 border-t">
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold text-gray-700">Total do Fornecedor</div>
+                          <div className="text-3xl font-bold text-green-600">{money(totalFornecedor)}</div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  // Renderização da estrutura de Categorias (antiga)
+  const renderCategorias = () => {
+    return (
+      <div className="space-y-6">
+        {/* ... (código existente da estrutura de categorias) */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900">Campanhas</h3>
+            <p className="text-sm text-muted-foreground">Gerencie as campanhas e suas cotações</p>
+          </div>
+          <Button onClick={addCampaign} className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg">
+            <Plus className="h-5 w-5" />
+            Nova Campanha
+          </Button>
+        </div>
+
+        <AnimatePresence>
+          {(data.campanhas || []).map((camp, campIndex) => {
+            const cheapestFilm = camp.quotes_film.length
+              ? (getCheapest(camp.quotes_film) as QuoteFilm | null)
+              : null;
+            const cheapestAudio =
+              camp.inclui_audio && camp.quotes_audio.length
+                ? (getCheapest(camp.quotes_audio) as QuoteAudio | null)
+                : null;
+
+            return (
+              <motion.div
+                key={camp.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Card className="border-l-4 border-l-blue-500 shadow-xl">
+                  <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-white rounded-t-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <Badge variant="default" className="bg-blue-600 text-white px-3 py-1 text-sm">
+                          Campanha {campIndex + 1}
+                        </Badge>
+                        <CardTitle className="text-xl">{camp.nome}</CardTitle>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeCampaign(camp.id)}
+                          disabled={data.campanhas && data.campanhas.length <= 1}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-8 pt-6">
+                    {/* Configuração da Campanha */}
+                    <div className="grid md:grid-cols-3 gap-6 p-6 bg-gray-50 rounded-xl border">
+                      <div className="md:col-span-2 space-y-3">
+                        <Label className="text-sm font-semibold">Nome da Campanha</Label>
+                        <Input
+                          value={camp.nome}
+                          onChange={(e) => updateCampaign(camp.id, { nome: e.target.value })}
+                          placeholder="Ex.: Lançamento Q4"
+                          className="h-12"
+                        />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={camp.inclui_audio || false}
+                            onCheckedChange={(v) => updateCampaign(camp.id, { inclui_audio: v })}
+                            className="data-[state=checked]:bg-green-600"
+                          />
+                          <Label className="text-sm font-semibold">Incluir Áudio</Label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cotações Filme */}
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold text-xl text-gray-900">Cotações de Filme</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {camp.quotes_film.length === 0
+                              ? "Adicione pelo menos uma cotação de filme"
+                              : `${camp.quotes_film.length} cotação(ões) cadastrada(s)`}
+                          </p>
+                        </div>
+                        <Button
+                          size="lg"
+                          onClick={() => addQuoteFilmTo(camp.id)}
+                          className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg"
+                        >
+                          <Plus className="h-5 w-5" />
+                          Adicionar Cotação
+                        </Button>
+                      </div>
+
+                      <div className="space-y-6">
+                        {camp.quotes_film.length === 0 && (
+                          <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
+                            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-500 text-lg mb-2">Nenhuma cotação de filme adicionada</p>
+                            <p className="text-gray-400 text-sm mb-4">Comece adicionando a primeira cotação</p>
+                            <Button
+                              onClick={() => addQuoteFilmTo(camp.id)}
+                              className="bg-blue-600 hover:bg-blue-700"
+                            >
+                              Adicionar Primeira Cotação
+                            </Button>
+                          </div>
+                        )}
+
+                        {camp.quotes_film.map((q) => {
+                          const isCheapest = cheapestFilm?.id === q.id;
+                          const finalForCard = lowestQuoteValue(q);
+
+                          return (
+                            <motion.div
+                              key={q.id}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className={`border-2 rounded-xl p-6 space-y-6 ${
+                                isCheapest
+                                  ? "border-green-500 bg-green-50 shadow-lg"
+                                  : "border-gray-200 bg-white shadow-md"
+                              }`}
+                            >
+                              {isCheapest && (
+                                <div className="flex items-center gap-3 p-3 bg-green-100 rounded-lg border border-green-200">
+                                  <Star className="h-5 w-5 text-green-600 fill-current" />
+                                  <span className="text-sm font-semibold text-green-700">
+                                    🏆 MELHOR OPÇÃO - FILME
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="grid md:grid-cols-3 gap-6">
+                                <div className="space-y-3">
+                                  <Label className="text-sm font-semibold">Produtora</Label>
+                                  <Input
+                                    value={q.produtora}
+                                    onChange={(e) =>
+                                      updateQuoteFilmIn(camp.id, q.id, { produtora: e.target.value })
+                                    }
+                                    placeholder="Nome da produtora"
+                                    className="h-12"
+                                  />
+                                </div>
+                                <div className="space-y-3">
+                                  <Label className="text-sm font-semibold">Diretor</Label>
+                                  <Input
+                                    value={q.diretor}
+                                    onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { diretor: e.target.value })}
+                                    placeholder="Opcional"
+                                    className="h-12"
+                                  />
+                                </div>
+                                <div className="space-y-3">
+                                  <Label className="text-sm font-semibold">Tratamento</Label>
+                                  <Input
+                                    value={q.tratamento}
+                                    onChange={(e) =>
+                                      updateQuoteFilmIn(camp.id, q.id, { tratamento: e.target.value })
+                                    }
+                                    placeholder="Link ou descrição"
+                                    className="h-12"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-3">
+                                <Label className="text-sm font-semibold">Escopo Detalhado</Label>
+                                <textarea
+                                  className="w-full min-h-[120px] px-4 py-3 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
+                                  value={q.escopo}
+                                  onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { escopo: e.target.value })}
+                                  placeholder="Descreva o escopo completo da produtora..."
+                                />
+                              </div>
+
+                              {/* Valores principais */}
+                              <div className="grid md:grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                  <Label className="text-sm font-semibold">Valor (R$)</Label>
+                                  <CurrencyInput
+                                    value={q.valor}
+                                    onChange={(value: number) => updateQuoteFilmIn(camp.id, q.id, { valor: value })}
+                                    className="h-12"
+                                  />
+                                </div>
+                                <div className="space-y-3">
+                                  <Label className="text-sm font-semibold">Desconto (R$)</Label>
+                                  <CurrencyInput
+                                    value={q.desconto}
+                                    onChange={(value: number) =>
+                                      updateQuoteFilmIn(camp.id, q.id, { desconto: value })
+                                    }
+                                    className="h-12"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Seção de Opções */}
+                              <div className="border-t pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div>
+                                    <h5 className="font-semibold text-lg text-gray-900">Opções da Cotação</h5>
+                                    <p className="text-sm text-gray-600">
+                                      Adicione diferentes versões ou alternativas para esta cotação
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => toggleOpcoesExpandidas(camp.id, q.id)}
+                                      className="gap-2"
+                                    >
+                                      {q.opcoes_expandidas ? (
+                                        <>
+                                          <ChevronUp className="h-4 w-4" />
+                                          Ocultar Opções
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ChevronDown className="h-4 w-4" />
+                                          Ver Opções
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      onClick={() => addOptionToQuote(camp.id, q.id)}
+                                      className="gap-2 bg-orange-600 hover:bg-orange-700"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      Nova Opção
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <AnimatePresence>
+                                  {q.opcoes_expandidas && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      className="space-y-4"
+                                    >
+                                      {q.opcoes && q.opcoes.length > 0 ? (
+                                        q.opcoes.map((option, optionIndex) => {
+                                          const optionFinal = toNum(option.valor) - toNum(option.desconto);
+                                          return (
+                                            <motion.div
+                                              key={option.id}
+                                              initial={{ opacity: 0, y: 10 }}
+                                              animate={{ opacity: 1, y: 0 }}
+                                              exit={{ opacity: 0, y: -10 }}
+                                              className="p-4 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50 space-y-4"
+                                            >
+                                              <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="bg-orange-100 text-orange-700"
+                                                  >
+                                                    Opção {optionIndex + 1}
+                                                  </Badge>
+                                                  <h6 className="font-semibold text-orange-900">{option.nome}</h6>
+                                                </div>
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => removeOptionFromQuote(camp.id, q.id, option.id)}
+                                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </div>
+
+                                              <div className="grid md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                  <Label className="text-sm font-semibold">Nome da Opção</Label>
+                                                  <Input
+                                                    value={option.nome}
+                                                    onChange={(e) =>
+                                                      updateOptionInQuote(camp.id, q.id, option.id, {
+                                                        nome: e.target.value,
+                                                      })
+                                                    }
+                                                    placeholder="Ex.: Versão reduzida, Com locução, etc."
+                                                    className="h-10"
+                                                  />
+                                                </div>
+                                                <div className="space-y-2">
+                                                  <Label className="text-sm font-semibold">Escopo da Opção</Label>
+                                                  <Input
+                                                    value={option.escopo}
+                                                    onChange={(e) =>
+                                                      updateOptionInQuote(camp.id, q.id, option.id, {
+                                                        escopo: e.target.value,
+                                                      })
+                                                    }
+                                                    placeholder="Descreva o escopo específico desta opção"
+                                                    className="h-10"
+                                                  />
+                                                </div>
+                                              </div>
+
+                                              <div className="grid md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                  <Label className="text-sm font-semibold">Valor (R$)</Label>
+                                                  <CurrencyInput
+                                                    value={option.valor}
+                                                    onChange={(value: number) =>
+                                                      updateOptionInQuote(camp.id, q.id, option.id, {
+                                                        valor: value,
+                                                      })
+                                                    }
+                                                    className="h-10"
+                                                  />
+                                                </div>
+                                                <div className="space-y-2">
+                                                  <Label className="text-sm font-semibold">Desconto (R$)</Label>
+                                                  <CurrencyInput
+                                                    value={option.desconto}
+                                                    onChange={(value: number) =>
+                                                      updateOptionInQuote(camp.id, q.id, option.id, {
+                                                        desconto: value,
+                                                      })
+                                                    }
+                                                    className="h-10"
+                                                  />
+                                                </div>
+                                              </div>
+
+                                              <div className="flex justify-between items-center pt-3 border-t border-orange-200">
+                                                <div className="space-y-1">
+                                                  <div className="text-sm font-semibold text-gray-700">
+                                                    Valor Final da Opção
+                                                  </div>
+                                                  <div className="text-xl font-bold text-orange-600">
+                                                    {money(optionFinal)}
+                                                  </div>
+                                                </div>
+                                                {optionFinal < finalForCard && (
+                                                  <Badge className="bg-green-600 text-white">💰 Melhor Valor</Badge>
+                                                )}
+                                              </div>
+                                            </motion.div>
+                                          );
+                                        })
+                                      ) : (
+                                        <div className="text-center py-8 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50">
+                                          <FileText className="h-12 w-12 text-orange-400 mx-auto mb-3" />
+                                          <p className="text-orange-600 font-medium mb-2">
+                                            Nenhuma opção adicionada
+                                          </p>
+                                          <p className="text-orange-500 text-sm mb-4">
+                                            Adicione opções para diferentes versões desta cotação
+                                          </p>
+                                          <Button
+                                            onClick={() => addOptionToQuote(camp.id, q.id)}
+                                            className="bg-orange-600 hover:bg-orange-700"
+                                          >
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Adicionar Primeira Opção
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+
+                              <div className="flex justify-between items-center pt-6 border-t">
+                                <div className="space-y-2">
+                                  <div className="text-sm font-semibold text-gray-700">Valor Final da Cotação</div>
+                                  <div className="text-3xl font-bold text-green-600">{money(finalForCard)}</div>
+                                  {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
+                                    <div className="text-xs text-gray-500">
+                                      Considerando a opção mais barata entre {q.opcoes.length + 1} alternativas
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <Button
+                                    size="lg"
+                                    variant="outline"
+                                    onClick={() => removeQuoteFilmFrom(camp.id, q.id)}
+                                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-5 w-5 mr-2" />
+                                    Remover Cotação
+                                  </Button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Cotações Áudio */}
+                    {camp.inclui_audio && (
+                      <div className="space-y-6 pt-6 border-t">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-xl text-gray-900">Cotações de Áudio</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {camp.quotes_audio.length === 0
+                                ? "Adicione cotações de produtoras de áudio"
+                                : `${camp.quotes_audio.length} cotação(ões) de áudio`}
+                            </p>
+                          </div>
+                          <Button
+                            size="lg"
+                            onClick={() => addQuoteAudioTo(camp.id)}
+                            className="gap-2 bg-purple-600 hover:bg-purple-700 shadow-lg"
+                          >
+                            <Plus className="h-5 w-5" />
+                            Adicionar Áudio
+                          </Button>
+                        </div>
+
+                        <div className="space-y-6">
+                          {camp.quotes_audio.map((q) => {
+                            const isCheapest = cheapestAudio?.id === q.id;
+                            const audioFinal = finalAudioValue(q);
+
+                            return (
+                              <motion.div
+                                key={q.id}
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className={`border-2 rounded-xl p-6 space-y-6 ${
+                                  isCheapest
+                                    ? "border-purple-500 bg-purple-50 shadow-lg"
+                                    : "border-gray-200 bg-white shadow-md"
+                                }`}
+                              >
+                                {isCheapest && (
+                                  <div className="flex items-center gap-3 p-3 bg-purple-100 rounded-lg border border-purple-200">
+                                    <Zap className="h-5 w-5 text-purple-600" />
+                                    <span className="text-sm font-semibold text-purple-700">
+                                      🏆 MELHOR OPÇÃO - ÁUDIO
+                                    </span>
+                                  </div>
+                                )}
+
+                                <div className="grid md:grid-cols-2 gap-6">
+                                  <div className="space-y-3">
+                                    <Label className="text-sm font-semibold">Produtora</Label>
+                                    <Input
+                                      value={q.produtora}
+                                      onChange={(e) =>
+                                        updateQuoteAudioIn(camp.id, q.id, { produtora: e.target.value })
+                                      }
+                                      placeholder="Nome da produtora"
+                                      className="h-12"
+                                    />
+                                  </div>
+                                  <div className="space-y-3">
+                                    <Label className="text-sm font-semibold">Descrição/Escopo</Label>
+                                    <textarea
+                                      className="w-full min-h-[100px] px-4 py-3 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
+                                      value={q.descricao}
+                                      onChange={(e) =>
+                                        updateQuoteAudioIn(camp.id, q.id, { descricao: e.target.value })
+                                      }
+                                      placeholder="Descreva o escopo de áudio..."
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-6">
+                                  <div className="space-y-3">
+                                    <Label className="text-sm font-semibold">Valor (R$)</Label>
+                                    <CurrencyInput
+                                      value={q.valor}
+                                      onChange={(value: number) =>
+                                        updateQuoteAudioIn(camp.id, q.id, { valor: value })
+                                      }
+                                      className="h-12"
+                                    />
+                                  </div>
+                                  <div className="space-y-3">
+                                    <Label className="text-sm font-semibold">Desconto (R$)</Label>
+                                    <CurrencyInput
+                                      value={q.desconto}
+                                      onChange={(value: number) =>
+                                        updateQuoteAudioIn(camp.id, q.id, { desconto: value })
+                                      }
+                                      className="h-12"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-between items-center pt-6 border-t">
+                                  <div className="space-y-2">
+                                    <div className="text-sm font-semibold text-gray-700">Valor Final</div>
+                                    <div className="text-3xl font-bold text-purple-600">{money(audioFinal)}</div>
+                                  </div>
+                                  <Button
+                                    size="lg"
+                                    variant="outline"
+                                    onClick={() => removeQuoteAudioFrom(camp.id, q.id)}
+                                    className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                  >
+                                    <Trash2 className="h-5 w-5 mr-2" />
+                                    Remover Cotação
+                                  </Button>
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -705,6 +1881,23 @@ export default function OrcamentoNovo() {
                     </Select>
                   </div>
                   <div className="space-y-3">
+                    <Label htmlFor="estrutura" className="text-sm font-semibold">
+                      Estrutura *
+                    </Label>
+                    <Select 
+                      value={data.estrutura} 
+                      onValueChange={(v) => updateData({ estrutura: v as BudgetStructure })}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Selecione a estrutura" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="categorias">Categorias (padrão)</SelectItem>
+                        <SelectItem value="fornecedores_fases">Fornecedores → Fases</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
                     <Label htmlFor="produtor" className="text-sm font-semibold">
                       Produtor
                     </Label>
@@ -716,6 +1909,8 @@ export default function OrcamentoNovo() {
                       className="h-12"
                     />
                   </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <Label htmlFor="email" className="text-sm font-semibold">
                       E-mail
@@ -837,532 +2032,11 @@ export default function OrcamentoNovo() {
               </CardContent>
             </Card>
 
-            {/* Campanhas */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">Campanhas</h3>
-                <p className="text-sm text-muted-foreground">Gerencie as campanhas e suas cotações</p>
-              </div>
-              <Button onClick={addCampaign} className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg">
-                <Plus className="h-5 w-5" />
-                Nova Campanha
-              </Button>
-            </div>
-
-            <AnimatePresence>
-              {(data.campanhas || []).map((camp, campIndex) => {
-                const cheapestFilm = camp.quotes_film.length
-                  ? (getCheapest(camp.quotes_film) as QuoteFilm | null)
-                  : null;
-                const cheapestAudio =
-                  camp.inclui_audio && camp.quotes_audio.length
-                    ? (getCheapest(camp.quotes_audio) as QuoteAudio | null)
-                    : null;
-
-                return (
-                  <motion.div
-                    key={camp.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                  >
-                    <Card className="border-l-4 border-l-blue-500 shadow-xl">
-                      <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-white rounded-t-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <Badge variant="default" className="bg-blue-600 text-white px-3 py-1 text-sm">
-                              Campanha {campIndex + 1}
-                            </Badge>
-                            <CardTitle className="text-xl">{camp.nome}</CardTitle>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => removeCampaign(camp.id)}
-                              disabled={data.campanhas && data.campanhas.length <= 1}
-                              className="text-red-600 border-red-200 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="space-y-8 pt-6">
-                        {/* Configuração da Campanha */}
-                        <div className="grid md:grid-cols-3 gap-6 p-6 bg-gray-50 rounded-xl border">
-                          <div className="md:col-span-2 space-y-3">
-                            <Label className="text-sm font-semibold">Nome da Campanha</Label>
-                            <Input
-                              value={camp.nome}
-                              onChange={(e) => updateCampaign(camp.id, { nome: e.target.value })}
-                              placeholder="Ex.: Lançamento Q4"
-                              className="h-12"
-                            />
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-3">
-                              <Switch
-                                checked={camp.inclui_audio || false}
-                                onCheckedChange={(v) => updateCampaign(camp.id, { inclui_audio: v })}
-                                className="data-[state=checked]:bg-green-600"
-                              />
-                              <Label className="text-sm font-semibold">Incluir Áudio</Label>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Cotações Filme */}
-                        <div className="space-y-6">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="font-semibold text-xl text-gray-900">Cotações de Filme</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {camp.quotes_film.length === 0
-                                  ? "Adicione pelo menos uma cotação de filme"
-                                  : `${camp.quotes_film.length} cotação(ões) cadastrada(s)`}
-                              </p>
-                            </div>
-                            <Button
-                              size="lg"
-                              onClick={() => addQuoteFilmTo(camp.id)}
-                              className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg"
-                            >
-                              <Plus className="h-5 w-5" />
-                              Adicionar Cotação
-                            </Button>
-                          </div>
-
-                          <div className="space-y-6">
-                            {camp.quotes_film.length === 0 && (
-                              <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
-                                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500 text-lg mb-2">Nenhuma cotação de filme adicionada</p>
-                                <p className="text-gray-400 text-sm mb-4">Comece adicionando a primeira cotação</p>
-                                <Button
-                                  onClick={() => addQuoteFilmTo(camp.id)}
-                                  className="bg-blue-600 hover:bg-blue-700"
-                                >
-                                  Adicionar Primeira Cotação
-                                </Button>
-                              </div>
-                            )}
-
-                            {camp.quotes_film.map((q) => {
-                              const isCheapest = cheapestFilm?.id === q.id;
-                              const finalForCard = lowestQuoteValue(q);
-
-                              return (
-                                <motion.div
-                                  key={q.id}
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  className={`border-2 rounded-xl p-6 space-y-6 ${
-                                    isCheapest
-                                      ? "border-green-500 bg-green-50 shadow-lg"
-                                      : "border-gray-200 bg-white shadow-md"
-                                  }`}
-                                >
-                                  {isCheapest && (
-                                    <div className="flex items-center gap-3 p-3 bg-green-100 rounded-lg border border-green-200">
-                                      <Star className="h-5 w-5 text-green-600 fill-current" />
-                                      <span className="text-sm font-semibold text-green-700">
-                                        🏆 MELHOR OPÇÃO - FILME
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  <div className="grid md:grid-cols-3 gap-6">
-                                    <div className="space-y-3">
-                                      <Label className="text-sm font-semibold">Produtora</Label>
-                                      <Input
-                                        value={q.produtora}
-                                        onChange={(e) =>
-                                          updateQuoteFilmIn(camp.id, q.id, { produtora: e.target.value })
-                                        }
-                                        placeholder="Nome da produtora"
-                                        className="h-12"
-                                      />
-                                    </div>
-                                    <div className="space-y-3">
-                                      <Label className="text-sm font-semibold">Diretor</Label>
-                                      <Input
-                                        value={q.diretor}
-                                        onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { diretor: e.target.value })}
-                                        placeholder="Opcional"
-                                        className="h-12"
-                                      />
-                                    </div>
-                                    <div className="space-y-3">
-                                      <Label className="text-sm font-semibold">Tratamento</Label>
-                                      <Input
-                                        value={q.tratamento}
-                                        onChange={(e) =>
-                                          updateQuoteFilmIn(camp.id, q.id, { tratamento: e.target.value })
-                                        }
-                                        placeholder="Link ou descrição"
-                                        className="h-12"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-3">
-                                    <Label className="text-sm font-semibold">Escopo Detalhado</Label>
-                                    <textarea
-                                      className="w-full min-h-[120px] px-4 py-3 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
-                                      value={q.escopo}
-                                      onChange={(e) => updateQuoteFilmIn(camp.id, q.id, { escopo: e.target.value })}
-                                      placeholder="Descreva o escopo completo da produtora..."
-                                    />
-                                  </div>
-
-                                  {/* Valores principais */}
-                                  <div className="grid md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                      <Label className="text-sm font-semibold">Valor (R$)</Label>
-                                      <CurrencyInput
-                                        value={q.valor}
-                                        onChange={(value: number) => updateQuoteFilmIn(camp.id, q.id, { valor: value })}
-                                        className="h-12"
-                                      />
-                                    </div>
-                                    <div className="space-y-3">
-                                      <Label className="text-sm font-semibold">Desconto (R$)</Label>
-                                      <CurrencyInput
-                                        value={q.desconto}
-                                        onChange={(value: number) =>
-                                          updateQuoteFilmIn(camp.id, q.id, { desconto: value })
-                                        }
-                                        className="h-12"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {/* Seção de Opções */}
-                                  <div className="border-t pt-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                      <div>
-                                        <h5 className="font-semibold text-lg text-gray-900">Opções da Cotação</h5>
-                                        <p className="text-sm text-gray-600">
-                                          Adicione diferentes versões ou alternativas para esta cotação
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          onClick={() => toggleOpcoesExpandidas(camp.id, q.id)}
-                                          className="gap-2"
-                                        >
-                                          {q.opcoes_expandidas ? (
-                                            <>
-                                              <ChevronUp className="h-4 w-4" />
-                                              Ocultar Opções
-                                            </>
-                                          ) : (
-                                            <>
-                                              <ChevronDown className="h-4 w-4" />
-                                              Ver Opções
-                                            </>
-                                          )}
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          onClick={() => addOptionToQuote(camp.id, q.id)}
-                                          className="gap-2 bg-orange-600 hover:bg-orange-700"
-                                        >
-                                          <Plus className="h-4 w-4" />
-                                          Nova Opção
-                                        </Button>
-                                      </div>
-                                    </div>
-
-                                    <AnimatePresence>
-                                      {q.opcoes_expandidas && (
-                                        <motion.div
-                                          initial={{ opacity: 0, height: 0 }}
-                                          animate={{ opacity: 1, height: "auto" }}
-                                          exit={{ opacity: 0, height: 0 }}
-                                          className="space-y-4"
-                                        >
-                                          {q.opcoes && q.opcoes.length > 0 ? (
-                                            q.opcoes.map((option, optionIndex) => {
-                                              const optionFinal = toNum(option.valor) - toNum(option.desconto);
-                                              return (
-                                                <motion.div
-                                                  key={option.id}
-                                                  initial={{ opacity: 0, y: 10 }}
-                                                  animate={{ opacity: 1, y: 0 }}
-                                                  exit={{ opacity: 0, y: -10 }}
-                                                  className="p-4 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50 space-y-4"
-                                                >
-                                                  <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                      <Badge
-                                                        variant="outline"
-                                                        className="bg-orange-100 text-orange-700"
-                                                      >
-                                                        Opção {optionIndex + 1}
-                                                      </Badge>
-                                                      <h6 className="font-semibold text-orange-900">{option.nome}</h6>
-                                                    </div>
-                                                    <Button
-                                                      type="button"
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      onClick={() => removeOptionFromQuote(camp.id, q.id, option.id)}
-                                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                    >
-                                                      <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                  </div>
-
-                                                  <div className="grid md:grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                      <Label className="text-sm font-semibold">Nome da Opção</Label>
-                                                      <Input
-                                                        value={option.nome}
-                                                        onChange={(e) =>
-                                                          updateOptionInQuote(camp.id, q.id, option.id, {
-                                                            nome: e.target.value,
-                                                          })
-                                                        }
-                                                        placeholder="Ex.: Versão reduzida, Com locução, etc."
-                                                        className="h-10"
-                                                      />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                      <Label className="text-sm font-semibold">Escopo da Opção</Label>
-                                                      <Input
-                                                        value={option.escopo}
-                                                        onChange={(e) =>
-                                                          updateOptionInQuote(camp.id, q.id, option.id, {
-                                                            escopo: e.target.value,
-                                                          })
-                                                        }
-                                                        placeholder="Descreva o escopo específico desta opção"
-                                                        className="h-10"
-                                                      />
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="grid md:grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                      <Label className="text-sm font-semibold">Valor (R$)</Label>
-                                                      <CurrencyInput
-                                                        value={option.valor}
-                                                        onChange={(value: number) =>
-                                                          updateOptionInQuote(camp.id, q.id, option.id, {
-                                                            valor: value,
-                                                          })
-                                                        }
-                                                        className="h-10"
-                                                      />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                      <Label className="text-sm font-semibold">Desconto (R$)</Label>
-                                                      <CurrencyInput
-                                                        value={option.desconto}
-                                                        onChange={(value: number) =>
-                                                          updateOptionInQuote(camp.id, q.id, option.id, {
-                                                            desconto: value,
-                                                          })
-                                                        }
-                                                        className="h-10"
-                                                      />
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="flex justify-between items-center pt-3 border-t border-orange-200">
-                                                    <div className="space-y-1">
-                                                      <div className="text-sm font-semibold text-gray-700">
-                                                        Valor Final da Opção
-                                                      </div>
-                                                      <div className="text-xl font-bold text-orange-600">
-                                                        {money(optionFinal)}
-                                                      </div>
-                                                    </div>
-                                                    {optionFinal < finalForCard && (
-                                                      <Badge className="bg-green-600 text-white">💰 Melhor Valor</Badge>
-                                                    )}
-                                                  </div>
-                                                </motion.div>
-                                              );
-                                            })
-                                          ) : (
-                                            <div className="text-center py-8 border-2 border-dashed border-orange-200 rounded-lg bg-orange-50">
-                                              <FileText className="h-12 w-12 text-orange-400 mx-auto mb-3" />
-                                              <p className="text-orange-600 font-medium mb-2">
-                                                Nenhuma opção adicionada
-                                              </p>
-                                              <p className="text-orange-500 text-sm mb-4">
-                                                Adicione opções para diferentes versões desta cotação
-                                              </p>
-                                              <Button
-                                                onClick={() => addOptionToQuote(camp.id, q.id)}
-                                                className="bg-orange-600 hover:bg-orange-700"
-                                              >
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Adicionar Primeira Opção
-                                              </Button>
-                                            </div>
-                                          )}
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-                                  </div>
-
-                                  <div className="flex justify-between items-center pt-6 border-t">
-                                    <div className="space-y-2">
-                                      <div className="text-sm font-semibold text-gray-700">Valor Final da Cotação</div>
-                                      <div className="text-3xl font-bold text-green-600">{money(finalForCard)}</div>
-                                      {q.tem_opcoes && q.opcoes && q.opcoes.length > 0 && (
-                                        <div className="text-xs text-gray-500">
-                                          Considerando a opção mais barata entre {q.opcoes.length + 1} alternativas
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <Button
-                                        size="lg"
-                                        variant="outline"
-                                        onClick={() => removeQuoteFilmFrom(camp.id, q.id)}
-                                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                                      >
-                                        <Trash2 className="h-5 w-5 mr-2" />
-                                        Remover Cotação
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Cotações Áudio */}
-                        {camp.inclui_audio && (
-                          <div className="space-y-6 pt-6 border-t">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-semibold text-xl text-gray-900">Cotações de Áudio</h4>
-                                <p className="text-sm text-muted-foreground">
-                                  {camp.quotes_audio.length === 0
-                                    ? "Adicione cotações de produtoras de áudio"
-                                    : `${camp.quotes_audio.length} cotação(ões) de áudio`}
-                                </p>
-                              </div>
-                              <Button
-                                size="lg"
-                                onClick={() => addQuoteAudioTo(camp.id)}
-                                className="gap-2 bg-purple-600 hover:bg-purple-700 shadow-lg"
-                              >
-                                <Plus className="h-5 w-5" />
-                                Adicionar Áudio
-                              </Button>
-                            </div>
-
-                            <div className="space-y-6">
-                              {camp.quotes_audio.map((q) => {
-                                const isCheapest = cheapestAudio?.id === q.id;
-                                const audioFinal = finalAudioValue(q);
-
-                                return (
-                                  <motion.div
-                                    key={q.id}
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className={`border-2 rounded-xl p-6 space-y-6 ${
-                                      isCheapest
-                                        ? "border-purple-500 bg-purple-50 shadow-lg"
-                                        : "border-gray-200 bg-white shadow-md"
-                                    }`}
-                                  >
-                                    {isCheapest && (
-                                      <div className="flex items-center gap-3 p-3 bg-purple-100 rounded-lg border border-purple-200">
-                                        <Zap className="h-5 w-5 text-purple-600" />
-                                        <span className="text-sm font-semibold text-purple-700">
-                                          🏆 MELHOR OPÇÃO - ÁUDIO
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                      <div className="space-y-3">
-                                        <Label className="text-sm font-semibold">Produtora</Label>
-                                        <Input
-                                          value={q.produtora}
-                                          onChange={(e) =>
-                                            updateQuoteAudioIn(camp.id, q.id, { produtora: e.target.value })
-                                          }
-                                          placeholder="Nome da produtora"
-                                          className="h-12"
-                                        />
-                                      </div>
-                                      <div className="space-y-3">
-                                        <Label className="text-sm font-semibold">Descrição/Escopo</Label>
-                                        <textarea
-                                          className="w-full min-h-[100px] px-4 py-3 text-sm rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
-                                          value={q.descricao}
-                                          onChange={(e) =>
-                                            updateQuoteAudioIn(camp.id, q.id, { descricao: e.target.value })
-                                          }
-                                          placeholder="Descreva o escopo de áudio..."
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                      <div className="space-y-3">
-                                        <Label className="text-sm font-semibold">Valor (R$)</Label>
-                                        <CurrencyInput
-                                          value={q.valor}
-                                          onChange={(value: number) =>
-                                            updateQuoteAudioIn(camp.id, q.id, { valor: value })
-                                          }
-                                          className="h-12"
-                                        />
-                                      </div>
-                                      <div className="space-y-3">
-                                        <Label className="text-sm font-semibold">Desconto (R$)</Label>
-                                        <CurrencyInput
-                                          value={q.desconto}
-                                          onChange={(value: number) =>
-                                            updateQuoteAudioIn(camp.id, q.id, { desconto: value })
-                                          }
-                                          className="h-12"
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="flex justify-between items-center pt-6 border-t">
-                                      <div className="space-y-2">
-                                        <div className="text-sm font-semibold text-gray-700">Valor Final</div>
-                                        <div className="text-3xl font-bold text-purple-600">{money(audioFinal)}</div>
-                                      </div>
-                                      <Button
-                                        size="lg"
-                                        variant="outline"
-                                        onClick={() => removeQuoteAudioFrom(camp.id, q.id)}
-                                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                                      >
-                                        <Trash2 className="h-5 w-5 mr-2" />
-                                        Remover Cotação
-                                      </Button>
-                                    </div>
-                                  </motion.div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+            {/* Renderização condicional baseada na estrutura */}
+            {data.estrutura === "fornecedores_fases" 
+              ? renderFornecedoresFases()
+              : renderCategorias()
+            }
 
             {/* Faturamento e Observações */}
             <div className="grid md:grid-cols-2 gap-6">
@@ -1389,12 +2063,12 @@ export default function OrcamentoNovo() {
                     <Label htmlFor="observacoes" className="text-sm font-semibold">
                       Observações
                     </Label>
-                    <Input
+                    <Textarea
                       id="observacoes"
                       value={data.observacoes || ""}
                       onChange={(e) => updateData({ observacoes: e.target.value })}
                       placeholder="Ex.: incluir em outubro, aguardando aprovação..."
-                      className="h-12"
+                      className="min-h-[100px]"
                     />
                   </div>
                 </CardContent>
@@ -1432,52 +2106,126 @@ export default function OrcamentoNovo() {
                       <span className="font-bold text-gray-900 text-lg">{data.produto || "—"}</span>
                     </div>
                     <div className="flex justify-between items-center py-3 border-b">
-                      <span className="text-sm font-semibold text-gray-600">Cotações Filme:</span>
+                      <span className="text-sm font-semibold text-gray-600">Estrutura:</span>
                       <Badge variant="secondary" className="bg-blue-100 text-blue-700 px-3 py-1">
-                        {totalQuotesFilme}
+                        {data.estrutura === "fornecedores_fases" ? "Fornecedores → Fases" : "Categorias"}
                       </Badge>
                     </div>
-                    <div className="flex justify-between items-center py-3 border-b">
-                      <span className="text-sm font-semibold text-gray-600">Cotações Áudio:</span>
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 px-3 py-1">
-                        {totalQuotesAudio}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center py-3 border-b">
-                      <span className="text-sm font-semibold text-gray-600">Campanhas:</span>
-                      <Badge variant="default" className="bg-green-600 px-3 py-1">
-                        {data.campanhas?.length || 0}
-                      </Badge>
-                    </div>
+                    
+                    {data.estrutura === "categorias" && (
+                      <>
+                        <div className="flex justify-between items-center py-3 border-b">
+                          <span className="text-sm font-semibold text-gray-600">Cotações Filme:</span>
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 px-3 py-1">
+                            {totalQuotesFilme}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b">
+                          <span className="text-sm font-semibold text-gray-600">Cotações Áudio:</span>
+                          <Badge variant="secondary" className="bg-purple-100 text-purple-700 px-3 py-1">
+                            {totalQuotesAudio}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b">
+                          <span className="text-sm font-semibold text-gray-600">Campanhas:</span>
+                          <Badge variant="default" className="bg-green-600 px-3 py-1">
+                            {data.campanhas?.length || 0}
+                          </Badge>
+                        </div>
+                      </>
+                    )}
+
+                    {data.estrutura === "fornecedores_fases" && (
+                      <>
+                        <div className="flex justify-between items-center py-3 border-b">
+                          <span className="text-sm font-semibold text-gray-600">Fornecedores:</span>
+                          <Badge variant="default" className="bg-green-600 px-3 py-1">
+                            {data.fornecedores?.length || 0}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b">
+                          <span className="text-sm font-semibold text-gray-600">Total de Itens:</span>
+                          <Badge variant="secondary" className="bg-orange-100 text-orange-700 px-3 py-1">
+                            {data.fornecedores?.reduce((total, f) => 
+                              total + f.fases.reduce((totalFase, fase) => totalFase + fase.itens.length, 0), 0) || 0}
+                          </Badge>
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  {/* Totais por Campanha */}
+                  {/* Totais */}
                   <div className="pt-6 border-t">
                     <h4 className="font-semibold text-gray-900 text-lg mb-4 flex items-center gap-3">
                       <TrendingUp className="h-5 w-5 text-green-600" />
-                      Totais por Campanha
+                      Total Geral
                     </h4>
-                    <div className="space-y-4">
-                      {(data.totais_campanhas || []).map((t) => (
-                        <div key={t.campId} className="rounded-xl border border-gray-300 p-4 bg-white shadow-sm">
-                          <div className="flex justify-between items-center mb-3">
-                            <span className="font-semibold text-gray-900">{t.nome}</span>
-                            <span className="font-bold text-2xl text-green-600">{money(t.subtotal)}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
-                            <div className="flex justify-between">
-                              <span>Filme:</span>
-                              <span className="font-semibold">{money(t.filmVal)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Áudio:</span>
-                              <span className="font-semibold">{money(t.audioVal)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="text-center p-6 bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl border border-green-200">
+                      <div className="text-4xl font-bold text-green-700 mb-2">
+                        {money(data.total)}
+                      </div>
+                      <p className="text-sm text-green-600">
+                        Valor total do orçamento
+                      </p>
                     </div>
                   </div>
+
+                  {data.estrutura === "categorias" && (
+                    <div className="pt-6 border-t">
+                      <h4 className="font-semibold text-gray-900 text-lg mb-4 flex items-center gap-3">
+                        <TrendingUp className="h-5 w-5 text-green-600" />
+                        Totais por Campanha
+                      </h4>
+                      <div className="space-y-4">
+                        {(data.totais_campanhas || []).map((t) => (
+                          <div key={t.campId} className="rounded-xl border border-gray-300 p-4 bg-white shadow-sm">
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="font-semibold text-gray-900">{t.nome}</span>
+                              <span className="font-bold text-2xl text-green-600">{money(t.subtotal)}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                              <div className="flex justify-between">
+                                <span>Filme:</span>
+                                <span className="font-semibold">{money(t.filmVal)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Áudio:</span>
+                                <span className="font-semibold">{money(t.audioVal)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {data.estrutura === "fornecedores_fases" && (
+                    <div className="pt-6 border-t">
+                      <h4 className="font-semibold text-gray-900 text-lg mb-4 flex items-center gap-3">
+                        <TrendingUp className="h-5 w-5 text-green-600" />
+                        Totais por Fornecedor
+                      </h4>
+                      <div className="space-y-4">
+                        {(data.fornecedores || []).map((fornecedor) => {
+                          const totalFornecedor = fornecedor.fases.reduce((totalFase, fase) => 
+                            totalFase + fase.itens.reduce((totalItem, item) => totalItem + item.valor, 0), 0
+                          );
+                          
+                          return (
+                            <div key={fornecedor.id} className="rounded-xl border border-gray-300 p-4 bg-white shadow-sm">
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="font-semibold text-gray-900">{fornecedor.nome || "Fornecedor"}</span>
+                                <span className="font-bold text-2xl text-green-600">{money(totalFornecedor)}</span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {fornecedor.fases.length} fase(s)
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1493,17 +2241,33 @@ export default function OrcamentoNovo() {
                       <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
                       <span>Preencha todos os campos obrigatórios</span>
                     </li>
+                    {data.estrutura === "categorias" && (
+                      <>
+                        <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                          <span>Adicione pelo menos 1 cotação por campanha</span>
+                        </li>
+                        <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                          <span>Use opções para diferentes versões da mesma cotação</span>
+                        </li>
+                      </>
+                    )}
+                    {data.estrutura === "fornecedores_fases" && (
+                      <>
+                        <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                          <span>Adicione fornecedores, fases e itens</span>
+                        </li>
+                        <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                          <span>Cada fase pode ter múltiplos itens com valores</span>
+                        </li>
+                      </>
+                    )}
                     <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
                       <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                      <span>Adicione pelo menos 1 cotação por campanha</span>
-                    </li>
-                    <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                      <span>Use opções para diferentes versões da mesma cotação</span>
-                    </li>
-                    <li className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
-                      <span>Sistema calcula automaticamente os melhores valores</span>
+                      <span>Sistema calcula automaticamente os totais</span>
                     </li>
                   </ul>
                 </CardContent>
