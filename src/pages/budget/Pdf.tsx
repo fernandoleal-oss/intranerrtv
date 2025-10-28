@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film } from "lucide-react";
+import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
@@ -64,6 +64,28 @@ interface CampaignQuotes {
       opcoes?: FilmOption[];
     }>;
   }>;
+}
+
+// NOVA ESTRUTURA: Fornecedores → Fases → Itens
+interface FornecedorItem {
+  id: string;
+  nome: string;
+  valor: number;
+  prazo: string;
+  observacao: string;
+}
+
+interface FornecedorFase {
+  id: string;
+  nome: string;
+  itens: FornecedorItem[];
+}
+
+interface Fornecedor {
+  id: string;
+  nome: string;
+  contato: string;
+  fases: FornecedorFase[];
 }
 
 interface BudgetData {
@@ -140,6 +162,9 @@ export default function BudgetPdf() {
   // Detectar se é orçamento de imagem
   const isImageBudget = data?.type === 'imagem' && payload.assets && Array.isArray(payload.assets);
 
+  // Detectar se é orçamento com estrutura de fornecedores → fases
+  const isFornecedoresFases = payload.estrutura === 'fornecedores_fases' && payload.fornecedores && Array.isArray(payload.fornecedores);
+
   const totaisPorCampanha = useMemo(() => {
     return campanhas.map((camp) => {
       const film = pickFilm(camp.quotes_film || []);
@@ -151,8 +176,15 @@ export default function BudgetPdf() {
   }, [JSON.stringify(campanhas)]);
 
   const totalGeral = useMemo(() => {
+    if (isFornecedoresFases) {
+      // Calcular total para estrutura de fornecedores → fases
+      return (payload.fornecedores || []).reduce((total: number, fornecedor: Fornecedor) => 
+        total + fornecedor.fases.reduce((totalFase: number, fase: FornecedorFase) => 
+          totalFase + fase.itens.reduce((totalItem: number, item: FornecedorItem) => 
+            totalItem + item.valor, 0), 0), 0);
+    }
     return totaisPorCampanha.reduce((sum, camp) => sum + camp.total, 0);
-  }, [totaisPorCampanha]);
+  }, [totaisPorCampanha, isFornecedoresFases, payload.fornecedores]);
 
   /** ====== Carrega orçamento ====== */
   useEffect(() => {
@@ -350,6 +382,21 @@ export default function BudgetPdf() {
           break-inside: avoid;
           margin-bottom: 12px;
         }
+        .fase-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
+          margin-bottom: 16px;
+        }
+        .item-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 8px 0;
+          border-bottom: 1px solid #F1F5F9;
+        }
+        .item-row:last-child {
+          border-bottom: none;
+        }
       `}</style>
 
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
@@ -451,8 +498,158 @@ export default function BudgetPdf() {
                   <p style={{ fontWeight: "bold", color: "#000" }}>{payload.entregaveis}</p>
                 </div>
               )}
+              {payload.estrutura && (
+                <div>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Estrutura</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>
+                    {payload.estrutura === 'fornecedores_fases' ? 'Fornecedores → Fases' : 'Categorias'}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* ESTRUTURA DE FORNECEDORES → FASES */}
+          {isFornecedoresFases && (
+            <div className="allow-break mb-8">
+              {/* Cabeçalho Fornecedores */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+                  borderLeft: "4px solid #E6191E",
+                  padding: "16px 20px",
+                  marginBottom: "16px",
+                  borderRadius: "0 8px 8px 0",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-gray-600" />
+                  <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>
+                    Fornecedores e Fases
+                  </h2>
+                </div>
+              </div>
+
+              {/* Lista de Fornecedores */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => {
+                  const totalFornecedor = fornecedor.fases.reduce((totalFase: number, fase: FornecedorFase) => 
+                    totalFase + fase.itens.reduce((totalItem: number, item: FornecedorItem) => 
+                      totalItem + item.valor, 0), 0);
+
+                  return (
+                    <div
+                      key={fornecedor.id || fornecedorIndex}
+                      className="campaign-section page-break-before"
+                    >
+                      {/* Cabeçalho do Fornecedor */}
+                      <div
+                        style={{
+                          background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+                          borderLeft: "4px solid #0369A1",
+                          padding: "16px 20px",
+                          marginBottom: "16px",
+                          borderRadius: "0 8px 8px 0",
+                          border: "1px solid #BAE6FD",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div className="flex items-center gap-3">
+                            <Building2 className="h-5 w-5 text-sky-600" />
+                            <div>
+                              <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E" }}>
+                                {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
+                              </h3>
+                              {fornecedor.contato && (
+                                <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
+                                  Contato: {fornecedor.contato}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ fontSize: "12px", color: "#64748B", marginBottom: "2px" }}>Total do Fornecedor</p>
+                            <span style={{ fontSize: "18px", fontWeight: "bold", color: "#0369A1" }}>
+                              {money(totalFornecedor)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fases do Fornecedor */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                        {fornecedor.fases.map((fase: FornecedorFase, faseIndex: number) => {
+                          const totalFase = fase.itens.reduce((total: number, item: FornecedorItem) => total + item.valor, 0);
+
+                          return (
+                            <div
+                              key={fase.id || faseIndex}
+                              className="fase-section rounded-lg p-4"
+                              style={{
+                                backgroundColor: "#FFFFFF",
+                                border: "1px solid #E2E8F0",
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                              }}
+                            >
+                              {/* Cabeçalho da Fase */}
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                <div className="flex items-center gap-3">
+                                  <Layers className="h-4 w-4 text-green-600" />
+                                  <h4 style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
+                                    {fase.nome || `Fase ${faseIndex + 1}`}
+                                  </h4>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                  <p style={{ fontSize: "11px", color: "#64748B", marginBottom: "2px" }}>Total da Fase</p>
+                                  <span style={{ fontSize: "16px", fontWeight: "bold", color: "#059669" }}>
+                                    {money(totalFase)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Itens da Fase */}
+                              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                {fase.itens.map((item: FornecedorItem, itemIndex: number) => (
+                                  <div
+                                    key={item.id || itemIndex}
+                                    className="item-row"
+                                  >
+                                    <div style={{ flex: 1 }}>
+                                      <p style={{ fontSize: "13px", fontWeight: "600", color: "#1E293B", marginBottom: "4px" }}>
+                                        {item.nome || `Item ${itemIndex + 1}`}
+                                      </p>
+                                      <div style={{ display: "flex", gap: "16px", fontSize: "11px", color: "#64748B" }}>
+                                        {item.prazo && (
+                                          <span>
+                                            <strong>Prazo:</strong> {item.prazo}
+                                          </span>
+                                        )}
+                                        {item.observacao && (
+                                          <span>
+                                            <strong>Obs:</strong> {item.observacao}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                      <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
+                                        {money(item.valor)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Orçamento de Imagem */}
           {isImageBudget && (
@@ -560,61 +757,17 @@ export default function BudgetPdf() {
                   );
                 })}
               </div>
-
-              {/* Total */}
-              <div
-                className="avoid-break"
-                style={{
-                  marginTop: "24px",
-                  padding: "20px",
-                  borderRadius: "8px",
-                  backgroundColor: "#F8FAFC",
-                  border: "2px solid #E6191E",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>Total Geral</span>
-                  <span style={{ fontSize: "24px", fontWeight: "bold", color: "#E6191E" }}>
-                    {money(payload.assets.reduce((sum: number, a: any) => sum + (a.price || 0), 0))}
-                  </span>
-                </div>
-              </div>
-
-              {/* Observações */}
-              {payload.observacoes && (
-                <div
-                  className="avoid-break"
-                  style={{
-                    marginTop: "20px",
-                    padding: "16px",
-                    borderRadius: "8px",
-                    backgroundColor: "#FFFBEB",
-                    border: "1px solid #FCD34D",
-                  }}
-                >
-                  <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#92400E", marginBottom: "8px" }}>
-                    Observações
-                  </h3>
-                  <p style={{ fontSize: "12px", color: "#78350F", whiteSpace: "pre-wrap" }}>
-                    {payload.observacoes}
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Campanhas */}
-          {!isImageBudget && campanhas.map((camp, campIdx) => {
-            // Suporte para estrutura antiga (quotes_film/quotes_audio)
+          {/* Campanhas (estrutura antiga) */}
+          {!isImageBudget && !isFornecedoresFases && campanhas.map((camp, campIdx) => {
+            // ... (código existente das campanhas antigas)
             const hasOldStructure = camp.quotes_film || camp.quotes_audio;
-            
-            // Suporte para estrutura nova (categorias/fornecedores)
-            const categorias = camp.categorias || [];
-            const hasNewStructure = categorias.length > 0;
+            const hasNewStructure = camp.categorias && camp.categorias.length > 0;
             
             if (!hasOldStructure && !hasNewStructure) return null;
             
-            // Variáveis para estrutura antiga
             let filmSel: QuoteFilm | null = null;
             let audioSel: QuoteAudio | null = null;
             let campTotal = 0;
@@ -630,8 +783,7 @@ export default function BudgetPdf() {
               audios = camp.quotes_audio || [];
               globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
             } else if (hasNewStructure) {
-              // Nova estrutura: soma todos os fornecedores mais baratos de cada categoria visível
-              campTotal = categorias
+              campTotal = (camp.categorias || [])
                 .filter((cat: any) => cat.visivel !== false)
                 .reduce((sum: number, cat: any) => {
                   if (cat.modoPreco === "fechado" && cat.fornecedores?.length > 0) {
@@ -973,7 +1125,7 @@ export default function BudgetPdf() {
                 )}
                 
                 {/* NOVA ESTRUTURA: Categorias com Fornecedores */}
-                {hasNewStructure && categorias.map((cat: any, catIdx: number) => {
+                {hasNewStructure && (camp.categorias || []).map((cat: any, catIdx: number) => {
                   if (cat.visivel === false) return null;
                   if (cat.modoPreco !== "fechado" || !cat.fornecedores || cat.fornecedores.length === 0) return null;
                   
@@ -1188,8 +1340,8 @@ export default function BudgetPdf() {
             );
           })}
 
-          {/* Resumo Financeiro - Apenas para orçamentos não-imagem */}
-          {!isImageBudget && (totaisPorCampanha.length > 0 || totalGeral > 0) && (
+          {/* Resumo Financeiro */}
+          {(totaisPorCampanha.length > 0 || totalGeral > 0 || isFornecedoresFases) && (
             <div
               className="avoid-break mt-8 p-6 rounded-xl border"
               style={{
@@ -1201,8 +1353,46 @@ export default function BudgetPdf() {
                 Resumo Financeiro
               </h2>
 
-              {/* Totais por Campanha */}
-              {totaisPorCampanha.length > 0 && (
+              {/* Totais por Fornecedor (nova estrutura) */}
+              {isFornecedoresFases && (
+                <div style={{ marginBottom: "16px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#475569" }}>
+                    Totais por Fornecedor
+                  </h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: "12px" }}>
+                    {(payload.fornecedores || []).map((fornecedor: Fornecedor, index: number) => {
+                      const totalFornecedor = fornecedor.fases.reduce((totalFase: number, fase: FornecedorFase) => 
+                        totalFase + fase.itens.reduce((totalItem: number, item: FornecedorItem) => 
+                          totalItem + item.valor, 0), 0);
+                      
+                      return (
+                        <div
+                          key={fornecedor.id || index}
+                          style={{
+                            background: "#fff",
+                            border: "1px solid #E2E8F0",
+                            borderRadius: 8,
+                            padding: "12px",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontWeight: 600, fontSize: "13px", color: "#1E293B" }}>
+                              {fornecedor.nome || `Fornecedor ${index + 1}`}
+                            </span>
+                            <span style={{ fontWeight: 700, fontSize: "14px", color: "#0369A1" }}>
+                              {money(totalFornecedor)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Totais por Campanha (estrutura antiga) */}
+              {!isFornecedoresFases && totaisPorCampanha.length > 0 && (
                 <div style={{ marginBottom: "16px" }}>
                   <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#475569" }}>
                     Totais por Campanha
@@ -1263,7 +1453,7 @@ export default function BudgetPdf() {
                   <p style={{ fontSize: "11px", fontWeight: 600, color: "#64748B", marginBottom: "4px" }}>
                     Observações:
                   </p>
-                  <p style={{ fontSize: "11px", color: "#475569" }}>{payload.observacoes}</p>
+                  <p style={{ fontSize: "11px", color: "#475569", whiteSpace: "pre-wrap" }}>{payload.observacoes}</p>
                 </div>
               )}
 
