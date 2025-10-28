@@ -1,3 +1,5 @@
+// src/pages/budget/Edit.tsx - ORÇAMENTO EMS MULTIMIX COMPLETO
+
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -6,24 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, FileText, Home, AlertCircle, RefreshCw, Save, Download } from "lucide-react";
-import OrcamentoNovo from "./OrcamentoNovo";
-
-
-// Adicione isso no início do componente BudgetEdit, depois dos estados
-useEffect(() => {
-  if (data) {
-    console.log("Dados carregados:", data);
-    console.log("Payload:", data.payload);
-    console.log("Tipo:", data.type);
-  }
-}, [data]);
+import { ArrowLeft, FileText, Home, AlertCircle, RefreshCw, Save, Download, Building2, Users, Calendar, User } from "lucide-react";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc" | string;
 
@@ -51,7 +41,36 @@ interface BudgetData {
   budget_number: string;
 }
 
-/** util */
+interface FornecedorItem {
+  id: string;
+  descricao: string;
+  valor: number;
+  prazo: string;
+  observacoes?: string;
+}
+
+interface FornecedorFase {
+  id: string;
+  nome: string;
+  itens: FornecedorItem[];
+  total_fase: number;
+}
+
+interface Fornecedor {
+  id: string;
+  nome: string;
+  fases: FornecedorFase[];
+  total_fornecedor: number;
+  contato?: string;
+  cnpj?: string;
+}
+
+interface BudgetEditFormProps {
+  budgetData: BudgetData;
+  onSaveSuccess: (budgetId: string) => void;
+  onRefresh: (silent?: boolean) => void;
+}
+
 function isUUID(v?: string) {
   return !!v?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 }
@@ -78,6 +97,7 @@ export default function BudgetEdit() {
 
   const mapRowToData = (row: VersionRow): BudgetData | null => {
     if (!row?.budgets) return null;
+    
     return {
       id: row.budgets.id,
       display_id: row.budgets.display_id,
@@ -93,6 +113,7 @@ export default function BudgetEdit() {
   const fetchBudget = useCallback(
     async (silent = false) => {
       if (!id) return;
+      
       if (!isUUID(id)) {
         toast({
           title: "ID inválido",
@@ -171,12 +192,9 @@ export default function BudgetEdit() {
       title: "✅ Orçamento atualizado!",
       description: "Redirecionando para visualização...",
     });
-    // Recarrega os dados para garantir que estamos vendo a versão mais recente
     await fetchBudget(true);
     navigate(`/budget/${budgetId}/pdf`);
   };
-
-  // ---------------- Renders condicionais ----------------
 
   if (loading) {
     return (
@@ -208,12 +226,6 @@ export default function BudgetEdit() {
         </div>
       </div>
     );
-  }
-
-  // Se for orçamento de imagem, redirecionar para o editor específico
-  if (data.type === "imagem") {
-    navigate(`/budget/${data.id}/edit-image`);
-    return null;
   }
 
   return (
@@ -271,14 +283,14 @@ export default function BudgetEdit() {
         </div>
       </div>
 
-      {/* Conteúdo Principal - Usando o OrcamentoNovo com modo de edição */}
+      {/* Conteúdo Principal */}
       <div className="container mx-auto px-6 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <BudgetEditForm 
+          <EmsMultimixBudgetEditForm 
             budgetData={data}
             onSaveSuccess={handleSaveSuccess}
             onRefresh={fetchBudget}
@@ -289,79 +301,277 @@ export default function BudgetEdit() {
   );
 }
 
-// Componente interno para edição que estende o OrcamentoNovo
-interface BudgetEditFormProps {
-  budgetData: BudgetData;
-  onSaveSuccess: (budgetId: string) => void;
-  onRefresh: (silent?: boolean) => void;
-}
-
-function BudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: BudgetEditFormProps) {
+// Componente específico para o orçamento EMS MULTIMIX
+function EmsMultimixBudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: BudgetEditFormProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    cliente: "EMS",
+    produto: "MULTIMIX",
+    job: "ASSETS 3D",
+    solicitante: "Luana Rodrigues | WE - luana.rodrigues@we.com.br",
+    data_orcamento: new Date().toISOString().split('T')[0],
+    observacoes_gerais: "Orçamento apresenta propostas de diferentes fornecedores de forma independente. Cliente pode escolher a melhor opção por fornecedor.",
+    fornecedores: [] as Fornecedor[]
+  });
 
-  // Preparar os dados para o formulário de edição
-  const initialData = useMemo(() => {
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>(() => {
     const payload = budgetData.payload || {};
     
-    return {
-      ...payload,
-      // Garantir que campos obrigatórios estejam presentes
-      type: payload.type || budgetData.type,
-      cliente: payload.cliente || "",
-      produto: payload.produto || "",
-      // Garantir que arrays existam
-      campanhas: Array.isArray(payload.campanhas) ? payload.campanhas : [],
-      fornecedores: Array.isArray(payload.fornecedores) ? payload.fornecedores : [],
-      totais_campanhas: Array.isArray(payload.totais_campanhas) ? payload.totais_campanhas : [],
-    };
-  }, [budgetData]);
+    if (payload.fornecedores && Array.isArray(payload.fornecedores)) {
+      return payload.fornecedores;
+    }
 
-  const handleSave = async (formData: any) => {
+    // Dados ORIGINAIS do EMS MULTIMIX - VALORES SEPARADOS
+    return [
+      {
+        id: "1",
+        nome: "ESTÚDIO PÉ GRANDE",
+        total_fornecedor: 236320.00,
+        contato: "Contato a definir",
+        cnpj: "CNPJ a definir",
+        fases: [
+          {
+            id: "1-1",
+            nome: "Multimix Assets 3D - Fase 1",
+            total_fase: 82560.00,
+            itens: [
+              {
+                id: "1-1-1",
+                descricao: "PACOTE (MODELAGEM + 6 STILLS)",
+                valor: 49200.00,
+                prazo: "30 dias",
+                observacoes: "Inclui modelagem 3D completa + 6 stills profissionais"
+              },
+              {
+                id: "1-1-2",
+                descricao: "5 STILLS EXTRAS",
+                valor: 27500.00,
+                prazo: "18 dias",
+                observacoes: "Stills adicionais para ampliação do projeto"
+              },
+              {
+                id: "1-1-3",
+                descricao: "1 STILL EXTRA",
+                valor: 5860.00,
+                prazo: "18 dias",
+                observacoes: "Still individual adicional"
+              }
+            ]
+          },
+          {
+            id: "1-2",
+            nome: "Multimix Assets 3D - Fase 2",
+            total_fase: 153760.00,
+            itens: [
+              {
+                id: "1-2-1",
+                descricao: "PACOTE 1 (MODELAGEM + 9 STILLS)",
+                valor: 63700.00,
+                prazo: "35 dias",
+                observacoes: "Pacote completo com 9 stills"
+              },
+              {
+                id: "1-2-2",
+                descricao: "PACOTE 2 (MODELAGEM + 8 STILLS)",
+                valor: 56700.00,
+                prazo: "35 dias",
+                observacoes: "Pacote alternativo com 8 stills"
+              },
+              {
+                id: "1-2-3",
+                descricao: "5 STILLS EXTRAS",
+                valor: 27500.00,
+                prazo: "18 dias",
+                observacoes: "Stills adicionais para fase 2"
+              },
+              {
+                id: "1-2-4",
+                descricao: "1 STILL EXTRA",
+                valor: 5860.00,
+                prazo: "18 dias",
+                observacoes: "Still individual para fase 2"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        id: "2",
+        nome: "DIRTY WORD",
+        total_fornecedor: 695000.00,
+        contato: "Contato a definir", 
+        cnpj: "CNPJ a definir",
+        fases: [
+          {
+            id: "2-1",
+            nome: "Shooting e Renders",
+            total_fase: 695000.00,
+            itens: [
+              {
+                id: "2-1-1",
+                descricao: "Embalagens",
+                valor: 55000.00,
+                prazo: "A combinar",
+                observacoes: "Produção de embalagens"
+              },
+              {
+                id: "2-1-2",
+                descricao: "Balas",
+                valor: 60000.00,
+                prazo: "A combinar",
+                observacoes: "Produção de assets de balas"
+              },
+              {
+                id: "2-1-3",
+                descricao: "Pacote",
+                valor: 110000.00,
+                prazo: "A combinar",
+                observacoes: "Pacote completo de serviços"
+              },
+              {
+                id: "2-1-4",
+                descricao: "Ervas Unitario",
+                valor: 30000.00,
+                prazo: "A combinar",
+                observacoes: "Serviços unitários de ervas"
+              },
+              {
+                id: "2-1-5",
+                descricao: "Pacote Ervas",
+                valor: 270000.00,
+                prazo: "A combinar",
+                observacoes: "Pacote completo de ervas"
+              },
+              {
+                id: "2-1-6",
+                descricao: "Renders unitário",
+                valor: 20000.00,
+                prazo: "A combinar",
+                observacoes: "Renders individuais"
+              },
+              {
+                id: "2-1-7",
+                descricao: "Shooting até 10 fotos",
+                valor: 150000.00,
+                prazo: "A combinar",
+                observacoes: "Sessão de shooting fotográfico"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        id: "3",
+        nome: "MIAGUI IMAGVERTISING",
+        total_fornecedor: 24880.00,
+        contato: "Natalia Monteiro - natalia.monteiro@miagui.cc",
+        cnpj: "19.207.788/0001-30",
+        fases: [
+          {
+            id: "3-1",
+            nome: "Pacotes de Assets",
+            total_fase: 24880.00,
+            itens: [
+              {
+                id: "3-1-1",
+                descricao: "Combo 1 Adulto + 1 Kids + Pastilha com e sem embalagem (4 assets + 4 imagens)",
+                valor: 24880.00,
+                prazo: "A combinar",
+                observacoes: "Pacote com 5% de desconto. Inclui 4 assets digitais + 4 imagens finais em fundo neutro"
+              }
+            ]
+          }
+        ]
+      }
+    ];
+  });
+
+  const updateFormData = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateItemValor = (fornecedorId: string, faseId: string, itemId: string, field: string, value: any) => {
+    setFornecedores(prev => 
+      prev.map(fornecedor => 
+        fornecedor.id === fornecedorId 
+          ? {
+              ...fornecedor,
+              fases: fornecedor.fases.map(fase =>
+                fase.id === faseId
+                  ? {
+                      ...fase,
+                      itens: fase.itens.map(item =>
+                        item.id === itemId
+                          ? { ...item, [field]: value }
+                          : item
+                      )
+                    }
+                  : fase
+              )
+            }
+          : fornecedor
+      )
+    );
+  };
+
+  const handleSave = async () => {
     setSaving(true);
     try {
-      // Preparar payload para atualização
       const payload = {
-        ...formData,
-        // Manter campos importantes
-        id: budgetData.id,
-        display_id: budgetData.display_id,
-        budget_number: budgetData.budget_number,
+        ...budgetData.payload,
+        type: "imagem",
+        cliente: formData.cliente,
+        produto: formData.produto,
+        job: formData.job,
+        solicitante: formData.solicitante,
+        data_orcamento: formData.data_orcamento,
+        observacoes_gerais: formData.observacoes_gerais,
+        fornecedores,
+        especificacoes: {
+          formatos: ["9:16", "16:9", "4:5"],
+          veiculacao: "Internet e mídias alternativas",
+          alcance: "Nacional", 
+          vigencia: "1 ano"
+        },
+        observacoes: [
+          "Todo material apresentado é considerado produção e propriedade intelectual dos fornecedores, salvo negociação especial.",
+          "Os encargos financeiros incidentes sobre o não pagamento dos boletos em data prevista decorrerá de acréscimo de 1% de juros ao mês, acrescidos de 5% de multa.",
+          "Em caso de cancelamento deste orçamento após a aprovação, será cobrado custo mínimo de 50% do custo total."
+        ]
       };
 
-      // Criar nova versão
       const { error: versionError } = await supabase.from("versions").insert([
         {
           budget_id: budgetData.id,
           versao: budgetData.versao + 1,
           payload: payload as any,
-          total_geral: formData.total || 0,
+          total_geral: 0,
         },
       ]);
 
       if (versionError) throw versionError;
 
-      // Atualizar status do budget se necessário
       const { error: budgetError } = await supabase
         .from("budgets")
         .update({ 
           updated_at: new Date().toISOString(),
-          status: formData.status || budgetData.status
+          status: budgetData.status
         })
         .eq("id", budgetData.id);
 
       if (budgetError) throw budgetError;
 
       toast({
-        title: "✅ Orçamento atualizado!",
+        title: "✅ Orçamento EMS MULTIMIX atualizado!",
         description: `Versão ${budgetData.versao + 1} salva com sucesso.`,
       });
 
       onSaveSuccess(budgetData.id);
       
     } catch (err: any) {
-      console.error("[edit-budget] error:", err);
+      console.error("[edit-ems-budget] error:", err);
       toast({
         title: "Erro ao atualizar orçamento",
         description: err?.message || "Erro desconhecido",
@@ -372,48 +582,25 @@ function BudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: BudgetEditForm
     }
   };
 
-  // Se não temos dados suficientes, mostrar loading
-  if (!initialData.cliente || !initialData.produto) {
-    return (
-      <Card className="shadow-lg">
-        <CardContent className="p-8 text-center">
-          <LoadingState message="Preparando formulário de edição..." />
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {/* Banner de Informação de Edição */}
+      {/* Banner de Informação */}
       <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-lg">
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
             <div className="bg-blue-100 p-3 rounded-xl">
-              <AlertCircle className="h-6 w-6 text-blue-600" />
+              <Building2 className="h-6 w-6 text-blue-600" />
             </div>
             <div className="space-y-3">
-              <h3 className="font-semibold text-blue-900 text-lg">Editando Orçamento</h3>
+              <h3 className="font-semibold text-blue-900 text-lg">Orçamento EMS MULTIMIX - ASSETS 3D</h3>
               <div className="grid md:grid-cols-2 gap-3 text-sm text-blue-800">
                 <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                  <span>
-                    <strong>Nº {budgetData.budget_number}</strong> • {budgetData.display_id}
-                  </span>
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span>Solicitante: {formData.solicitante}</span>
                 </div>
                 <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                  <span>
-                    Versão atual: <strong>{budgetData.versao}</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                  <span>As alterações criarão uma nova versão do orçamento</span>
-                </div>
-                <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                  <span>Status atual: <StatusBadge status={budgetData.status} /></span>
+                  <Calendar className="h-4 w-4 text-blue-600" />
+                  <span>Data: {formData.data_orcamento}</span>
                 </div>
               </div>
             </div>
@@ -421,85 +608,148 @@ function BudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: BudgetEditForm
         </CardContent>
       </Card>
 
-      {/* Formulário de Edição - Usando lógica similar ao OrcamentoNovo */}
+      {/* Informações Básicas */}
       <Card className="shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-green-50 to-white rounded-t-lg">
-          <CardTitle className="flex items-center gap-3 text-xl">
-            <Save className="h-6 w-6 text-green-600" />
-            Formulário de Edição
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Informações do Projeto
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
-          <EditFormContent 
-            initialData={initialData}
-            onSave={handleSave}
-            saving={saving}
-            budgetNumber={budgetData.budget_number}
-          />
+        <CardContent className="space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <Input
+                value={formData.cliente}
+                onChange={(e) => updateFormData("cliente", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Produto</Label>
+              <Input
+                value={formData.produto}
+                onChange={(e) => updateFormData("produto", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Job</Label>
+              <Input
+                value={formData.job}
+                onChange={(e) => updateFormData("job", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Observações Gerais</Label>
+            <Textarea
+              value={formData.observacoes_gerais}
+              onChange={(e) => updateFormData("observacoes_gerais", e.target.value)}
+              rows={3}
+            />
+          </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
 
-// Componente do formulário de edição
-interface EditFormContentProps {
-  initialData: any;
-  onSave: (data: any) => void;
-  saving: boolean;
-  budgetNumber: string;
-}
-
-function EditFormContent({ initialData, onSave, saving, budgetNumber }: EditFormContentProps) {
-  const [formData, setFormData] = useState(initialData);
-
-  // Atualizar dados do formulário
-  const updateFormData = (updates: any) => {
-    setFormData((prev: any) => ({ ...prev, ...updates }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Campos básicos */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <Label htmlFor="cliente" className="flex items-center gap-1 text-sm font-semibold">
-            Cliente <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="cliente"
-            value={formData.cliente || ""}
-            onChange={(e) => updateFormData({ cliente: e.target.value })}
-            placeholder="Nome do cliente"
-            className="h-12"
-            required
-          />
-        </div>
-        
-        <div className="space-y-3">
-          <Label htmlFor="produto" className="flex items-center gap-1 text-sm font-semibold">
-            Produto <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="produto"
-            value={formData.produto || ""}
-            onChange={(e) => updateFormData({ produto: e.target.value })}
-            placeholder="Nome do produto"
-            className="h-12"
-            required
-          />
-        </div>
+      {/* Fornecedores */}
+      <div className="space-y-6">
+        {fornecedores.map((fornecedor) => (
+          <Card key={fornecedor.id} className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-white rounded-t-lg">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-gray-600" />
+                  <div>
+                    <div className="text-xl font-bold">{fornecedor.nome}</div>
+                    {fornecedor.contato && (
+                      <div className="text-sm text-gray-600">{fornecedor.contato}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-green-600">
+                    R$ {fornecedor.total_fornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-sm text-gray-500">Total do Fornecedor</div>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-6">
+                {fornecedor.fases.map((fase) => (
+                  <div key={fase.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-gray-800 text-lg">{fase.nome}</h4>
+                      <div className="text-right">
+                        <span className="font-bold text-blue-600 text-lg">
+                          R$ {fase.total_fase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <div className="text-sm text-gray-500">Total da Fase</div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      {fase.itens.map((item) => (
+                        <div key={item.id} className="grid md:grid-cols-12 gap-4 p-4 border rounded-lg bg-white">
+                          <div className="md:col-span-5">
+                            <Label>Descrição</Label>
+                            <Input
+                              value={item.descricao}
+                              onChange={(e) => updateItemValor(fornecedor.id, fase.id, item.id, "descricao", e.target.value)}
+                              className="mt-1"
+                            />
+                            {item.observacoes && (
+                              <div className="mt-2">
+                                <Label>Observações</Label>
+                                <Textarea
+                                  value={item.observacoes}
+                                  onChange={(e) => updateItemValor(fornecedor.id, fase.id, item.id, "observacoes", e.target.value)}
+                                  rows={2}
+                                  className="mt-1 text-sm"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          <div className="md:col-span-2">
+                            <Label>Valor (R$)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={item.valor}
+                              onChange={(e) => updateItemValor(fornecedor.id, fase.id, item.id, "valor", parseFloat(e.target.value) || 0)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="md:col-span-3">
+                            <Label>Prazo</Label>
+                            <Input
+                              value={item.prazo}
+                              onChange={(e) => updateItemValor(fornecedor.id, fase.id, item.id, "prazo", e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="md:col-span-2 flex items-end">
+                            <div className="text-right w-full">
+                              <div className="font-semibold text-gray-900">
+                                R$ {item.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-sm text-gray-500">Valor Item</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Botões de ação */}
-      <div className="flex gap-3 pt-6 border-t">
+      {/* Botões de Ação */}
+      <div className="flex gap-3 justify-end pt-6 border-t">
         <Button
-          type="submit"
+          onClick={handleSave}
           disabled={saving}
           className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg"
         >
@@ -511,7 +761,7 @@ function EditFormContent({ initialData, onSave, saving, budgetNumber }: EditForm
           ) : (
             <>
               <Save className="h-4 w-4" />
-              Salvar Alterações (Nova Versão)
+              Salvar Orçamento (Nova Versão)
             </>
           )}
         </Button>
@@ -526,11 +776,6 @@ function EditFormContent({ initialData, onSave, saving, budgetNumber }: EditForm
           Cancelar
         </Button>
       </div>
-
-      {/* Informação da versão */}
-      <div className="text-sm text-gray-500 text-center">
-        Esta ação criará a versão {initialData.versao ? initialData.versao + 1 : 1} do orçamento {budgetNumber}
-      </div>
-    </form>
+    </div>
   );
 }
