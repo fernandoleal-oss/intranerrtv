@@ -13,6 +13,7 @@ import {
   CalendarSearch,
   ClipboardPaste,
   Trash2,
+  BarChart3,
 } from "lucide-react";
 import { ExcelImportDialog } from "@/components/finance/ExcelImportDialog";
 import { GoogleSheetsSync } from "@/components/finance/GoogleSheetsSync";
@@ -29,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 /* ========== Tipos/constantes ========== */
 
@@ -41,7 +43,8 @@ type EventRevenue = {
   total_cents: number | null; // faturado
 };
 
-const MIN_YM = "2025-08";
+// CORREÇÃO: Incluindo os meses de agosto, setembro e outubro
+const MIN_YM = "2024-08"; // Alterado para incluir meses anteriores
 
 /* ========== Helpers ========== */
 
@@ -52,14 +55,17 @@ function formatBRL(v: number) {
     maximumFractionDigits: 2,
   }).format(v);
 }
+
 function ym(ref: string | null | undefined) {
   return ref ? ref.slice(0, 7) : "";
 }
+
 function toPTMonthLabel(ymStr: string) {
   const [y, m] = ymStr.split("-").map(Number);
   const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   return `${months[(m ?? 1) - 1]}/${y}`;
 }
+
 function addMonths(ymStr: string, delta: number) {
   const [y, m] = ymStr.split("-").map(Number);
   const base = new Date(y, (m ?? 1) - 1, 1);
@@ -68,14 +74,18 @@ function addMonths(ymStr: string, delta: number) {
   const mm = String(base.getMonth() + 1).padStart(2, "0");
   return `${yy}-${mm}`;
 }
+
 const nextYM = (x: string) => addMonths(x, 1);
+
 function nowYM() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
 }
+
 function betweenInclusive(ymStr: string, min: string, max: string) {
   return ymStr >= min && ymStr <= max;
 }
+
 function generateAllowedMonths(minYM: string, maxYM: string) {
   const list: string[] = [];
   let cur = minYM;
@@ -85,6 +95,7 @@ function generateAllowedMonths(minYM: string, maxYM: string) {
   }
   return list.reverse();
 }
+
 // persistimos sempre como "YYYY-MM-01" para compatibilidade com tipo DATE
 const storeRefMonth = (ymStr: string) => `${ymStr}-01`;
 
@@ -101,6 +112,7 @@ function summarizeClients(rows: EventRevenue[]): ClientSummary[] {
 
 /* KPIs (só receita) */
 type KPIs = { receita: number; varReceitaPct: number; registros: number; ticketMedio: number };
+
 function computeKPIs(curRows: EventRevenue[], prevRows: EventRevenue[]): KPIs {
   const sum = (xs: EventRevenue[]) => xs.reduce((a, e) => a + (e.total_cents ?? 0), 0) / 100;
   const receita = sum(curRows);
@@ -291,13 +303,16 @@ export default function Finance() {
   } | null>(null);
 
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showRevenueChart, setShowRevenueChart] = useState(false);
 
+  // CORREÇÃO: Alterado MIN_YM para incluir agosto/2024
   const maxYM = nowYM();
   const allowedMonths = generateAllowedMonths(MIN_YM, maxYM);
 
   useEffect(() => {
     loadData();
   }, []);
+  
   useEffect(() => {
     if (!selectedYM) setSelectDialogOpen(true);
   }, [selectedYM]);
@@ -313,6 +328,11 @@ export default function Finance() {
       setAllEvents((data || []) as EventRevenue[]);
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
+      toast({
+        title: "Erro ao carregar dados",
+        description: "Não foi possível carregar os dados financeiros",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -322,6 +342,7 @@ export default function Finance() {
     () => (selectedYM ? allEvents.filter((r) => ym(r.ref_month) === selectedYM) : []),
     [allEvents, selectedYM],
   );
+  
   const prevForSelectedRows = useMemo(() => {
     if (!selectedYM) return [];
     const prevYM = addMonths(selectedYM, -1);
@@ -332,6 +353,7 @@ export default function Finance() {
     () => (compareYM ? allEvents.filter((r) => ym(r.ref_month) === compareYM) : []),
     [allEvents, compareYM],
   );
+  
   const prevForCompareRows = useMemo(() => {
     if (!compareYM) return [];
     const prevYM = addMonths(compareYM, -1);
@@ -343,6 +365,30 @@ export default function Finance() {
 
   const topClientsSelected = useMemo(() => summarizeClients(curRows), [curRows]);
   const topClientsCompare = useMemo(() => summarizeClients(compareRows), [compareRows]);
+
+  // NOVO: Dados para o gráfico de faturamento mensal
+  const monthlyRevenueData = useMemo(() => {
+    const monthlyTotals: { [key: string]: number } = {};
+    
+    allEvents.forEach(event => {
+      const month = ym(event.ref_month);
+      const value = (event.total_cents || 0) / 100;
+      
+      if (monthlyTotals[month]) {
+        monthlyTotals[month] += value;
+      } else {
+        monthlyTotals[month] = value;
+      }
+    });
+
+    return Object.entries(monthlyTotals)
+      .map(([month, revenue]) => ({
+        month: toPTMonthLabel(month),
+        revenue,
+        fullMonth: month // para ordenação
+      }))
+      .sort((a, b) => a.fullMonth.localeCompare(b.fullMonth));
+  }, [allEvents]);
 
   function handleExportCSV() {
     if (!selectedYM) return;
@@ -568,6 +614,12 @@ export default function Finance() {
             <FinancialReport />
             <AnnualTotalsDialog />
 
+            {/* NOVO: Botão para gráfico de faturamento */}
+            <Button variant="outline" className="gap-2" onClick={() => setShowRevenueChart(true)}>
+              <BarChart3 className="h-4 w-4" />
+              Gráfico Faturamento
+            </Button>
+
             <Button variant="outline" className="gap-2" onClick={() => setSelectDialogOpen(true)}>
               <CalendarSearch className="h-4 w-4" />
               {selectedYM ? "Trocar mês" : "Escolher mês"}
@@ -622,7 +674,8 @@ export default function Finance() {
               <p className="text-sm text-amber-800">
                 Selecione o mês de referência para visualizar o faturamento.
                 <br />
-                Meses anteriores a <strong>ago/2025</strong> ficam indisponíveis.
+                {/* ATUALIZADO: Mensagem refletindo os meses disponíveis */}
+                Meses anteriores a <strong>ago/2024</strong> ficam indisponíveis.
               </p>
             </CardContent>
           </Card>
@@ -715,6 +768,13 @@ export default function Finance() {
 
       <ImportSpreadsheetModal open={showImportModal} onOpenChange={setShowImportModal} onImportComplete={loadData} />
 
+      {/* NOVO: Modal do gráfico de faturamento mensal */}
+      <RevenueChartModal 
+        open={showRevenueChart}
+        onOpenChange={setShowRevenueChart}
+        data={monthlyRevenueData}
+      />
+
       {/* Seleção de mês / comparação */}
       <MonthSelectDialog
         open={selectDialogOpen}
@@ -724,7 +784,8 @@ export default function Finance() {
         }
         allowedMonths={allowedMonths}
         selected={null}
-        helper="Apenas meses a partir de ago/2025 estão disponíveis."
+        {/* ATUALIZADO: Mensagem refletindo os meses disponíveis */}
+        helper="Apenas meses a partir de ago/2024 estão disponíveis."
         onConfirm={(value) => {
           if (!value) return;
           if (!selectedYM) setSelectedYM(value);
@@ -829,6 +890,71 @@ export default function Finance() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** NOVO: Componente do Modal do Gráfico de Faturamento */
+function RevenueChartModal({ 
+  open, 
+  onOpenChange, 
+  data 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  data: { month: string; revenue: number }[];
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base">Faturamento Mensal</DialogTitle>
+        </DialogHeader>
+        <div className="h-96">
+          {data.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="month" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  interval={0}
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis 
+                  tickFormatter={(value) => formatBRL(value)}
+                  width={80}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [formatBRL(value), "Faturamento"]}
+                  labelFormatter={(label) => `Mês: ${label}`}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="revenue" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  name="Faturamento"
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-muted-foreground">Nenhum dado disponível para exibir o gráfico</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
