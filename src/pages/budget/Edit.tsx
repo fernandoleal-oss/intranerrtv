@@ -15,6 +15,16 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, FileText, Home, AlertCircle, RefreshCw, Save, Download } from "lucide-react";
 import OrcamentoNovo from "./OrcamentoNovo";
 
+
+// Adicione isso no início do componente BudgetEdit, depois dos estados
+useEffect(() => {
+  if (data) {
+    console.log("Dados carregados:", data);
+    console.log("Payload:", data.payload);
+    console.log("Tipo:", data.type);
+  }
+}, [data]);
+
 type BudgetType = "filme" | "audio" | "imagem" | "cc" | string;
 
 interface VersionRow {
