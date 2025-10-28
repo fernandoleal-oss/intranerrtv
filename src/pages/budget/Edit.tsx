@@ -465,21 +465,168 @@ function EmsMultimixBudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: Bud
       {
         id: "3",
         nome: "MIAGUI IMAGVERTISING",
-        total_fornecedor: 24880.00,
+        total_fornecedor: 247933.27,
         contato: "Natalia Monteiro - natalia.monteiro@miagui.cc",
         cnpj: "19.207.788/0001-30",
         fases: [
           {
             id: "3-1",
-            nome: "Pacotes de Assets",
-            total_fase: 24880.00,
+            nome: "1. Embalagens (3D / modelagem / beneficiamento)",
+            total_fase: 37286.84,
             itens: [
               {
                 id: "3-1-1",
-                descricao: "Combo 1 Adulto + 1 Kids + Pastilha com e sem embalagem (4 assets + 4 imagens)",
+                descricao: "Embalagem Adulto (preparação do asset digital)",
+                valor: 3717.42,
+                prazo: "A combinar",
+                observacoes: "Preparação individual do asset digital"
+              },
+              {
+                id: "3-1-2",
+                descricao: "Embalagem Kids (preparação do asset digital)",
+                valor: 3717.42,
+                prazo: "A combinar",
+                observacoes: "Preparação individual do asset digital"
+              },
+              {
+                id: "3-1-3",
+                descricao: "Bala individual EMBALADA (preparação do asset digital)",
+                valor: 3717.42,
+                prazo: "A combinar",
+                observacoes: "Preparação individual do asset digital"
+              },
+              {
+                id: "3-1-4",
+                descricao: "Bala individual SEM EMBALAGEM (preparação do asset digital)",
+                valor: 3717.42,
+                prazo: "A combinar",
+                observacoes: "Preparação individual do asset digital"
+              },
+              {
+                id: "3-1-5",
+                descricao: "Imagem individual - Embalagem",
+                valor: 2801.68,
+                prazo: "A combinar",
+                observacoes: "Imagem em fundo neutro (custo unitário)"
+              },
+              {
+                id: "3-1-6",
+                descricao: "Imagem individual - Bala embalada",
+                valor: 2801.68,
+                prazo: "A combinar",
+                observacoes: "Imagem em fundo neutro (custo unitário)"
+              },
+              {
+                id: "3-1-7",
+                descricao: "Imagem individual - Bala sem embalagem (x2)",
+                valor: 5603.36,
+                prazo: "A combinar",
+                observacoes: "2 imagens em fundo neutro (custo unitário cada)"
+              },
+              {
+                id: "3-1-8",
+                descricao: "Combo '1 Adulto + 1 Kids + Pastilha com e sem embalagem' (PACOTE com 5% desconto)",
                 valor: 24880.00,
                 prazo: "A combinar",
-                observacoes: "Pacote com 5% de desconto. Inclui 4 assets digitais + 4 imagens finais em fundo neutro"
+                observacoes: "Pacote: 4 assets + 4 imagens finais. Economia de R$ 1.310,44"
+              }
+            ]
+          },
+          {
+            id: "3-2",
+            nome: "2. Sabores (rótulos) - Cotar por sabor",
+            total_fase: 7076.48,
+            itens: [
+              {
+                id: "3-2-1",
+                descricao: "Troca de rótulo mantendo o mesmo ângulo/render base (unitário por sabor)",
+                valor: 3538.24,
+                prazo: "A combinar",
+                observacoes: "Alteração de rótulo sem modificar ângulo"
+              },
+              {
+                id: "3-2-2",
+                descricao: "Render Adicional (novo ângulo)",
+                valor: 3538.24,
+                prazo: "A combinar",
+                observacoes: "Novo ângulo de visualização"
+              }
+            ]
+          },
+          {
+            id: "3-3",
+            nome: "3. Ervas (3D) - Unitário + Set (10)",
+            total_fase: 24473.11,
+            itens: [
+              {
+                id: "3-3-1",
+                descricao: "Erva (unitária) - Adicional para novos sabores / ervas",
+                valor: 3553.21,
+                prazo: "A combinar",
+                observacoes: "1 imagem de erva adicional"
+              },
+              {
+                id: "3-3-2",
+                descricao: "Pacote com 10 ervas",
+                valor: 20919.90,
+                prazo: "A combinar",
+                observacoes: "10 entregas individuais = 10 imagens finais em fundo neutro. Economia de R$ 14.612,20"
+              }
+            ]
+          },
+          {
+            id: "3-4",
+            nome: "4. Pack ambientado (considerar mockups)",
+            total_fase: 42547.82,
+            itens: [
+              {
+                id: "3-4-1",
+                descricao: "1 Pack com 2 sabores (asset já desenvolvido)",
+                valor: 13583.58,
+                prazo: "A combinar",
+                observacoes: "Considerando que o asset da embalagem já foi desenvolvido"
+              },
+              {
+                id: "3-4-2",
+                descricao: "2 Packs com 5 sabores (asset já desenvolvido)",
+                valor: 25426.00,
+                prazo: "A combinar",
+                observacoes: "Considerando que o asset da embalagem já foi desenvolvido"
+              },
+              {
+                id: "3-4-3",
+                descricao: "Atualização de imagem (troca de rótulo no mesmo ângulo) 9:16 | 16:9, 4:5",
+                valor: 3538.24,
+                prazo: "A combinar",
+                observacoes: "Atualização simples de rótulo em diferentes formatos"
+              }
+            ]
+          },
+          {
+            id: "3-5",
+            nome: "5. Humanizada (pessoas/IA)",
+            total_fase: 136549.02,
+            itens: [
+              {
+                id: "3-5-1",
+                descricao: "Foto humanizada - unitário",
+                valor: 12992.11,
+                prazo: "A combinar",
+                observacoes: "Inclui direção/arte, setup de IA, 1 rodada de ajustes, recorte/tratamento"
+              },
+              {
+                id: "3-5-2",
+                descricao: "Pacote 5 fotos humanizadas - ângulos/poses diferentes",
+                valor: 61105.00,
+                prazo: "A combinar",
+                observacoes: "5% de desconto no pacote. Economia de R$ 3.855,55"
+              },
+              {
+                id: "3-5-3",
+                descricao: "Pacote 10 fotos humanizadas - ângulos/poses diferentes",
+                valor: 115920.00,
+                prazo: "A combinar",
+                observacoes: "10% de desconto no pacote. Economia de R$ 13.001,10"
               }
             ]
           }

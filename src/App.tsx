@@ -18,7 +18,6 @@ const NovoCC        = lazy(() => import('@/pages/new/CC'))
 const NovaImagem    = lazy(() => import('@/pages/new/Imagem'))
 const BudgetPreview = lazy(() => import('@/pages/budget/Preview'))
 const PdfView       = lazy(() => import('@/pages/budget/Pdf'))
-const BudgetList    = lazy(() => import('@/pages/BudgetList'))
 const BudgetEdit    = lazy(() => import('@/pages/budget/Edit'))
 const BudgetView    = lazy(() => import('@/pages/budget/View'))
 const Finance       = lazy(() => import('@/pages/Finance'))
@@ -148,14 +147,6 @@ const App = () => (
                 }
               />
 
-              <Route
-                path="/budgets"
-                element={
-                  <ProtectedRoute>
-                    <BudgetList />
-                  </ProtectedRoute>
-                }
-              />
 
               {/* Budget routes */}
               <Route
