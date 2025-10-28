@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users } from "lucide-react";
+import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logoWE from "@/assets/LOGO-WE-2.png";
+import { addMiaguiToOrcamento } from "@/utils/addMiaguiToBudget";
 
 /** ====== Tipagens ====== */
 interface FilmOption {
@@ -153,6 +154,7 @@ export default function BudgetPdf() {
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [addingMiagui, setAddingMiagui] = useState(false);
   const [data, setData] = useState<BudgetData | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -253,6 +255,35 @@ export default function BudgetPdf() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [id, navigate]);
+
+  /** ====== Adicionar MIAGUI ao orçamento ====== */
+  const handleAddMiagui = async () => {
+    setAddingMiagui(true);
+    try {
+      const result = await addMiaguiToOrcamento();
+      
+      if (result.success) {
+        toast({
+          title: "✅ Fornecedor MIAGUI adicionado!",
+          description: `Versão ${result.newVersion?.versao} criada com ${result.fornecedoresCount} fornecedores. Total: R$ ${result.totalGeral?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        });
+        // Recarregar a página após 1 segundo
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        throw new Error(result.error?.message || 'Erro desconhecido');
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro ao adicionar MIAGUI",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setAddingMiagui(false);
+    }
+  };
 
   /** ====== Geração de PDF com margens ====== */
   const handleGeneratePdf = async () => {
@@ -413,6 +444,16 @@ export default function BudgetPdf() {
           </div>
 
           <div className="flex items-center gap-3">
+            {id === '56213599-35e3-4192-896c-57e78148fc22' && (
+              <Button 
+                onClick={handleAddMiagui} 
+                disabled={addingMiagui}
+                className="gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <Plus className="h-4 w-4" />
+                {addingMiagui ? "Adicionando..." : "Adicionar MIAGUI"}
+              </Button>
+            )}
             <Button variant="outline" onClick={() => navigate(`/budget/${id}`)} className="gap-2">
               <FileText className="h-4 w-4" />
               Editar
