@@ -788,7 +788,6 @@ export default function Finance() {
         }
         allowedMonths={allowedMonths}
         selected={null}
-        {/* ATUALIZADO: Mensagem refletindo os meses disponíveis */}
         helper="Apenas meses a partir de ago/2024 estão disponíveis."
         onConfirm={(value) => {
           if (!value) return;

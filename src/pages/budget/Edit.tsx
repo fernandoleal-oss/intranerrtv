@@ -1,11 +1,12 @@
-// Dados ORIGINAIS do EMS MULTIMIX - VALORES SEPARADOS
-return [
-  {
-    id: "1",
-    nome: "ESTÚDIO PÉ GRANDE",
-    total_fornecedor: 236320.00,
-    contato: "Contato a definir",
-    cnpj: "CNPJ a definir",
+const getBudgetData = () => {
+  // Dados ORIGINAIS do EMS MULTIMIX - VALORES SEPARADOS
+  return [
+    {
+      id: "1",
+      nome: "ESTÚDIO PÉ GRANDE",
+      total_fornecedor: 236320.00,
+      contato: "Contato a definir",
+      cnpj: "CNPJ a definir",
     fases: [
       {
         id: "1-1",
@@ -492,3 +493,47 @@ return [
     ]
   }
 ];
+};
+
+export default function BudgetEdit() {
+  const budgetData = getBudgetData();
+  
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">Editar Orçamento - EMS Multimix</h1>
+      <div className="space-y-6">
+        {budgetData.map((fornecedor: any) => (
+          <div key={fornecedor.id} className="bg-background border rounded-lg p-4">
+            <h2 className="text-xl font-semibold">{fornecedor.nome}</h2>
+            <p className="text-sm text-muted-foreground">{fornecedor.contato}</p>
+            <p className="text-sm text-muted-foreground">CNPJ: {fornecedor.cnpj}</p>
+            <p className="text-lg font-bold mt-2">
+              Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(fornecedor.total_fornecedor)}
+            </p>
+            <div className="mt-4 space-y-4">
+              {fornecedor.fases?.map((fase: any) => (
+                <div key={fase.id} className="border-l-4 border-primary pl-4">
+                  <h3 className="font-medium">{fase.nome}</h3>
+                  <p className="text-sm font-semibold">
+                    Subtotal: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(fase.total_fase)}
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {fase.itens?.map((item: any) => (
+                      <div key={item.id} className="text-sm">
+                        <span className="font-medium">{item.descricao}</span> - 
+                        <span className="text-primary ml-1">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}
+                        </span>
+                        {item.prazo && <span className="text-muted-foreground ml-2">({item.prazo})</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

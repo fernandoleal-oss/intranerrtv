@@ -76,9 +76,68 @@ export async function addMiaguiToOrcamento() {
     ]
   };
 
-  // Atualizar payload com novo fornecedor
+  // Adicionar fornecedor LADO ANIMATION
+  const ladoAnimationFornecedor = {
+    id: "lado-001",
+    nome: "LADO ANIMATION",
+    contato: "Luciana Pessoa / Rafaela Neves - luciana@ladoanimation.com / rafaela@ladoanimation.com | CNPJ: A definir",
+    fases: [
+      {
+        id: "lado-fase-1",
+        nome: "Embalagens 3D em fundo gráfico",
+        itens: [
+          { id: "lado-1-1", nome: "Embalagem Adulto (unitário)", valor: 22000.00, prazo: "A combinar", observacao: "Modelagem, lookdev, renderização e finalização" },
+          { id: "lado-1-2", nome: "Embalagem Kids (unitário)", valor: 22000.00, prazo: "A combinar", observacao: "Modelagem, lookdev, renderização e finalização" },
+          { id: "lado-1-3", nome: "Bala individual embalada (unitário)", valor: 22000.00, prazo: "A combinar", observacao: "Modelagem, lookdev, renderização e finalização" },
+          { id: "lado-1-4", nome: "Bala individual sem embalagem (unitário)", valor: 22000.00, prazo: "A combinar", observacao: "Modelagem, lookdev, renderização e finalização" },
+          { id: "lado-1-5", nome: "Pastilha avulsa (3D) (unitário)", valor: 8148.00, prazo: "A combinar", observacao: "Modelagem, lookdev, renderização e finalização" },
+          { id: "lado-1-6", nome: "Combo 1 – 1 Adulto + 1 Kids + 2 Pastilhas", valor: 46100.00, prazo: "A combinar", observacao: "Pacote combinado com desconto" },
+          { id: "lado-1-7", nome: "Combo 2 – 2 Adulto + 2 Kids + 4 Pastilhas", valor: 66200.00, prazo: "A combinar", observacao: "Pacote combinado com desconto" },
+          { id: "lado-1-8", nome: "Combo 3 – 3 Adulto + 3 Kids + 6 Pastilhas", valor: 92700.00, prazo: "A combinar", observacao: "Pacote combinado com desconto" },
+          { id: "lado-1-9", nome: "Combo 4 – 6 Packs Copa", valor: 75000.00, prazo: "A combinar", observacao: "Pacote especial Copa" }
+        ]
+      },
+      {
+        id: "lado-fase-2",
+        nome: "Sabores (rótulos)",
+        itens: [
+          { id: "lado-2-1", nome: "Troca de rótulo mantendo o mesmo ângulo/render base (unitário)", valor: 6042.00, prazo: "A combinar", observacao: "Por sabor" },
+          { id: "lado-2-2", nome: "Novo ângulo/render (unitário)", valor: 8169.00, prazo: "A combinar", observacao: "Por sabor" }
+        ]
+      },
+      {
+        id: "lado-fase-3",
+        nome: "Ervas 3D em fundo gráfico",
+        itens: [
+          { id: "lado-3-1", nome: "Pacote com 3 ervas em fundo gráfico", valor: 30000.00, prazo: "A combinar", observacao: "Modelagem e renderização de ervas (Malva, Tomilho, Sálvia, Hissopo, Tomilho Selvagem, Marroio Branco, Hortelã, Tília, Limão e Erva-cidreira)" }
+        ]
+      },
+      {
+        id: "lado-fase-4",
+        nome: "Entregas de imagem/render",
+        itens: [
+          { id: "lado-4-1", nome: "Still neutro (fundo liso) - Unitário", valor: 8148.00, prazo: "A combinar", observacao: "Embalagens ambientadas com fundo neutro" },
+          { id: "lado-4-2", nome: "Still com ingredientes/sabores (composição) - Unitário", valor: 15000.00, prazo: "A combinar", observacao: "Embalagens ambientadas com fundo neutro" },
+          { id: "lado-4-3", nome: "Atualização de imagem (troca de rótulo no mesmo ângulo) - Unitário", valor: 6042.00, prazo: "A combinar", observacao: "Embalagens ambientadas com fundo neutro" },
+          { id: "lado-4-4", nome: "Still neutro (fundo liso) - Pack de 4 imagens", valor: 20000.00, prazo: "A combinar", observacao: "Pacote com desconto" },
+          { id: "lado-4-5", nome: "Still com ingredientes/sabores (composição) - Pack de 4 imagens", valor: 30000.00, prazo: "A combinar", observacao: "Pacote com desconto" },
+          { id: "lado-4-6", nome: "Atualização de imagem (troca de rótulo no mesmo ângulo) - Pack de 4 imagens", valor: 20000.00, prazo: "A combinar", observacao: "Pacote com desconto" }
+        ]
+      },
+      {
+        id: "lado-fase-5",
+        nome: "Fotos humanizadas",
+        itens: [
+          { id: "lado-5-1", nome: "Pacote com 5 fotos", valor: 80000.00, prazo: "A combinar", observacao: "Shooting em estúdio com 2 modelos, variação de ângulos e composições" },
+          { id: "lado-5-2", nome: "Pacote com 10 fotos", valor: 95000.00, prazo: "A combinar", observacao: "Shooting em estúdio com 2 modelos, variação de ângulos e composições" }
+        ]
+      }
+    ]
+  };
+
+  // Atualizar payload com novos fornecedores
   const existingFornecedores = Array.isArray(currentPayload.fornecedores) ? currentPayload.fornecedores : [];
-  const updatedFornecedores = [...existingFornecedores, miaguiFornecedor];
+  const updatedFornecedores = [...existingFornecedores, miaguiFornecedor, ladoAnimationFornecedor];
   
   const newPayload: any = {
     ...currentPayload,

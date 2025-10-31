@@ -265,7 +265,7 @@ export default function Orcamentos() {
 
       // Criar versão do orçamento
       const { error: versionError } = await supabase
-        .from("budget_versions")
+        .from("versions")
         .insert({
           budget_id: budgetData.id,
           payload: payload,
