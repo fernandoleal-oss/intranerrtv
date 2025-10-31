@@ -22,6 +22,7 @@ import { FinancialReport } from "@/components/finance/FinancialReport";
 import { AnnualTotalsDialog } from "@/components/finance/AnnualTotalsDialog";
 import { ImportSpreadsheetModal } from "@/components/finance/ImportSpreadsheetModal";
 import { FinanceDashboard } from "@/components/finance/FinanceDashboard";
+import { ImportFinanceDataButton } from "@/components/finance/ImportFinanceDataButton";
 import { useAuth } from "@/components/AuthProvider";
 import { canEditFinance } from "@/utils/permissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -1126,6 +1127,7 @@ function FinancialEditActions({
   if (!canEdit) return null;
   return (
     <>
+      <ImportFinanceDataButton />
       <Button variant="outline" className="gap-2" onClick={onImportOpen}>
         <FileSpreadsheet className="h-4 w-4" />
         Importar Planilha (arquivo)
