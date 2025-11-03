@@ -15,8 +15,6 @@ import {
   Cell,
   LineChart,
   Line,
-  AreaChart,
-  Area,
 } from "recharts";
 import {
   TrendingUp,
@@ -43,7 +41,14 @@ interface FinanceEvent {
   total_cents: number;
   valor_fornecedor_cents: number;
   honorario_agencia_cents: number;
-  emissao: string;
+  emissao?: string;
+  created_at?: string;
+  descricao?: string;
+  ap?: string;
+  imported_at?: string;
+  raw?: any;
+  honorario_percent?: number;
+  updated_at?: string;
 }
 
 interface MonthlyData {
@@ -64,6 +69,21 @@ interface SupplierData {
 interface SupplierMonthlyDetail {
   supplier: string;
   monthlyData: MonthlyData[];
+}
+
+interface Insight {
+  title: string;
+  content: string;
+  type: "info" | "success" | "warning";
+  icon: React.ReactNode;
+}
+
+interface KPI {
+  title: string;
+  value: string;
+  description: string;
+  trend: string;
+  icon: React.ReactNode;
 }
 
 const formatCurrency = (cents: number) => {
@@ -202,7 +222,15 @@ const ReportPage = ({
 };
 
 // 1. ✅ RESUMO EXECUTIVO COM INSIGHTS AUTOMÁTICOS
-const ExecutiveSummary = ({ suppliers, totalInvestido, monthlyData }) => {
+const ExecutiveSummary = ({
+  suppliers,
+  totalInvestido,
+  monthlyData,
+}: {
+  suppliers: SupplierData[];
+  totalInvestido: number;
+  monthlyData: MonthlyData[];
+}) => {
   const topSupplier = suppliers[0];
   const growthLastMonth =
     monthlyData.length > 1
@@ -211,10 +239,10 @@ const ExecutiveSummary = ({ suppliers, totalInvestido, monthlyData }) => {
         100
       : 0;
 
-  const insights = [
+  const insights: Insight[] = [
     {
       title: "Fornecedor Destaque",
-      content: `${topSupplier?.name || "N/A"} representa ${topSupplier?.percentage.toFixed(1) || 0}% do total`,
+      content: `${topSupplier?.name || "N/A"} representa ${topSupplier?.percentage.toFixed(1) || "0"}% do total`,
       type: "info",
       icon: <Zap className="w-4 h-4" />,
     },
@@ -270,7 +298,7 @@ const ExecutiveSummary = ({ suppliers, totalInvestido, monthlyData }) => {
 };
 
 // 2. ✅ COMPARATIVO MENSAL COM PERÍODO ANTERIOR
-const MonthlyComparison = ({ monthlyData }) => {
+const MonthlyComparison = ({ monthlyData }: { monthlyData: MonthlyData[] }) => {
   const comparisonData = monthlyData.map((month, index) => {
     const previousMonth = monthlyData[index - 1];
     const growth = previousMonth ? ((month.total - previousMonth.total) / previousMonth.total) * 100 : 0;
@@ -296,7 +324,7 @@ const MonthlyComparison = ({ monthlyData }) => {
             <YAxis yAxisId="left" orientation="left" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
             <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value.toFixed(0)}%`} />
             <Tooltip
-              formatter={(value, name) =>
+              formatter={(value: any, name: string) =>
                 name === "crescimento"
                   ? [`${Number(value).toFixed(1)}%`, "Crescimento"]
                   : [`R$ ${Number(value).toLocaleString("pt-BR")}`, "Faturamento"]
@@ -313,8 +341,8 @@ const MonthlyComparison = ({ monthlyData }) => {
 };
 
 // 3. ✅ ANÁLISE DE SAZONALIDADE
-const SeasonalityAnalysis = ({ monthlyData }) => {
-  const monthlyAverages = {};
+const SeasonalityAnalysis = ({ monthlyData }: { monthlyData: MonthlyData[] }) => {
+  const monthlyAverages: { [key: string]: { total: number; count: number } } = {};
 
   monthlyData.forEach((month) => {
     const monthName = formatMonth(month.month).split("/")[0];
@@ -340,7 +368,7 @@ const SeasonalityAnalysis = ({ monthlyData }) => {
           <BarChart data={seasonalityData}>
             <XAxis dataKey="month" />
             <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(value) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, "Média"]} />
+            <Tooltip formatter={(value: any) => [`R$ ${Number(value).toLocaleString("pt-BR")}`, "Média"]} />
             <Bar dataKey="media" fill="#8B5CF6" />
           </BarChart>
         </ResponsiveContainer>
@@ -350,7 +378,7 @@ const SeasonalityAnalysis = ({ monthlyData }) => {
 };
 
 // 4. ✅ PROJEÇÃO FUTURA BASEADA EM DADOS HISTÓRICOS
-const RevenueProjection = ({ monthlyData }) => {
+const RevenueProjection = ({ monthlyData }: { monthlyData: MonthlyData[] }) => {
   const last6Months = monthlyData.slice(-6);
   const totalGrowth = last6Months.reduce((sum, month, index, array) => {
     if (index === 0) return sum;
@@ -381,8 +409,8 @@ const RevenueProjection = ({ monthlyData }) => {
             <div key={index} className="text-center p-4 border rounded-lg">
               <div className="text-2xl font-bold text-primary">{formatCurrency(proj.valor * 100)}</div>
               <div className="text-sm text-muted-foreground">{proj.mes}</div>
-              <div className={`text-xs mt-1 ${proj.crescimento >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {proj.crescimento >= 0 ? "+" : ""}
+              <div className={`text-xs mt-1 ${Number(proj.crescimento) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {Number(proj.crescimento) >= 0 ? "+" : ""}
                 {proj.crescimento}% vs anterior
               </div>
             </div>
@@ -397,7 +425,7 @@ const RevenueProjection = ({ monthlyData }) => {
 };
 
 // 5. ✅ ANÁLISE DE CONCENTRAÇÃO DE RISCO
-const RiskConcentrationAnalysis = ({ suppliers }) => {
+const RiskConcentrationAnalysis = ({ suppliers }: { suppliers: SupplierData[] }) => {
   const concentrationData = [
     { name: "Top 1", value: suppliers[0]?.percentage || 0 },
     { name: "Top 3", value: suppliers.slice(0, 3).reduce((sum, s) => sum + s.percentage, 0) },
@@ -446,7 +474,7 @@ const RiskConcentrationAnalysis = ({ suppliers }) => {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Participação"]} />
+              <Tooltip formatter={(value: any) => [`${Number(value).toFixed(1)}%`, "Participação"]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-3">
@@ -480,13 +508,21 @@ const RiskConcentrationAnalysis = ({ suppliers }) => {
 };
 
 // 6. ✅ INDICADORES DE PERFORMANCE (KPIs) AVANÇADOS
-const AdvancedKPIs = ({ suppliers, monthlyData, events }) => {
+const AdvancedKPIs = ({
+  suppliers,
+  monthlyData,
+  events,
+}: {
+  suppliers: SupplierData[];
+  monthlyData: MonthlyData[];
+  events: FinanceEvent[];
+}) => {
   const avgTransactionValue = events.length > 0 ? events.reduce((sum, e) => sum + e.total_cents, 0) / events.length : 0;
   const monthlyTransactionCount = monthlyData.length > 0 ? events.length / monthlyData.length : 0;
   const supplierRetentionRate =
     suppliers.length > 0 ? (suppliers.filter((s) => s.monthlyData.length > 1).length / suppliers.length) * 100 : 0;
 
-  const kpis = [
+  const kpis: KPI[] = [
     {
       title: "Ticket Médio",
       value: formatCurrency(avgTransactionValue),
@@ -548,7 +584,12 @@ export default function FinanceExecutiveReport() {
 
       if (error) throw error;
 
-      const eventsData = data || [];
+      // Mapear os dados para incluir a propriedade emissao
+      const eventsData: FinanceEvent[] = (data || []).map((event) => ({
+        ...event,
+        emissao: event.emissao || event.created_at || new Date().toISOString(),
+      }));
+
       setEvents(eventsData);
 
       // Processar dados mensais por fornecedor
@@ -1009,14 +1050,14 @@ export default function FinanceExecutiveReport() {
                     <div className="space-y-3">
                       {supplier.monthlyData
                         .flatMap((m) => m.details)
-                        .sort((a, b) => new Date(b.emissao).getTime() - new Date(a.emissao).getTime())
+                        .sort((a, b) => new Date(b.emissao!).getTime() - new Date(a.emissao!).getTime())
                         .slice(0, 5)
                         .map((transaction, idx) => (
                           <div key={idx} className="flex justify-between items-center py-2 border-b">
                             <div>
                               <div className="font-medium">{formatMonth(transaction.ref_month)}</div>
                               <div className="text-sm text-muted-foreground">
-                                Emitido em {formatDate(transaction.emissao)}
+                                Emitido em {formatDate(transaction.emissao!)}
                               </div>
                             </div>
                             <div className="text-right">
