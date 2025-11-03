@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { TrendingUp, DollarSign, Package, Building2, Printer } from 'lucide-react'
+import { TrendingUp, DollarSign, Package, Building2, Printer, Mail, Phone, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface FinanceEvent {
@@ -68,6 +68,69 @@ const consolidatedData = [
 ]
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16', '#F97316', '#6366F1', '#EC4899']
+
+// Componente do Cabeçalho da Empresa
+const CompanyHeader = () => {
+  return (
+    <>
+      {/* Cabeçalho para Tela */}
+      <div className="print:hidden bg-gradient-to-r from-primary to-primary/90 text-primary-foreground p-6 rounded-lg mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
+              <div className="text-2xl font-bold text-primary">BYD</div>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">BYD DO BRASIL LTDA</h1>
+              <p className="text-primary-foreground/80">Relatório Financeiro Executivo</p>
+            </div>
+          </div>
+          <div className="text-right text-sm">
+            <p>CNPJ: 00.000.000/0000-00</p>
+            <p>Relatório gerado em {new Date().toLocaleDateString('pt-BR')}</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-4 h-4" />
+            <span>Av. das Nações Unidas, 12901 - São Paulo, SP</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Phone className="w-4 h-4" />
+            <span>(11) 3333-3333</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Mail className="w-4 h-4" />
+            <span>contato@byd.com.br</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Cabeçalho para Impressão */}
+      <div className="hidden print:flex print:justify-between print:items-start print:border-b print:pb-4 print:mb-6">
+        <div className="flex items-start space-x-4">
+          <div className="w-12 h-12 bg-gray-800 rounded flex items-center justify-center print:bg-gray-800">
+            <div className="text-lg font-bold text-white">BYD</div>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">BYD DO BRASIL LTDA</h1>
+            <p className="text-sm text-gray-600">Relatório Financeiro Executivo</p>
+            <div className="mt-1 text-xs text-gray-500">
+              <div>CNPJ: 00.000.000/0000-00</div>
+              <div>Av. das Nações Unidas, 12901 - São Paulo, SP</div>
+              <div>Telefone: (11) 3333-3333 | Email: contato@byd.com.br</div>
+            </div>
+          </div>
+        </div>
+        <div className="text-right text-xs text-gray-600">
+          <div className="font-semibold">{new Date().toLocaleDateString('pt-BR')}</div>
+          <div>Página 1 de 1</div>
+        </div>
+      </div>
+    </>
+  )
+}
 
 export default function FinanceExecutiveReport() {
   const [events, setEvents] = useState<FinanceEvent[]>([])
@@ -138,7 +201,7 @@ export default function FinanceExecutiveReport() {
     .map(s => ({
       ...s,
       percentage: totalInvestido > 0 ? (s.total / totalInvestido) * 100 : 0,
-      count: Math.ceil(s.total / 1000000) // Estimativa baseada no valor
+      count: Math.ceil(s.total / 1000000)
     }))
 
   // Dados para gráficos
@@ -159,11 +222,14 @@ export default function FinanceExecutiveReport() {
     <div className="min-h-screen bg-background">
       {/* Área principal */}
       <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Cabeçalho da Empresa */}
+        <CompanyHeader />
+
         {/* Cabeçalho com botão de impressão */}
         <div className="flex justify-between items-center print:hidden">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Relatório Financeiro Executivo</h1>
-            <p className="text-muted-foreground mt-1">Análise consolidada de investimentos</p>
+            <h2 className="text-2xl font-bold text-foreground">Análise Financeira Consolidada</h2>
+            <p className="text-muted-foreground mt-1">Período: {monthlyData[0]?.month ? formatMonth(monthlyData[0].month) : ''} a {monthlyData[monthlyData.length - 1]?.month ? formatMonth(monthlyData[monthlyData.length - 1].month) : ''}</p>
           </div>
           <Button onClick={handlePrint} size="lg">
             <Printer className="w-4 h-4 mr-2" />
@@ -173,51 +239,48 @@ export default function FinanceExecutiveReport() {
 
         {/* Área de impressão */}
         <div id="print-area" className="print:block">
-          {/* Cabeçalho da impressão */}
-          <div className="hidden print:flex print:justify-between print:items-center print:mb-6 print:border-b print:pb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Relatório Financeiro Executivo</h1>
-              <p className="text-muted-foreground text-sm">BYD Brasil - {new Date().toLocaleDateString('pt-BR')}</p>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-semibold text-primary">{formatCurrency(totalInvestido)}</div>
-              <div className="text-sm text-muted-foreground">Total Investido</div>
+          {/* Título do Relatório para Impressão */}
+          <div className="hidden print:block print:text-center print:mb-6">
+            <h2 className="text-lg font-bold text-gray-900">RELATÓRIO FINANCEIRO EXECUTIVO</h2>
+            <p className="text-sm text-gray-600">Análise Consolidada de Investimentos com Fornecedores</p>
+            <div className="mt-1 text-xs text-gray-500">
+              Período: {monthlyData[0]?.month ? formatMonth(monthlyData[0].month) : ''} a {monthlyData[monthlyData.length - 1]?.month ? formatMonth(monthlyData[monthlyData.length - 1].month) : ''}
             </div>
           </div>
 
           {/* Métricas Principais */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:grid-cols-3 print:gap-3">
-            <Card className="print:shadow-none print:border">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:grid-cols-3 print:gap-3 print:break-inside-avoid">
+            <Card className="print:shadow-none print:border print:border-gray-300">
               <CardContent className="p-4 text-center">
-                <DollarSign className="w-8 h-8 text-primary mx-auto mb-2" />
-                <div className="text-2xl font-bold text-primary print:text-xl">{formatCurrency(totalInvestido)}</div>
-                <div className="text-sm text-muted-foreground">Total Investido</div>
+                <DollarSign className="w-8 h-8 text-primary mx-auto mb-2 print:text-gray-700" />
+                <div className="text-2xl font-bold text-primary print:text-gray-900 print:text-xl">{formatCurrency(totalInvestido)}</div>
+                <div className="text-sm text-muted-foreground print:text-gray-600">Total Investido</div>
               </CardContent>
             </Card>
 
-            <Card className="print:shadow-none print:border">
+            <Card className="print:shadow-none print:border print:border-gray-300">
               <CardContent className="p-4 text-center">
-                <Building2 className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-blue-600 print:text-xl">{totalFornecedores}</div>
-                <div className="text-sm text-muted-foreground">Fornecedores</div>
+                <Building2 className="w-8 h-8 text-blue-600 mx-auto mb-2 print:text-gray-700" />
+                <div className="text-2xl font-bold text-blue-600 print:text-gray-900 print:text-xl">{totalFornecedores}</div>
+                <div className="text-sm text-muted-foreground print:text-gray-600">Fornecedores</div>
               </CardContent>
             </Card>
 
-            <Card className="print:shadow-none print:border">
+            <Card className="print:shadow-none print:border print:border-gray-300">
               <CardContent className="p-4 text-center">
-                <Package className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                <div className="text-2xl font-bold text-green-600 print:text-xl">{events.length}</div>
-                <div className="text-sm text-muted-foreground">Transações</div>
+                <Package className="w-8 h-8 text-green-600 mx-auto mb-2 print:text-gray-700" />
+                <div className="text-2xl font-bold text-green-600 print:text-gray-900 print:text-xl">{events.length}</div>
+                <div className="text-sm text-muted-foreground print:text-gray-600">Transações</div>
               </CardContent>
             </Card>
           </div>
 
           {/* Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 print:grid-cols-2 print:gap-4 print:break-inside-avoid">
             {/* Gráfico de Barras */}
-            <Card className="print:shadow-none print:border">
+            <Card className="print:shadow-none print:border print:border-gray-300">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg print:text-base">Top Fornecedores por Valor</CardTitle>
+                <CardTitle className="text-lg print:text-base print:font-semibold">Top Fornecedores por Valor</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250} className="print:h-48">
@@ -244,9 +307,9 @@ export default function FinanceExecutiveReport() {
             </Card>
 
             {/* Gráfico de Pizza */}
-            <Card className="print:shadow-none print:border">
+            <Card className="print:shadow-none print:border print:border-gray-300">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg print:text-base">Distribuição por Fornecedor</CardTitle>
+                <CardTitle className="text-lg print:text-base print:font-semibold">Distribuição por Fornecedor</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250} className="print:h-48">
@@ -273,43 +336,43 @@ export default function FinanceExecutiveReport() {
           </div>
 
           {/* Tabela de Fornecedores */}
-          <Card className="mb-6 print:shadow-none print:border">
+          <Card className="mb-6 print:shadow-none print:border print:border-gray-300 print:break-inside-avoid">
             <CardHeader>
-              <CardTitle className="text-lg print:text-base">Relatório Consolidado de Fornecedores</CardTitle>
+              <CardTitle className="text-lg print:text-base print:font-semibold">Relatório Consolidado de Fornecedores</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left py-3 px-4 font-semibold">#</th>
-                      <th className="text-left py-3 px-4 font-semibold">Fornecedor</th>
-                      <th className="text-right py-3 px-4 font-semibold">Valor Total</th>
-                      <th className="text-right py-3 px-4 font-semibold">Participação</th>
+                    <tr className="border-b bg-muted/50 print:bg-gray-100">
+                      <th className="text-left py-3 px-4 font-semibold print:font-bold">#</th>
+                      <th className="text-left py-3 px-4 font-semibold print:font-bold">Fornecedor</th>
+                      <th className="text-right py-3 px-4 font-semibold print:font-bold">Valor Total</th>
+                      <th className="text-right py-3 px-4 font-semibold print:font-bold">Participação</th>
                     </tr>
                   </thead>
                   <tbody>
                     {allSuppliers.map((supplier, index) => (
-                      <tr key={supplier.name} className="border-b hover:bg-muted/30">
+                      <tr key={supplier.name} className="border-b hover:bg-muted/30 print:hover:bg-transparent">
                         <td className="py-2 px-4">
                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            index < 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                            index < 3 ? 'bg-primary text-primary-foreground print:bg-gray-800 print:text-white' : 'bg-muted print:bg-gray-200'
                           }`}>
                             {index + 1}
                           </div>
                         </td>
-                        <td className="py-2 px-4 font-medium">{supplier.name}</td>
-                        <td className="py-2 px-4 text-right font-semibold">
+                        <td className="py-2 px-4 font-medium print:font-normal">{supplier.name}</td>
+                        <td className="py-2 px-4 text-right font-semibold print:font-bold">
                           {formatCurrency(supplier.total)}
                         </td>
-                        <td className="py-2 px-4 text-right text-muted-foreground">
+                        <td className="py-2 px-4 text-right text-muted-foreground print:text-gray-600">
                           {supplier.percentage.toFixed(2)}%
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-primary/10 font-bold">
+                    <tr className="bg-primary/10 font-bold print:bg-gray-800 print:text-white">
                       <td colSpan={2} className="py-3 px-4">TOTAL GERAL</td>
                       <td className="py-3 px-4 text-right">{formatCurrency(totalInvestido)}</td>
                       <td className="py-3 px-4 text-right">100%</td>
@@ -321,9 +384,9 @@ export default function FinanceExecutiveReport() {
           </Card>
 
           {/* Resumo Mensal */}
-          <Card className="print:shadow-none print:border">
+          <Card className="print:shadow-none print:border print:border-gray-300 print:break-inside-avoid">
             <CardHeader>
-              <CardTitle className="text-lg print:text-base">Resumo por Mês</CardTitle>
+              <CardTitle className="text-lg print:text-base print:font-semibold">Resumo por Mês</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 print:grid-cols-6 print:gap-2">
@@ -332,17 +395,17 @@ export default function FinanceExecutiveReport() {
                     key={m.month} 
                     className={`p-3 rounded-lg border text-center ${
                       m.month === maxMonth.month 
-                        ? 'border-primary bg-primary/10' 
-                        : 'border-border bg-background'
+                        ? 'border-primary bg-primary/10 print:border-gray-400 print:bg-gray-100' 
+                        : 'border-border bg-background print:border-gray-300'
                     }`}
                   >
-                    <div className="text-sm font-semibold text-muted-foreground mb-1">
+                    <div className="text-sm font-semibold text-muted-foreground mb-1 print:text-gray-600">
                       {formatMonth(m.month)}
                     </div>
-                    <div className="text-lg font-bold text-primary">
+                    <div className="text-lg font-bold text-primary print:text-gray-900">
                       {formatCurrency(m.total)}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground print:text-gray-500">
                       {m.count} transações
                     </div>
                   </div>
@@ -352,9 +415,10 @@ export default function FinanceExecutiveReport() {
           </Card>
 
           {/* Rodapé da impressão */}
-          <div className="hidden print:block print:mt-8 print:pt-4 print:border-t print:text-center print:text-sm print:text-muted-foreground">
+          <div className="hidden print:block print:mt-8 print:pt-4 print:border-t print:text-center print:text-xs print:text-gray-500">
             <p>Relatório gerado em {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</p>
-            <p>BYD Brasil - Departamento Financeiro</p>
+            <p>BYD Brasil - Departamento Financeiro | CNPJ: 00.000.000/0000-00</p>
+            <p className="mt-1">Este é um documento confidencial para uso interno</p>
           </div>
         </div>
       </div>
@@ -371,6 +435,7 @@ export default function FinanceExecutiveReport() {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             background: white !important;
+            font-size: 12px !important;
           }
           
           .print\\:hidden {
@@ -397,6 +462,11 @@ export default function FinanceExecutiveReport() {
           
           .break-inside-avoid {
             page-break-inside: avoid;
+          }
+          
+          /* Melhorar legibilidade na impressão */
+          * {
+            color: #000 !important;
           }
         }
         
