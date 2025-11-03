@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, Users, Calendar, Lightbulb } from 'lucide-react'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts'
+import { TrendingUp, DollarSign, Package, Building2 } from 'lucide-react'
 
 interface FinanceEvent {
   id: string
@@ -28,8 +28,6 @@ interface SupplierData {
   percentage: number
   count: number
 }
-
-const COLORS = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6']
 
 const formatCurrency = (cents: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -113,23 +111,7 @@ export default function FinanceExecutiveReport() {
   }
   const avgGrowth = growthRates.length > 0 ? growthRates.reduce((a, b) => a + b, 0) / growthRates.length : 0
 
-  // Dados MONALISA STUDIO
-  const monalisaEvents = events.filter(e => 
-    e.fornecedor?.toUpperCase().includes('MONALISA') || 
-    e.fornecedor?.toUpperCase().includes('MONA LISA')
-  )
-  const monalisaTotal = monalisaEvents.reduce((sum, e) => sum + e.total_cents, 0)
-  const monalisaPercentage = totalInvestido > 0 ? (monalisaTotal / totalInvestido) * 100 : 0
-  const monalisaCount = monalisaEvents.length
-  const monalisaTicket = monalisaCount > 0 ? monalisaTotal / monalisaCount : 0
-
-  // Evolução mensal Monalisa
-  const monalisaMonthlyData = monthlyData.map(m => ({
-    month: formatMonth(m.month),
-    valor: m.monalisaTotal / 100
-  })).filter(m => m.valor > 0)
-
-  // Top 5 fornecedores
+  // Todos os fornecedores
   const supplierMap = new Map<string, SupplierData>()
   events.forEach(e => {
     if (!e.fornecedor) return
@@ -142,289 +124,308 @@ export default function FinanceExecutiveReport() {
     data.count += 1
   })
 
-  const topSuppliers = Array.from(supplierMap.values())
+  // Top 10 fornecedores (não apenas top 5)
+  const allSuppliers = Array.from(supplierMap.values())
     .sort((a, b) => b.total - a.total)
-    .slice(0, 5)
     .map(s => ({
       ...s,
       percentage: totalInvestido > 0 ? (s.total / totalInvestido) * 100 : 0
     }))
 
-  const pieData = topSuppliers.map(s => ({
-    name: s.name,
-    value: s.total / 100
-  }))
-
-  // Insights estratégicos
-  const insights = [
-    {
-      icon: <TrendingUp className="w-5 h-5" />,
-      title: 'Crescimento Sustentável',
-      text: avgGrowth > 0 
-        ? `Crescimento médio mensal de ${avgGrowth.toFixed(1)}% indica tendência positiva ↗`
-        : 'Diversificação de fornecedores recomendada para mitigar riscos'
-    },
-    {
-      icon: <DollarSign className="w-5 h-5" />,
-      title: 'Concentração de Investimento',
-      text: monalisaPercentage > 20
-        ? `Monalisa Studio representa ${monalisaPercentage.toFixed(1)}% do investimento - considere diversificação 🎯`
-        : 'Boa distribuição de investimentos entre fornecedores'
-    },
-    {
-      icon: <Calendar className="w-5 h-5" />,
-      title: 'Sazonalidade',
-      text: `${formatMonth(maxMonth.month)} foi o mês de maior investimento (${formatCurrency(maxMonth.total)}) - planeje recursos com antecedência 📊`
-    },
-    {
-      icon: <Users className="w-5 h-5" />,
-      title: 'Relacionamento com Fornecedores',
-      text: `${totalFornecedores} fornecedores ativos - mantenha relacionamentos estratégicos com top performers 🤝`
-    }
-  ]
-
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="p-6 space-y-8 max-w-[1600px] mx-auto">
         {/* Header */}
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-primary via-primary to-chart-2 bg-clip-text text-transparent">
             📊 Relatório Executivo Financeiro
           </h1>
-          <p className="text-muted-foreground">Análise completa de investimentos e desempenho</p>
+          <p className="text-lg text-muted-foreground">Análise completa de investimentos e desempenho</p>
         </div>
 
-        {/* 1. MÉTRICAS PRINCIPAIS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Investido</CardTitle>
+        {/* MÉTRICAS PRINCIPAIS - Cards Grandes */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-primary/10 via-background to-background">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-primary/20">
+                  <DollarSign className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle className="text-lg font-semibold">Total Investido</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{formatCurrency(totalInvestido)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Período completo</p>
+              <div className="text-5xl font-bold text-primary mb-2">{formatCurrency(totalInvestido)}</div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <TrendingUp className="w-4 h-4 text-green-600" />
+                <span>Período completo analisado</span>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Fornecedores Ativos</CardTitle>
+          <Card className="border-2 border-chart-2/30 shadow-2xl bg-gradient-to-br from-chart-2/10 via-background to-background">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-chart-2/20">
+                  <Building2 className="w-8 h-8 text-chart-2" />
+                </div>
+                <CardTitle className="text-lg font-semibold">Fornecedores Ativos</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{totalFornecedores}</div>
-              <p className="text-xs text-muted-foreground mt-1">Parceiros estratégicos</p>
+              <div className="text-5xl font-bold text-chart-2 mb-2">{totalFornecedores}</div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Package className="w-4 h-4" />
+                <span>Parceiros estratégicos</span>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Mês de Maior Investimento</CardTitle>
+          <Card className="border-2 border-chart-3/30 shadow-2xl bg-gradient-to-br from-chart-3/10 via-background to-background">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-chart-3/20">
+                  <TrendingUp className="w-8 h-8 text-chart-3" />
+                </div>
+                <CardTitle className="text-lg font-semibold">Crescimento Médio</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{formatMonth(maxMonth.month)}</div>
-              <p className="text-xs text-muted-foreground mt-1">{formatCurrency(maxMonth.total)}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/20 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Crescimento Médio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold flex items-center gap-2 ${avgGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {avgGrowth >= 0 ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+              <div className={`text-5xl font-bold mb-2 ${avgGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {avgGrowth >= 0 ? '+' : ''}{avgGrowth.toFixed(1)}%
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Por mês</p>
+              <div className="text-sm text-muted-foreground">
+                Por mês • Pico: {formatMonth(maxMonth.month)}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* 2. DESTAQUE MONALISA STUDIO */}
-        <Card className="border-2 border-primary/30 shadow-xl bg-gradient-to-br from-primary/5 to-background">
+        {/* GRÁFICO DE FATURAMENTO TOTAL - Grande e Destacado */}
+        <Card className="border-2 border-primary/30 shadow-2xl">
           <CardHeader>
-            <CardTitle className="text-2xl flex items-center gap-2">
-              🎬 Destaque: Monalisa Studio
+            <CardTitle className="text-3xl font-bold flex items-center gap-3">
+              📈 Faturamento Total Acumulado
             </CardTitle>
+            <p className="text-muted-foreground">Evolução do investimento ao longo do tempo</p>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-background/80 p-4 rounded-lg border border-primary/20">
-                <div className="text-sm text-muted-foreground mb-1">Total Investido</div>
-                <div className="text-2xl font-bold text-primary">{formatCurrency(monalisaTotal)}</div>
-                <div className="text-xs text-muted-foreground mt-1">{monalisaPercentage.toFixed(1)}% do total</div>
-              </div>
-              <div className="bg-background/80 p-4 rounded-lg border border-primary/20">
-                <div className="text-sm text-muted-foreground mb-1">Projetos/Notas</div>
-                <div className="text-2xl font-bold text-primary">{monalisaCount}</div>
-                <div className="text-xs text-muted-foreground mt-1">Transações</div>
-              </div>
-              <div className="bg-background/80 p-4 rounded-lg border border-primary/20">
-                <div className="text-sm text-muted-foreground mb-1">Ticket Médio</div>
-                <div className="text-2xl font-bold text-primary">{formatCurrency(monalisaTicket)}</div>
-                <div className="text-xs text-muted-foreground mt-1">Por projeto</div>
-              </div>
-              <div className="bg-background/80 p-4 rounded-lg border border-primary/20">
-                <div className="text-sm text-muted-foreground mb-1">Participação</div>
-                <div className="text-2xl font-bold text-primary">{monalisaPercentage.toFixed(1)}%</div>
-                <div className="text-xs text-muted-foreground mt-1">Do investimento</div>
-              </div>
-            </div>
-
-            {monalisaMonthlyData.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold mb-4">📈 Evolução Mês a Mês</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={monalisaMonthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" className="text-xs" />
-                    <YAxis 
-                      className="text-xs"
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Valor']}
-                      contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="valor" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={3}
-                      dot={{ fill: 'hsl(var(--primary))', r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={monthlyData.map((m, idx) => {
+                const accumulated = monthlyData.slice(0, idx + 1).reduce((sum, month) => sum + month.total, 0)
+                return {
+                  month: formatMonth(m.month),
+                  acumulado: accumulated / 100,
+                  mensal: m.total / 100
+                }
+              })}>
+                <defs>
+                  <linearGradient id="colorAccumulated" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                <XAxis 
+                  dataKey="month" 
+                  className="text-sm font-medium"
+                  tick={{ fill: 'hsl(var(--foreground))' }}
+                />
+                <YAxis 
+                  className="text-sm font-medium"
+                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                  tick={{ fill: 'hsl(var(--foreground))' }}
+                />
+                <Tooltip 
+                  formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))', 
+                    border: '2px solid hsl(var(--primary))',
+                    borderRadius: '8px',
+                    padding: '12px'
+                  }}
+                />
+                <Legend />
+                <Area 
+                  type="monotone" 
+                  dataKey="acumulado" 
+                  stroke="hsl(var(--primary))" 
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorAccumulated)"
+                  name="Total Acumulado"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="mensal" 
+                  stroke="hsl(var(--chart-2))" 
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  name="Mensal"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* 3. COMPARATIVO FORNECEDORES */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl">🏆 Top 5 Fornecedores</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topSuppliers.map((supplier, idx) => (
-                  <div key={supplier.name} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                        idx === 0 ? 'bg-yellow-500 text-yellow-950' :
-                        idx === 1 ? 'bg-gray-400 text-gray-950' :
-                        idx === 2 ? 'bg-amber-600 text-amber-950' :
-                        'bg-primary/20 text-primary'
-                      }`}>
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-sm">{supplier.name}</div>
-                        <div className="text-xs text-muted-foreground">{supplier.count} projetos</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-primary">{formatCurrency(supplier.total)}</div>
-                      <div className="text-xs text-muted-foreground">{supplier.percentage.toFixed(1)}%</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+        {/* FORNECEDORES - Cards Individuais */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-bold flex items-center gap-3">
+              🏢 Faturamento por Fornecedor
+            </h2>
+            <div className="text-sm text-muted-foreground">
+              Total: {allSuppliers.length} fornecedores
+            </div>
+          </div>
 
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl">📊 Distribuição de Investimento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(entry) => `${entry.name.split(' ')[0]} (${((entry.value / pieData.reduce((s, d) => s + d.value, 0)) * 100).toFixed(1)}%)`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                    contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allSuppliers.map((supplier, idx) => {
+              const isTop3 = idx < 3
+              const borderColor = isTop3 ? 'border-primary/40' : 'border-border'
+              const bgGradient = isTop3 
+                ? 'bg-gradient-to-br from-primary/5 via-background to-background' 
+                : 'bg-background'
+              
+              return (
+                <Card key={supplier.name} className={`${borderColor} shadow-lg ${bgGradient} transition-all hover:shadow-xl hover:scale-[1.02]`}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {isTop3 && (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                            idx === 0 ? 'bg-yellow-500 text-yellow-950' :
+                            idx === 1 ? 'bg-gray-400 text-gray-950' :
+                            'bg-amber-600 text-amber-950'
+                          }`}>
+                            {idx + 1}
+                          </div>
+                        )}
+                        <CardTitle className="text-base font-semibold leading-tight">
+                          {supplier.name}
+                        </CardTitle>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-1">
+                      <div className="text-3xl font-bold text-primary">
+                        {formatCurrency(supplier.total)}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Participação:</span>
+                        <span className="font-semibold text-foreground">{supplier.percentage.toFixed(2)}%</span>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Projetos</span>
+                        <span className="font-semibold">{supplier.count}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-muted-foreground">Ticket Médio</span>
+                        <span className="font-semibold">{formatCurrency(supplier.total / supplier.count)}</span>
+                      </div>
+                    </div>
+
+                    {/* Barra de progresso */}
+                    <div className="space-y-1">
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${Math.min(supplier.percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
         </div>
 
-        {/* 4. EVOLUÇÃO MENSAL */}
-        <Card className="shadow-lg">
+        {/* GRÁFICO DE BARRAS - Comparativo por Fornecedor */}
+        <Card className="border-2 border-chart-2/30 shadow-2xl">
           <CardHeader>
-            <CardTitle className="text-xl">📅 Evolução Mensal do Investimento</CardTitle>
+            <CardTitle className="text-3xl font-bold flex items-center gap-3">
+              📊 Comparativo de Fornecedores
+            </CardTitle>
+            <p className="text-muted-foreground">Top 15 fornecedores por volume investido</p>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyData.map(m => ({
-                month: formatMonth(m.month),
-                valor: m.total / 100,
-                projetos: m.count
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" className="text-xs" />
-                <YAxis 
-                  className="text-xs"
+          <CardContent>
+            <ResponsiveContainer width="100%" height={600}>
+              <BarChart 
+                data={allSuppliers.slice(0, 15).map(s => ({
+                  name: s.name.length > 30 ? s.name.substring(0, 30) + '...' : s.name,
+                  valor: s.total / 100,
+                  projetos: s.count
+                }))}
+                layout="vertical"
+                margin={{ left: 200, right: 30 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
+                <XAxis 
+                  type="number"
                   tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                  tick={{ fill: 'hsl(var(--foreground))' }}
+                />
+                <YAxis 
+                  type="category"
+                  dataKey="name" 
+                  width={190}
+                  tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                 />
                 <Tooltip 
                   formatter={(value: number, name: string) => [
-                    name === 'valor' ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
+                    name === 'valor' 
+                      ? `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
+                      : `${value} projetos`,
                     name === 'valor' ? 'Valor Total' : 'Projetos'
                   ]}
-                  contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--background))', 
+                    border: '2px solid hsl(var(--primary))',
+                    borderRadius: '8px',
+                    padding: '12px'
+                  }}
                 />
-                <Legend />
-                <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="projetos" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[0, 8, 8, 0]} />
               </BarChart>
             </ResponsiveContainer>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {monthlyData.slice(-4).map(m => (
-                <div key={m.month} className="p-3 bg-muted/30 rounded-lg">
-                  <div className="text-xs text-muted-foreground">{formatMonth(m.month)}</div>
-                  <div className="text-lg font-bold text-primary">{formatCurrency(m.total)}</div>
-                  <div className="text-xs text-muted-foreground">{m.count} projetos</div>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
 
-        {/* 5. INSIGHTS ESTRATÉGICOS */}
-        <Card className="border-2 border-primary/30 shadow-xl bg-gradient-to-br from-primary/5 to-background">
+        {/* EVOLUÇÃO MENSAL - Resumo */}
+        <Card className="shadow-xl">
           <CardHeader>
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <Lightbulb className="w-6 h-6 text-primary" />
-              Insights Estratégicos
-            </CardTitle>
+            <CardTitle className="text-2xl font-bold">📅 Resumo Mensal</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {insights.map((insight, idx) => (
-                <div key={idx} className="p-4 bg-background border border-primary/20 rounded-lg space-y-2">
-                  <div className="flex items-center gap-2 text-primary">
-                    {insight.icon}
-                    <h3 className="font-semibold">{insight.title}</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {monthlyData.map(m => (
+                <div 
+                  key={m.month} 
+                  className={`p-4 rounded-lg border-2 transition-all hover:shadow-lg ${
+                    m.month === maxMonth.month 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-border bg-muted/30'
+                  }`}
+                >
+                  <div className="text-xs font-semibold text-muted-foreground mb-1">
+                    {formatMonth(m.month)}
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{insight.text}</p>
+                  <div className="text-xl font-bold text-primary mb-1">
+                    {formatCurrency(m.total)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {m.count} projetos
+                  </div>
+                  {m.month === maxMonth.month && (
+                    <div className="text-xs font-semibold text-primary mt-1">
+                      🏆 Maior mês
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
