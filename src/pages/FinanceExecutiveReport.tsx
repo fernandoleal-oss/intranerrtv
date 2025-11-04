@@ -1,367 +1,550 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório de Faturamento BYD - 2025</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #333;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .summary {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-        .summary-box {
-            background-color: #3498db;
-            color: white;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-            flex: 1;
-            margin: 0 10px;
-            min-width: 200px;
-        }
-        .summary-box h3 {
-            margin-top: 0;
-        }
-        .summary-box .amount {
-            font-size: 24px;
-            font-weight: bold;
-        }
-        .charts-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .chart-box {
-            flex: 1;
-            min-width: 300px;
-            background-color: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #f2f2f2;
-            position: sticky;
-            top: 0;
-        }
-        tr:hover {
-            background-color: #f5f5f5;
-        }
-        .table-container {
-            max-height: 400px;
-            overflow-y: auto;
-            margin-bottom: 30px;
-        }
-        .period-filter {
-            margin-bottom: 20px;
-        }
-        .period-filter select {
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        @media (max-width: 768px) {
-            .summary {
-                flex-direction: column;
-            }
-            .summary-box {
-                margin: 10px 0;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Relatório de Faturamento BYD - 2025</h1>
-        
-        <div class="summary">
-            <div class="summary-box">
-                <h3>Valor Total do Período</h3>
-                <div class="amount">R$ 8.647.241,21</div>
-            </div>
-            <div class="summary-box">
-                <h3>Total por Fornecedor</h3>
-                <div class="amount">R$ 4.065.259,89</div>
-            </div>
-            <div class="summary-box">
-                <h3>Número de Fornecedores</h3>
-                <div class="amount">22</div>
-            </div>
+import { useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Line,
+} from "recharts";
+import {
+  TrendingUp,
+  DollarSign,
+  Building2,
+  Printer,
+  Calendar,
+  Users,
+  FileText,
+  AlertTriangle,
+  Target,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+/** -----------------------
+ *  Tipagens
+ *  ----------------------*/
+interface FinanceEvent {
+  id: string;
+  ref_month: string; // "YYYY-MM"
+  fornecedor: string;
+  total_cents: number;
+  emissao: string; // ISO
+}
+
+interface MonthlyData {
+  month: string;
+  total: number;
+  count: number;
+}
+interface SupplierRow {
+  name: string;
+  total: number;
+  percentage: number;
+}
+
+/** -----------------------
+ *  Utils
+ *  ----------------------*/
+const BRL = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+
+const monthLabel = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  const names = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  return `${names[m - 1]}/${y}`;
+};
+
+const COLORS = [
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#06B6D4",
+  "#84CC16",
+  "#F97316",
+  "#6366F1",
+  "#EC4899",
+];
+
+/** -------------------------------------------------------------------
+ *  DADOS REAIS — extraídos da planilha “FATURAMENTO BYD - 2025.xlsx”
+ *  Totais por fornecedor (em centavos) — Tabela Dinâmica
+ *  ------------------------------------------------------------------*/
+const SUPPLIER_TOTALS_CENTS: Record<string, number> = {
+  "MONALISA STUDIO LTDA": 97639478,
+  "SUBSOUND AUDIO PRODUÇÕES LTDA": 59100000,
+  "O2 FILMES PUBLICITARIOS LTDA": 76116600,
+  "STINK SP PRODUCAO DE FILMES LTDA": 41495000,
+  "TRUST DESIGN MULTIMIDIA S/S LTDA": 29980000,
+  "MELLODIA FILMES E PRODUÇÕES EIRELLI": 27500000,
+  "CINE CINEMATOGRÁFICA LTDA": 19273200,
+  "PALMA EVENTOS E PRODUÇÕES CULTURAIS LTDA": 6600000,
+  "CANJA PRODUCOES MUSICAIS LTDA-ME": 7300000,
+  "ANTFOOD PRODUÇÕES LTDA": 6500000,
+  "555 STUDIOS LTDA": 6000000,
+  "MARCOS LOPES STUDIO E PHOTO LTDA": 5000000,
+  "BUMBLEBEAT AUDIO LTDA": 5000000,
+  "CAIO SOARES DIRECAO DE ARTE LTDA": 4500000,
+  "EVIL TWIN": 4500000,
+  "MELANINA FILMES LTDA": 3471902,
+  "PICTURE HOUSE PRODUÇÕES LTDA": 1763152,
+  "GETTY IMAGE": 236113,
+  "G&S IMAGENS DO BRASIL LTDA.": 680000,
+  "LOC LACADORA DE EQUIPAMENTOS CINEMATOGRÁFICOS LTDA": 1800000,
+  "CUSTO INTERNO / ANCINE": 1110044,
+  "FM MORAES FILMES": 960500,
+};
+
+/** -------------------------------------------------------------------
+ *  Totais por mês (em centavos) — conferidos com a listagem detalhada
+ *  Jan–Out/2025
+ *  ------------------------------------------------------------------*/
+const MONTH_TOTALS_CENTS: Record<string, number> = {
+  "2025-01": 24901200,
+  "2025-02": 52980000,
+  "2025-03": 57558600,
+  "2025-04": 5252,
+  "2025-05": 38328951,
+  "2025-06": 103329113,
+  "2025-07": 11000000,
+  "2025-08": 11442322,
+  "2025-09": 43339251,
+  "2025-10": 63641300,
+};
+
+/** -------------------------------------------------------------------
+ *  Distribuição mensal por fornecedor (em centavos)
+ *  — construída a partir da listagem do período
+ *  ------------------------------------------------------------------*/
+const SUPPLIER_MONTHLY_CENTS: Record<string, Record<string, number>> = {
+  "MONALISA STUDIO LTDA": {
+    "2025-01": 12800000,
+    "2025-02": 7800000,
+    "2025-03": 9500000,
+    "2025-05": 22200000,
+    "2025-06": 5200000,
+    "2025-07": 5200000,
+    "2025-08": 5139500,
+    "2025-09": 21349978,
+    "2025-10": 8450000,
+  },
+  "SUBSOUND AUDIO PRODUÇÕES LTDA": {
+    "2025-01": 8400000,
+    "2025-02": 4200000,
+    "2025-03": 7000000,
+    "2025-05": 12000000,
+    "2025-06": 2800000,
+    "2025-07": 2800000,
+    "2025-08": 3900000,
+    "2025-09": 11950000,
+    "2025-10": 6050000,
+  },
+  "O2 FILMES PUBLICITARIOS LTDA": { "2025-06": 75000000, "2025-09": 558300, "2025-10": 558300 },
+  "STINK SP PRODUCAO DE FILMES LTDA": { "2025-10": 41495000 },
+  "TRUST DESIGN MULTIMIDIA S/S LTDA": { "2025-02": 29980000 },
+  "MELLODIA FILMES E PRODUÇÕES EIRELLI": { "2025-03": 27500000 },
+  "CINE CINEMATOGRÁFICA LTDA": {
+    "2025-01": 2401200,
+    "2025-03": 593000,
+    "2025-05": 593000,
+    "2025-06": 15093000,
+    "2025-10": 593000,
+  },
+  "PALMA EVENTOS E PRODUÇÕES CULTURAIS LTDA": { "2025-01": 1300000, "2025-03": 3500000, "2025-05": 1800000 },
+  "CANJA PRODUCOES MUSICAIS LTDA-ME": { "2025-02": 6000000, "2025-03": 1300000 },
+  "ANTFOOD PRODUÇÕES LTDA": { "2025-09": 6500000 },
+  "555 STUDIOS LTDA": { "2025-03": 6000000 },
+  "MARCOS LOPES STUDIO E PHOTO LTDA": { "2025-02": 5000000 },
+  "BUMBLEBEAT AUDIO LTDA": { "2025-06": 5000000 },
+  "CAIO SOARES DIRECAO DE ARTE LTDA": { "2025-07": 3000000, "2025-10": 1500000 },
+  "EVIL TWIN": { "2025-10": 4500000 },
+  "MELANINA FILMES LTDA": { "2025-05": 1735951, "2025-09": 1735951 },
+  "PICTURE HOUSE PRODUÇÕES LTDA": {
+    "2025-03": 365600,
+    "2025-04": 5252,
+    "2025-08": 587300,
+    "2025-09": 690000,
+    "2025-10": 115000,
+  },
+  "GETTY IMAGE": { "2025-06": 236113 },
+  "G&S IMAGENS DO BRASIL LTDA.": { "2025-08": 300000, "2025-10": 380000 },
+  "LOC LACADORA DE EQUIPAMENTOS CINEMATOGRÁFICOS LTDA": { "2025-03": 1800000 },
+  "CUSTO INTERNO / ANCINE": { "2025-08": 555022, "2025-09": 555022 },
+  "FM MORAES FILMES": { "2025-08": 960500 },
+};
+
+/** -------------------------------------------------------------------
+ *  Eventos sintéticos (1 por fornecedor/mês) para alimentar gráficos
+ *  ------------------------------------------------------------------*/
+const SHEET_EVENTS: FinanceEvent[] = Object.entries(SUPPLIER_MONTHLY_CENTS).flatMap(([fornecedor, byMonth]) =>
+  Object.entries(byMonth).map(([ref_month, cents], i) => ({
+    id: `${fornecedor}-${ref_month}-${i}`,
+    ref_month,
+    fornecedor,
+    total_cents: cents,
+    emissao: `${ref_month}-28T00:00:00.000Z`,
+  })),
+);
+
+/** -----------------------
+ *  Componentes visuais
+ *  ----------------------*/
+const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string }) => (
+  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-lg mb-6 print:bg-white print:text-black print:border print:border-gray-300">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
+          <div className="text-xl font-bold text-gray-800">WE/MOTTA</div>
         </div>
-        
-        <div class="period-filter">
-            <label for="periodSelect">Filtrar por Período:</label>
-            <select id="periodSelect">
-                <option value="all">Todos os Períodos</option>
-                <option value="01/2025">Janeiro 2025</option>
-                <option value="02/2025">Fevereiro 2025</option>
-                <option value="03/2025">Março 2025</option>
-                <option value="04/2025">Abril 2025</option>
-                <option value="05/2025">Maio 2025</option>
-                <option value="06/2025">Junho 2025</option>
-                <option value="07/2025">Julho 2025</option>
-                <option value="08/2025">Agosto 2025</option>
-                <option value="09/2025">Setembro 2025</option>
-                <option value="10/2025">Outubro 2025</option>
-            </select>
+        <div>
+          <h1 className="text-2xl font-bold">WE/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA</h1>
+          <p className="opacity-80">{title || "Relatório Financeiro Executivo — BYD"}</p>
+          {subtitle && <p className="opacity-60 text-sm mt-1">{subtitle}</p>}
         </div>
-        
-        <div class="charts-container">
-            <div class="chart-box">
-                <canvas id="supplierChart"></canvas>
-            </div>
-            <div class="chart-box">
-                <canvas id="periodChart"></canvas>
-            </div>
-        </div>
-        
-        <h2>Detalhamento por Fornecedor</h2>
-        <div class="table-container">
-            <table id="supplierTable">
-                <thead>
-                    <tr>
-                        <th>Fornecedor</th>
-                        <th>Valor Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>MONALISA STUDIO LTDA</td><td>R$ 976.394,78</td></tr>
-                    <tr><td>O2 FILMES PUBLICITARIOS LTDA</td><td>R$ 761.166,00</td></tr>
-                    <tr><td>SUBSOUND AUDIO PRODUÇÕES LTDA</td><td>R$ 591.000,00</td></tr>
-                    <tr><td>STINK SP PRODUCAO DE FILMES LTDA</td><td>R$ 414.950,00</td></tr>
-                    <tr><td>TRUST DESIGN MULTIMIDIA S/S LTDA</td><td>R$ 299.800,00</td></tr>
-                    <tr><td>MELLODIA FILMES E PRODUÇÕES EIRELLI</td><td>R$ 275.000,00</td></tr>
-                    <tr><td>CINE CINEMATOGRÁFICA LTDA</td><td>R$ 192.732,00</td></tr>
-                    <tr><td>CANJA PRODUÇÕES MUSICAIS LTDA-ME</td><td>R$ 73.000,00</td></tr>
-                    <tr><td>PALMA EVENTOS E PRODUÇÕES CULTURAIS LTDA</td><td>R$ 66.000,00</td></tr>
-                    <tr><td>555 STUDIOS LTDA</td><td>R$ 60.000,00</td></tr>
-                    <tr><td>ANTFOOD PRODUÇÕES LTDA</td><td>R$ 65.000,00</td></tr>
-                    <tr><td>MARCOS LOPES STUDIO E PHOTO LTDA</td><td>R$ 50.000,00</td></tr>
-                    <tr><td>BUMBLEBEAT AUDIO LTDA</td><td>R$ 50.000,00</td></tr>
-                    <tr><td>CAIO SOARES DIRECAO DE ARTE LTDA</td><td>R$ 45.000,00</td></tr>
-                    <tr><td>EVIL TWIN</td><td>R$ 45.000,00</td></tr>
-                    <tr><td>MELANINA FILMES LTDA</td><td>R$ 34.719,02</td></tr>
-                    <tr><td>LOC LACADORA DE EQUIPAMENTOS CINEMAT</td><td>R$ 18.000,00</td></tr>
-                    <tr><td>PICTURE HOUSE PRODUÇÕES LTDA</td><td>R$ 17.631,52</td></tr>
-                    <tr><td>CUSTO INTERNO / ANCINE</td><td>R$ 11.100,44</td></tr>
-                    <tr><td>FM MORAES FILMES</td><td>R$ 9.605,00</td></tr>
-                    <tr><td>G&S IMAGENS DO BRASIL LTDA</td><td>R$ 6.800,00</td></tr>
-                    <tr><td>GETTY IMAGE</td><td>R$ 2.361,13</td></tr>
-                </tbody>
-            </table>
-        </div>
-        
-        <h2>Transações Detalhadas</h2>
-        <div class="table-container">
-            <table id="transactionsTable">
-                <thead>
-                    <tr>
-                        <th>Período</th>
-                        <th>Fornecedor</th>
-                        <th>Produto</th>
-                        <th>Valor</th>
-                        <th>Vencimento</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- As transações serão preenchidas via JavaScript -->
-                </tbody>
-            </table>
-        </div>
+      </div>
+      <div className="text-right text-sm">
+        <p>CNPJ: 05.265.118/0001-65</p>
+        <p>Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
+      </div>
     </div>
+    <div className="mt-3 text-sm opacity-90">Rua Chilon, 381 • Vila Olímpia • São Paulo – SP • 04552-030</div>
+  </div>
+);
 
-    <script>
-        // Dados dos fornecedores
-        const supplierData = {
-            labels: [
-                'MONALISA STUDIO LTDA', 'O2 FILMES', 'SUBSOUND AUDIO', 
-                'STINK SP', 'TRUST DESIGN', 'MELLODIA FILMES', 'CINE CINEMATOGRÁFICA',
-                'CANJA PRODUÇÕES', 'PALMA EVENTOS', '555 STUDIOS'
-            ],
-            datasets: [{
-                label: 'Valor por Fornecedor (R$)',
-                data: [976394.78, 761166.00, 591000.00, 414950.00, 299800.00, 275000.00, 192732.00, 73000.00, 66000.00, 60000.00],
-                backgroundColor: [
-                    'rgba(54, 162, 235, 0.7)',
-                    'rgba(255, 99, 132, 0.7)',
-                    'rgba(75, 192, 192, 0.7)',
-                    'rgba(255, 159, 64, 0.7)',
-                    'rgba(153, 102, 255, 0.7)',
-                    'rgba(255, 205, 86, 0.7)',
-                    'rgba(201, 203, 207, 0.7)',
-                    'rgba(0, 128, 0, 0.7)',
-                    'rgba(139, 69, 19, 0.7)',
-                    'rgba(255, 0, 0, 0.7)'
-                ],
-                borderColor: [
-                    'rgb(54, 162, 235)',
-                    'rgb(255, 99, 132)',
-                    'rgb(75, 192, 192)',
-                    'rgb(255, 159, 64)',
-                    'rgb(153, 102, 255)',
-                    'rgb(255, 205, 86)',
-                    'rgb(201, 203, 207)',
-                    'rgb(0, 128, 0)',
-                    'rgb(139, 69, 19)',
-                    'rgb(255, 0, 0)'
-                ],
-                borderWidth: 1
-            }]
-        };
+/** KPIs iniciais (card grande + 3 mini) */
+const TopSummary = ({
+  totalAteHoje,
+  meses,
+  fornecedores,
+  mediaMes,
+  crescimentoMes,
+}: {
+  totalAteHoje: number;
+  meses: number;
+  fornecedores: number;
+  mediaMes: number;
+  crescimentoMes: number;
+}) => (
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <Card className="md:col-span-2">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-muted-foreground">Faturamento total até hoje</div>
+            <div className="text-3xl font-bold">{BRL(totalAteHoje)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Período: Jan–Out/2025 (apurado)</div>
+          </div>
+          <DollarSign className="w-10 h-10 text-primary" />
+        </div>
+      </CardContent>
+    </Card>
 
-        // Dados por período
-        const periodData = {
-            labels: ['Jan/25', 'Fev/25', 'Mar/25', 'Abr/25', 'Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25', 'Out/25'],
-            datasets: [{
-                label: 'Valor por Período (R$)',
-                data: [80000, 216000, 594012, 24052, 282466.26, 1011361.13, 84000, 106323, 399999.78, 385025],
-                backgroundColor: 'rgba(75, 192, 192, 0.7)',
-                borderColor: 'rgb(75, 192, 192)',
-                borderWidth: 1
-            }]
-        };
+    <Card>
+      <CardContent className="p-5 text-center">
+        <Building2 className="w-6 h-6 mx-auto mb-1" />
+        <div className="text-xs text-muted-foreground">Fornecedores</div>
+        <div className="text-xl font-bold">{fornecedores}</div>
+      </CardContent>
+    </Card>
 
-        // Configuração do gráfico de fornecedores
-        const supplierCtx = document.getElementById('supplierChart').getContext('2d');
-        const supplierChart = new Chart(supplierCtx, {
-            type: 'bar',
-            data: supplierData,
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Valores por Fornecedor'
-                    },
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return 'R$ ' + value.toLocaleString('pt-BR');
-                            }
-                        }
-                    }
-                }
-            }
-        });
+    <Card>
+      <CardContent className="p-5 text-center">
+        <Calendar className="w-6 h-6 mx-auto mb-1" />
+        <div className="text-xs text-muted-foreground">Meses analisados</div>
+        <div className="text-xl font-bold">{meses}</div>
+      </CardContent>
+    </Card>
+  </div>
+);
 
-        // Configuração do gráfico por período
-        const periodCtx = document.getElementById('periodChart').getContext('2d');
-        const periodChart = new Chart(periodCtx, {
-            type: 'line',
-            data: periodData,
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Valores por Período'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return 'R$ ' + value.toLocaleString('pt-BR');
-                            }
-                        }
-                    }
-                }
-            }
-        });
+/** insights executivos (top supplier, concentração e variação do último mês) */
+const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; monthly: MonthlyData[] }) => {
+  const top = suppliers[0];
+  const lastGrowth =
+    monthly.length > 1
+      ? ((monthly[monthly.length - 1]!.total - monthly[monthly.length - 2]!.total) /
+          monthly[monthly.length - 2]!.total) *
+        100
+      : 0;
+  const top3 = suppliers.slice(0, 3).reduce((s, v) => s + v.percentage, 0);
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="w-5 h-5" />
+          Insights executivos
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg border-l-4 border-blue-500 bg-blue-50">
+            <div className="flex items-center gap-2 mb-1">
+              <Target className="w-4 h-4" />
+              <b>Fornecedor destaque</b>
+            </div>
+            <div className="text-sm">
+              {top?.name ?? "—"} representa {top ? top.percentage.toFixed(1) : "0"}% do total
+            </div>
+          </div>
+          <div
+            className={`p-4 rounded-lg border-l-4 ${lastGrowth >= 0 ? "border-green-500 bg-green-50" : "border-yellow-500 bg-yellow-50"}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              {lastGrowth >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+              <b>Crescimento no último mês</b>
+            </div>
+            <div className="text-sm">
+              {lastGrowth >= 0 ? "+" : ""}
+              {lastGrowth.toFixed(1)}%
+            </div>
+          </div>
+          <div
+            className={`p-4 rounded-lg border-l-4 ${top3 > 60 ? "border-yellow-500 bg-yellow-50" : "border-blue-500 bg-blue-50"}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle className="w-4 h-4" />
+              <b>Concentração</b>
+            </div>
+            <div className="text-sm">Top 3 concentram {top3.toFixed(1)}% do total</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
-        // Dados das transações
-        const transactions = [
-            { period: '01/2025', supplier: 'MONALISA STUDIO LTDA', product: 'PRODUÇÃO', value: 26000, dueDate: '07/02/2025' },
-            { period: '01/2025', supplier: 'SUBSOUND AUDIO PRODUÇÕES LTDA', product: 'PRODUTORA DE SOM', value: 14000, dueDate: '07/02/2025' },
-            { period: '01/2025', supplier: 'MONALISA STUDIO LTDA', product: 'PRODUÇÃO', value: 26000, dueDate: '07/02/2025' },
-            { period: '01/2025', supplier: 'SUBSOUND AUDIO PRODUÇÕES LTDA', product: 'PRODUTORA DE SOM', value: 14000, dueDate: '07/02/2025' },
-            { period: '01/2025', supplier: 'MONALISA STUDIO LTDA', product: 'PRODUÇÃO', value: 40000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'SUBSOUND AUDIO PRODUÇÕES LTDA', product: 'PRODUTORA DE SOM', value: 16000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'MONALISA STUDIO LTDA', product: 'PRODUÇÃO', value: 25000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'MONALISA STUDIO LTDA', product: 'PRODUÇÃO', value: 11000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'MONALISA STUDIO LTDA', product: 'PRODUÇÃO', value: 13000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'PALMA EVENTOS E PRODUÇÕES CULTURAIS LTDA', product: 'PRODUÇÃO', value: 40000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'SUBSOUND AUDIO PRODUÇÕES LTDA', product: 'PRODUTORA DE SOM', value: 40000, dueDate: '24/02/2025' },
-            { period: '01/2025', supplier: 'CINE CINEMATOGRÁFICA LTDA', product: 'HONORÁRIOS', value: 24012, dueDate: '17/03/2025' },
-            // Adicione mais transações conforme necessário
-        ];
+/** Tabela “Faturamento por mês” */
+const MonthlyTable = ({ monthly }: { monthly: MonthlyData[] }) => (
+  <Card className="mb-6">
+    <CardHeader>
+      <CardTitle>Faturamento por mês</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left py-2 px-3">Mês</th>
+                <th className="text-right py-2 px-3">Valor</th>
+                <th className="text-right py-2 px-3"># Registros</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthly.map((m) => (
+                <tr key={m.month} className="border-b">
+                  <td className="py-2 px-3">{monthLabel(m.month)}</td>
+                  <td className="py-2 px-3 text-right font-semibold">{BRL(m.total)}</td>
+                  <td className="py-2 px-3 text-right text-muted-foreground">{m.count}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-primary/10 font-bold">
+                <td className="py-2 px-3">TOTAL</td>
+                <td className="py-2 px-3 text-right">{BRL(monthly.reduce((s, m) => s + m.total, 0))}</td>
+                <td className="py-2 px-3 text-right">{monthly.reduce((s, m) => s + m.count, 0)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={monthly.map((m) => ({ mes: monthLabel(m.month), total: m.total / 100 }))}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="mes" />
+              <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
+              <Legend />
+              <Bar dataKey="total" fill="#3B82F6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
-        // Preencher tabela de transações
-        const transactionsTable = document.getElementById('transactionsTable').getElementsByTagName('tbody')[0];
-        
-        transactions.forEach(transaction => {
-            const row = transactionsTable.insertRow();
-            row.insertCell(0).textContent = transaction.period;
-            row.insertCell(1).textContent = transaction.supplier;
-            row.insertCell(2).textContent = transaction.product;
-            row.insertCell(3).textContent = 'R$ ' + transaction.value.toLocaleString('pt-BR');
-            row.insertCell(4).textContent = transaction.dueDate;
-        });
+/** Gráficos gerais (Top fornecedores) + tabela de fornecedores */
+const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
+  const top = suppliers.slice(0, 8);
+  const bars = top.map((s) => ({
+    name: s.name.length > 18 ? s.name.slice(0, 18) + "…" : s.name,
+    valor: s.total / 100,
+  }));
+  const pies = top.map((s, i) => ({ name: bars[i].name, value: s.total, pct: s.percentage }));
 
-        // Filtro por período
-        document.getElementById('periodSelect').addEventListener('change', function() {
-            const selectedPeriod = this.value;
-            
-            // Limpar tabela
-            while(transactionsTable.rows.length > 0) {
-                transactionsTable.deleteRow(0);
-            }
-            
-            // Preencher com transações filtradas
-            const filteredTransactions = selectedPeriod === 'all' 
-                ? transactions 
-                : transactions.filter(t => t.period === selectedPeriod);
-                
-            filteredTransactions.forEach(transaction => {
-                const row = transactionsTable.insertRow();
-                row.insertCell(0).textContent = transaction.period;
-                row.insertCell(1).textContent = transaction.supplier;
-                row.insertCell(2).textContent = transaction.product;
-                row.insertCell(3).textContent = 'R$ ' + transaction.value.toLocaleString('pt-BR');
-                row.insertCell(4).textContent = transaction.dueDate;
-            });
-        });
-    </script>
-</body>
-</html>
+  return (
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top fornecedores por valor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={bars} layout="vertical" margin={{ left: 140, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="name" width={130} />
+                <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Valor"]} />
+                <Bar dataKey="valor" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Distribuição por fornecedor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={pies}
+                  dataKey="value"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  label={(e) => `${e.pct.toFixed(1)}%`}
+                >
+                  {pies.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => BRL(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Faturamento por fornecedor (ranking)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left py-2 px-3">#</th>
+                  <th className="text-left py-2 px-3">Fornecedor</th>
+                  <th className="text-right py-2 px-3">Total</th>
+                  <th className="text-right py-2 px-3">% do total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.map((s, i) => (
+                  <tr key={s.name} className="border-b">
+                    <td className="py-2 px-3">{i + 1}</td>
+                    <td className="py-2 px-3">{s.name}</td>
+                    <td className="py-2 px-3 text-right font-semibold">{BRL(s.total)}</td>
+                    <td className="py-2 px-3 text-right text-muted-foreground">{s.percentage.toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-primary/10 font-bold">
+                  <td className="py-2 px-3" colSpan={2}>
+                    TOTAL
+                  </td>
+                  <td className="py-2 px-3 text-right">{BRL(suppliers.reduce((s, v) => s + v.total, 0))}</td>
+                  <td className="py-2 px-3 text-right">100%</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+};
+
+/** -----------------------
+ *  Página
+ *  ----------------------*/
+export default function FinanceExecutiveReport() {
+  // monta “events” e “monthly” a partir dos dados consolidados do sheet
+  const events = SHEET_EVENTS;
+
+  const monthly: MonthlyData[] = useMemo(() => {
+    const order = Object.keys(MONTH_TOTALS_CENTS).sort();
+    return order.map((m) => ({
+      month: m,
+      total: MONTH_TOTALS_CENTS[m],
+      count: events.filter((e) => e.ref_month === m).length,
+    }));
+  }, [events]);
+
+  const totalAteHoje = useMemo(() => monthly.reduce((s, m) => s + m.total, 0), [monthly]);
+
+  // fornecedores (com % do total)
+  const suppliers: SupplierRow[] = useMemo(() => {
+    const total = Object.values(SUPPLIER_TOTALS_CENTS).reduce((s, v) => s + v, 0);
+    const rows = Object.entries(SUPPLIER_TOTALS_CENTS)
+      .map(([name, total]) => ({ name, total, percentage: total > 0 ? (total / totalAteHoje) * 100 : 0 }))
+      .sort((a, b) => b.total - a.total);
+    // normaliza % para o “totalAteHoje” calculado
+    return rows.map((r) => ({ ...r, percentage: (r.total / total) * 100 }));
+  }, [totalAteHoje]);
+
+  // métricas auxiliares
+  const mediaMes = totalAteHoje / monthly.length;
+  const crescimentoMes =
+    monthly.length > 1 ? (monthly.at(-1)!.total - monthly.at(-2)!.total) / monthly.at(-2)!.total : 0;
+
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="min-h-screen bg-background p-6 max-w-7xl mx-auto print:p-0">
+      <div className="print:hidden flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Relatório Financeiro — BYD</h2>
+        <Button onClick={handlePrint} size="lg">
+          <Printer className="w-4 h-4 mr-2" />
+          Imprimir
+        </Button>
+      </div>
+
+      <CompanyHeader title="Relatório Executivo para Sócios" subtitle="BYD — 2025 (Jan–Out)" />
+
+      {/* 1) FATURAMENTO POR MÊS */}
+      <TopSummary
+        totalAteHoje={totalAteHoje}
+        meses={monthly.length}
+        fornecedores={Object.keys(SUPPLIER_TOTALS_CENTS).length}
+        mediaMes={mediaMes}
+        crescimentoMes={crescimentoMes * 100}
+      />
+      <MonthlyTable monthly={monthly} />
+
+      {/* 2) VISÃO GERAL / INSIGHTS */}
+      <ExecutiveInsights suppliers={suppliers} monthly={monthly} />
+
+      {/* 3) POR FORNECEDOR */}
+      <SuppliersBlock suppliers={suppliers} />
+
+      {/* Estilos de impressão */}
+      <style>{`
+        @media print {
+          @page { margin: 1.5cm; size: A4 portrait; }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .print\\:hidden { display: none !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
