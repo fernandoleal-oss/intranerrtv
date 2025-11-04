@@ -12,6 +12,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  LabelList,
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +27,17 @@ import {
   ArrowDown,
 } from "lucide-react";
 
+/* ================== Utils ================== */
 const BRL = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+
+const BRL_COMPACT = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(cents / 100);
 
 const monthLabel = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
@@ -51,6 +61,7 @@ const COLORS = [
   "#EC4899",
 ];
 
+/* ================== Dados (iguais aos seus) ================== */
 const SUPPLIER_TOTALS_CENTS: Record<string, number> = {
   "MONALISA STUDIO LTDA": 97639478,
   "SUBSOUND AUDIO PRODUÇÕES LTDA": 59100000,
@@ -146,11 +157,12 @@ const SUPPLIER_MONTHLY_CENTS: Record<string, Record<string, number>> = {
   "FM MORAES FILMES": { "2025-08": 960500 },
 };
 
+/* ================== Header ================== */
 const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string }) => (
-  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-lg mb-6">
+  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-xl mb-6 shadow-sm">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
+        <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow">
           <div className="text-xl font-bold text-gray-800">WE/MOTTA</div>
         </div>
         <div>
@@ -168,28 +180,29 @@ const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string 
   </div>
 );
 
+/* ================== Blocos ================== */
 const TopSummary = ({ total, meses, fornecedores }: { total: number; meses: number; fornecedores: number }) => (
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <Card className="md:col-span-2">
+    <Card className="md:col-span-2 rounded-xl">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm text-muted-foreground">Faturamento total até hoje</div>
-            <div className="text-3xl font-bold">{BRL(total)}</div>
+            <div className="text-3xl font-bold tabular-nums">{BRL(total)}</div>
             <div className="text-xs text-muted-foreground mt-1">Período: Jan–Out/2025 (apurado)</div>
           </div>
           <DollarSign className="w-10 h-10 text-primary" />
         </div>
       </CardContent>
     </Card>
-    <Card>
+    <Card className="rounded-xl">
       <CardContent className="p-5 text-center">
         <Building2 className="w-6 h-6 mx-auto mb-1" />
         <div className="text-xs">Fornecedores</div>
         <div className="text-xl font-bold">{fornecedores}</div>
       </CardContent>
     </Card>
-    <Card>
+    <Card className="rounded-xl">
       <CardContent className="p-5 text-center">
         <Calendar className="w-6 h-6 mx-auto mb-1" />
         <div className="text-xs">Meses analisados</div>
@@ -205,7 +218,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
     monthly.length > 1 ? ((monthly.at(-1)!.total - monthly.at(-2)!.total) / monthly.at(-2)!.total) * 100 : 0;
   const top3 = suppliers.slice(0, 3).reduce((s, v) => s + v.percentage, 0);
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 rounded-xl">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5" />
@@ -214,7 +227,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-lg border-l-4 border-blue-500 bg-blue-50">
+          <div className="p-4 rounded-lg border-l-4 border-blue-500 bg-blue-50/70">
             <div className="flex items-center gap-2 mb-1">
               <Target className="w-4 h-4" />
               <b>Fornecedor destaque</b>
@@ -224,7 +237,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
             </div>
           </div>
           <div
-            className={`p-4 rounded-lg border-l-4 ${lastGrowth >= 0 ? "border-green-500 bg-green-50" : "border-yellow-500 bg-yellow-50"}`}
+            className={`p-4 rounded-lg border-l-4 ${lastGrowth >= 0 ? "border-green-500 bg-green-50/70" : "border-yellow-500 bg-yellow-50/70"}`}
           >
             <div className="flex items-center gap-2 mb-1">
               {lastGrowth >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
@@ -236,7 +249,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
             </div>
           </div>
           <div
-            className={`p-4 rounded-lg border-l-4 ${top3 > 60 ? "border-yellow-500 bg-yellow-50" : "border-blue-500 bg-blue-50"}`}
+            className={`p-4 rounded-lg border-l-4 ${top3 > 60 ? "border-yellow-500 bg-yellow-50/70" : "border-blue-500 bg-blue-50/70"}`}
           >
             <div className="flex items-center gap-2 mb-1">
               <AlertTriangle className="w-4 h-4" />
@@ -250,8 +263,20 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
   );
 };
 
+/* Tooltip de moeda consistente */
+const CurrencyTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const v = payload[0].value as number; // valor em "reais" (não centavos)
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow">
+      <div className="font-semibold">{label}</div>
+      <div className="mt-1">{BRL(v * 100)}</div>
+    </div>
+  );
+};
+
 const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
-  <Card className="mb-6">
+  <Card className="mb-6 rounded-xl">
     <CardHeader>
       <CardTitle>Faturamento por mês</CardTitle>
     </CardHeader>
@@ -268,33 +293,40 @@ const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
             </thead>
             <tbody>
               {monthly.map((m) => (
-                <tr key={m.month} className="border-b">
+                <tr key={m.month} className="border-b odd:bg-muted/30">
                   <td className="py-2 px-3">{monthLabel(m.month)}</td>
-                  <td className="py-2 px-3 text-right font-semibold">{BRL(m.total)}</td>
-                  <td className="py-2 px-3 text-right text-muted-foreground">{m.count}</td>
+                  <td className="py-2 px-3 text-right font-semibold tabular-nums font-mono">{BRL(m.total)}</td>
+                  <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">{m.count}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-primary/10 font-bold">
                 <td className="py-2 px-3">TOTAL</td>
-                <td className="py-2 px-3 text-right">{BRL(monthly.reduce((s, m) => s + m.total, 0))}</td>
-                <td className="py-2 px-3 text-right">{monthly.reduce((s, m) => s + m.count, 0)}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{BRL(monthly.reduce((s, m) => s + m.total, 0))}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{monthly.reduce((s, m) => s + m.count, 0)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
         <div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthly.map((m) => ({ mes: monthLabel(m.month), total: m.total / 100 }))}>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart
+              data={monthly.map((m) => ({ mes: monthLabel(m.month), total: m.total / 100 }))}
+              margin={{ top: 10, right: 20, bottom: 30, left: 10 }}
+              barSize={28}
+            >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="mes" />
+              <XAxis dataKey="mes" angle={-20} textAnchor="end" height={40} />
               <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
+              <Tooltip content={<CurrencyTooltip />} />
               <Legend />
-              <Bar dataKey="total" fill="#3B82F6" />
+              <Bar dataKey="total" fill="#3B82F6" radius={[6, 6, 0, 0]}>
+                <LabelList position="top" formatter={(v: number) => BRL_COMPACT(v * 100)} className="text-[10px]" />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <p className="mt-2 text-xs text-muted-foreground">Rótulos usam valor compacto para leitura rápida.</p>
         </div>
       </div>
     </CardContent>
@@ -304,44 +336,47 @@ const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
 const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
   const top = suppliers.slice(0, 8);
   const bars = top.map((s) => ({
-    name: s.name.length > 18 ? s.name.slice(0, 18) + "…" : s.name,
+    name: s.name.length > 24 ? s.name.slice(0, 24) + "…" : s.name,
     valor: s.total / 100,
   }));
   const pies = top.map((s, i) => ({ name: bars[i].name, value: s.total, pct: s.percentage }));
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card>
+        <Card className="rounded-xl">
           <CardHeader>
             <CardTitle>Top fornecedores por valor</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={bars} layout="vertical" margin={{ left: 140, right: 16 }}>
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart data={bars} layout="vertical" margin={{ left: 160, right: 16, top: 8, bottom: 8 }} barSize={22}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" width={130} />
-                <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Valor"]} />
-                <Bar dataKey="valor" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+                <YAxis type="category" dataKey="name" width={150} />
+                <Tooltip content={<CurrencyTooltip />} />
+                <Bar dataKey="valor" fill="#3B82F6" radius={[0, 6, 6, 0]}>
+                  <LabelList position="right" formatter={(v: number) => BRL_COMPACT(v * 100)} className="text-[10px]" />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-xl">
           <CardHeader>
             <CardTitle>Distribuição por fornecedor</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={340}>
               <PieChart>
                 <Pie
                   data={pies}
                   dataKey="value"
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  label={(e) => `${e.pct.toFixed(1)}%`}
+                  innerRadius={68}
+                  outerRadius={110}
+                  labelLine={false}
+                  label={(e: any) => `${e.name}: ${e.pct.toFixed(1)}%`}
                 >
                   {pies.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -351,11 +386,12 @@ const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
+            <p className="mt-2 text-xs text-muted-foreground">Mostrando top 8 fornecedores por participação.</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mb-6">
+      <Card className="mb-6 rounded-xl">
         <CardHeader>
           <CardTitle>Faturamento por fornecedor (ranking)</CardTitle>
         </CardHeader>
@@ -372,11 +408,13 @@ const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
               </thead>
               <tbody>
                 {suppliers.map((s, i) => (
-                  <tr key={s.name} className="border-b">
+                  <tr key={s.name} className="border-b odd:bg-muted/30">
                     <td className="py-2 px-3">{i + 1}</td>
                     <td className="py-2 px-3">{s.name}</td>
-                    <td className="py-2 px-3 text-right font-semibold">{BRL(s.total)}</td>
-                    <td className="py-2 px-3 text-right text-muted-foreground">{s.percentage.toFixed(1)}%</td>
+                    <td className="py-2 px-3 text-right font-semibold tabular-nums font-mono">{BRL(s.total)}</td>
+                    <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">
+                      {s.percentage.toFixed(1)}%
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -385,7 +423,9 @@ const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
                   <td className="py-2 px-3" colSpan={2}>
                     TOTAL
                   </td>
-                  <td className="py-2 px-3 text-right">{BRL(suppliers.reduce((s, v) => s + v.total, 0))}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">
+                    {BRL(suppliers.reduce((s, v) => s + v.total, 0))}
+                  </td>
                   <td className="py-2 px-3 text-right">100%</td>
                 </tr>
               </tfoot>
@@ -397,6 +437,7 @@ const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
   );
 };
 
+/* ====== Matriz histórico com cabeçalho/1ª coluna colantes e zebra rows ====== */
 const HistoricalMatrix = ({
   suppliers,
   months,
@@ -410,17 +451,17 @@ const HistoricalMatrix = ({
   const grandTotal = colTotals.reduce((a, b) => a + b, 0);
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 rounded-xl">
       <CardHeader>
         <CardTitle>Histórico por fornecedor × mês</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="overflow-auto">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b bg-muted/50">
-              <th className="text-left py-2 px-3">Fornecedor</th>
+              <th className="text-left py-2 px-3 sticky left-0 bg-muted/50">Fornecedor</th>
               {months.map((m) => (
-                <th key={m} className="text-right py-2 px-3">
+                <th key={m} className="text-right py-2 px-3 whitespace-nowrap">
                   {monthLabel(m)}
                 </th>
               ))}
@@ -429,32 +470,32 @@ const HistoricalMatrix = ({
             </tr>
           </thead>
           <tbody>
-            {suppliers.map((name) => {
+            {suppliers.map((name, idx) => {
               const rowTotal = months.reduce((s, m) => s + (matrix[name]?.[m] || 0), 0);
               const pct = grandTotal > 0 ? (rowTotal / grandTotal) * 100 : 0;
               return (
-                <tr key={name} className="border-b">
-                  <td className="py-2 px-3">{name}</td>
+                <tr key={name} className={`border-b ${idx % 2 === 0 ? "bg-muted/20" : ""}`}>
+                  <td className="py-2 px-3 sticky left-0 bg-background">{name}</td>
                   {months.map((m) => (
-                    <td key={`${name}-${m}`} className="py-2 px-3 text-right">
+                    <td key={`${name}-${m}`} className="py-2 px-3 text-right tabular-nums font-mono">
                       {matrix[name]?.[m] ? BRL(matrix[name][m]) : "—"}
                     </td>
                   ))}
-                  <td className="py-2 px-3 text-right font-semibold">{BRL(rowTotal)}</td>
-                  <td className="py-2 px-3 text-right text-muted-foreground">{pct.toFixed(1)}%</td>
+                  <td className="py-2 px-3 text-right font-semibold tabular-nums font-mono">{BRL(rowTotal)}</td>
+                  <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">{pct.toFixed(1)}%</td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot>
+          <tfoot className="sticky bottom-0">
             <tr className="bg-primary/10 font-bold">
-              <td className="py-2 px-3">TOTAL</td>
+              <td className="py-2 px-3 sticky left-0 bg-primary/10">TOTAL</td>
               {colTotals.map((v, i) => (
-                <td key={i} className="py-2 px-3 text-right">
+                <td key={i} className="py-2 px-3 text-right tabular-nums">
                   {BRL(v)}
                 </td>
               ))}
-              <td className="py-2 px-3 text-right">{BRL(grandTotal)}</td>
+              <td className="py-2 px-3 text-right tabular-nums">{BRL(grandTotal)}</td>
               <td className="py-2 px-3 text-right">100%</td>
             </tr>
           </tfoot>
@@ -464,6 +505,7 @@ const HistoricalMatrix = ({
   );
 };
 
+/* ====== Páginas detalhadas por fornecedor (gráfico com rótulo) ====== */
 const SupplierDetailPages = ({
   suppliers,
   months,
@@ -480,25 +522,25 @@ const SupplierDetailPages = ({
       const count = months.reduce((sum, m) => sum + ((matrix[s.name]?.[m] || 0) > 0 ? 1 : 0), 0);
       return (
         <div key={s.name} className="mb-8">
-          <Card className="mb-4">
+          <Card className="mb-4 rounded-xl">
             <CardHeader>
               <CardTitle className="text-lg">Relatório detalhado — {s.name}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <Card>
+                <Card className="rounded-lg">
                   <CardContent className="p-4 text-center">
                     <div className="text-sm text-muted-foreground">Total faturado</div>
-                    <div className="text-xl font-bold">{BRL(rowTotal)}</div>
+                    <div className="text-xl font-bold tabular-nums">{BRL(rowTotal)}</div>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="rounded-lg">
                   <CardContent className="p-4 text-center">
                     <div className="text-sm text-muted-foreground">Meses com faturamento</div>
                     <div className="text-xl font-bold">{count}</div>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="rounded-lg">
                   <CardContent className="p-4 text-center">
                     <div className="text-sm text-muted-foreground">% do total</div>
                     <div className="text-xl font-bold">{s.percentage.toFixed(1)}%</div>
@@ -506,14 +548,16 @@ const SupplierDetailPages = ({
                 </Card>
               </div>
 
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={series}>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={series} margin={{ top: 10, right: 20, bottom: 10, left: 10 }} barSize={26}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="mes" />
                   <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
+                  <Tooltip content={<CurrencyTooltip />} />
                   <Legend />
-                  <Bar dataKey="valor" fill="#10B981" />
+                  <Bar dataKey="valor" fill="#10B981" radius={[6, 6, 0, 0]}>
+                    <LabelList position="top" formatter={(v: number) => BRL_COMPACT(v * 100)} className="text-[10px]" />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -524,6 +568,7 @@ const SupplierDetailPages = ({
   </div>
 );
 
+/* ================== Página ================== */
 export default function FinanceExecutiveReport() {
   const months = useMemo(() => Object.keys(MONTH_TOTALS_CENTS).sort(), []);
   const monthly: MonthlyRow[] = useMemo(
@@ -565,6 +610,16 @@ export default function FinanceExecutiveReport() {
       <SuppliersBlock suppliers={suppliers} />
       <HistoricalMatrix suppliers={suppliers.map((s) => s.name)} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
       <SupplierDetailPages suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
+
+      <style>{`
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        @media print {
+          @page { margin: 1.5cm; size: A4 portrait; }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          thead { position: static !important; }
+          td.sticky, th.sticky { position: static !important; }
+        }
+      `}</style>
     </div>
   );
 }
