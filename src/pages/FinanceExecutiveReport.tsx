@@ -14,6 +14,10 @@ import {
   Pie,
   Cell,
   LabelList,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
 } from "recharts";
 import {
   TrendingUp,
@@ -25,6 +29,9 @@ import {
   Target,
   ArrowUp,
   ArrowDown,
+  ChevronDown,
+  ChevronRight,
+  Search,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -40,6 +47,12 @@ const monthLabel = (ym: string) => {
   const names = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   return `${names[m - 1]}/${y}`;
 };
+
+const slug = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 // Detecta modo de impressão para reduzir rótulos e elementos que estouram página
 const usePrintMode = () => {
@@ -502,79 +515,9 @@ const SuppliersCharts = ({ suppliers }: { suppliers: SupplierRow[] }) => {
 };
 
 // =====================================================
-// Matriz histórica
+// Histórico corrido por fornecedor (substitui matriz)
 // =====================================================
-const HistoricalMatrix = ({
-  suppliers,
-  months,
-  matrix,
-}: {
-  suppliers: string[];
-  months: string[];
-  matrix: Record<string, Record<string, number>>;
-}) => {
-  const colTotals = months.map((m) => suppliers.reduce((s, sup) => s + (matrix[sup]?.[m] || 0), 0));
-  const grandTotal = colTotals.reduce((a, b) => a + b, 0);
-
-  return (
-    <Card className="mb-6 print:break-inside-avoid avoid-break">
-      <CardHeader>
-        <CardTitle>Histórico por fornecedor × mês</CardTitle>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full text-xs compact-table">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="text-left py-2 px-3">Fornecedor</th>
-              {months.map((m) => (
-                <th key={m} className="text-right py-2 px-3">
-                  {monthLabel(m)}
-                </th>
-              ))}
-              <th className="text-right py-2 px-3">Total</th>
-              <th className="text-right py-2 px-3">% do total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {suppliers.map((name) => {
-              const rowTotal = months.reduce((s, m) => s + (matrix[name]?.[m] || 0), 0);
-              const pct = grandTotal > 0 ? (rowTotal / grandTotal) * 100 : 0;
-              return (
-                <tr key={name} className="border-b hover:bg-muted/30">
-                  <td className="py-2 px-3">{name}</td>
-                  {months.map((m) => (
-                    <td key={`${name}-${m}`} className="py-2 px-3 text-right">
-                      {matrix[name]?.[m] ? BRL(matrix[name][m]) : "—"}
-                    </td>
-                  ))}
-                  <td className="py-2 px-3 text-right font-semibold">{BRL(rowTotal)}</td>
-                  <td className="py-2 px-3 text-right text-muted-foreground">{pct.toFixed(1)}%</td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="bg-primary/10 font-bold">
-              <td className="py-2 px-3">TOTAL</td>
-              {colTotals.map((v, i) => (
-                <td key={i} className="py-2 px-3 text-right">
-                  {BRL(v)}
-                </td>
-              ))}
-              <td className="py-2 px-3 text-right">{BRL(grandTotal)}</td>
-              <td className="py-2 px-3 text-right">100%</td>
-            </tr>
-          </tfoot>
-        </table>
-      </CardContent>
-    </Card>
-  );
-};
-
-// =====================================================
-// Páginas detalhadas por fornecedor
-// =====================================================
-const SupplierDetailPages = ({
+const SupplierRunningHistory = ({
   suppliers,
   months,
   matrix,
@@ -584,65 +527,157 @@ const SupplierDetailPages = ({
   matrix: Record<string, Record<string, number>>;
 }) => {
   const isPrint = usePrintMode();
+  const [q, setQ] = useState("");
+  const [topN, setTopN] = useState(12);
+  const [openAll, setOpenAll] = useState(false);
+
+  const filtered = useMemo(() => {
+    const qs = slug(q);
+    const arr = qs ? suppliers.filter((s) => slug(s.name).includes(qs)) : suppliers;
+    return arr.slice(0, topN);
+  }, [q, suppliers, topN]);
+
   return (
-    <div>
-      {suppliers.map((s) => {
-        const series = months.map((m) => ({ mes: monthLabel(m), valor: (matrix[s.name]?.[m] || 0) / 100 }));
-        const rowTotal = months.reduce((sum, m) => sum + (matrix[s.name]?.[m] || 0), 0);
-        const count = months.reduce((sum, m) => sum + ((matrix[s.name]?.[m] || 0) > 0 ? 1 : 0), 0);
-        return (
-          <div key={s.name} className="mb-8">
-            <Card className="mb-4 print:break-inside-avoid avoid-break">
-              <CardHeader>
-                <CardTitle className="text-lg">Relatório detalhado — {s.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <Card className="avoid-break">
-                    <CardContent className="p-4 text-center">
-                      <div className="text-sm text-muted-foreground">Total faturado</div>
-                      <div className="text-xl font-bold">{BRL(rowTotal)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="avoid-break">
-                    <CardContent className="p-4 text-center">
-                      <div className="text-sm text-muted-foreground">Meses com faturamento</div>
-                      <div className="text-xl font-bold">{count}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="avoid-break">
-                    <CardContent className="p-4 text-center">
-                      <div className="text-sm text-muted-foreground">% do total</div>
-                      <div className="text-xl font-bold">{s.percentage.toFixed(1)}%</div>
-                    </CardContent>
-                  </Card>
-                </div>
-                <div className="print:break-inside-avoid avoid-break">
-                  <ResponsiveContainer width="100%" height={isPrint ? 300 : 320}>
-                    <BarChart data={series}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="mes" />
-                      <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
-                      <Legend className="print:hidden" />
-                      <Bar dataKey="valor" fill="#059669">
-                        {!isPrint && (
-                          <LabelList
-                            dataKey="valor"
-                            position="top"
-                            formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR")}`}
-                          />
-                        )}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+    <Card className="mb-6 print:break-inside-avoid avoid-break">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle>Histórico corrido por fornecedor</CardTitle>
+          <div className="flex items-center gap-3 print:hidden">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                className="pl-8 pr-3 py-2 text-sm rounded border w-[240px]"
+                placeholder="Buscar fornecedor..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Top</span>
+              <Select value={String(topN)} onValueChange={(v) => setTopN(Number(v))}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[8, 12, 15, 20, 30].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setOpenAll((s) => !s)}>
+              {openAll ? "Recolher tudo" : "Expandir tudo"}
+            </Button>
           </div>
-        );
-      })}
-    </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ul className="divide-y">
+          {filtered.map((s) => {
+            const series = months.map((m) => ({ m, label: monthLabel(m), v: (matrix[s.name]?.[m] || 0) / 100 }));
+            const total = series.reduce((sum, r) => sum + r.v, 0);
+            const last = series[series.length - 1]?.v || 0;
+            const prev = series[series.length - 2]?.v || 0;
+            const delta = prev > 0 ? ((last - prev) / prev) * 100 : 0;
+            const hasAny = series.some((r) => r.v > 0);
+
+            const [open, setOpen] = useState(openAll);
+            useEffect(() => setOpen(openAll), [openAll]);
+
+            return (
+              <li key={s.name} className="py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => setOpen((v) => !v)}
+                    className="flex items-center gap-2 text-left"
+                    title={open ? "Recolher" : "Expandir"}
+                  >
+                    {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    <span className="font-medium">{s.name}</span>
+                  </button>
+                  <div className="flex items-center gap-4">
+                    <div className="hidden md:block w-[220px]">
+                      <ResponsiveContainer width="100%" height={36}>
+                        <AreaChart data={series}>
+                          <defs>
+                            <linearGradient id={`g-${slug(s.name)}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#059669" stopOpacity={0.6} />
+                              <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="label" hide />
+                          <YAxis hide />
+                          <Area
+                            type="monotone"
+                            dataKey="v"
+                            stroke="#059669"
+                            fillOpacity={1}
+                            fill={`url(#g-${slug(s.name)})`}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Total</div>
+                      <div className="font-semibold">{BRL(total * 100)}</div>
+                    </div>
+                    <div className={cn("text-right text-sm", delta >= 0 ? "text-emerald-600" : "text-yellow-700")}>
+                      {delta >= 0 ? "+" : ""}
+                      {delta.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+
+                {open && hasAny && (
+                  <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-4 print:break-inside-avoid avoid-break">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs compact-table">
+                        <thead>
+                          <tr className="border-b bg-muted/40">
+                            {months.map((m) => (
+                              <th key={m} className="text-right py-2 px-2">
+                                {monthLabel(m)}
+                              </th>
+                            ))}
+                            <th className="text-right py-2 px-2">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            {months.map((m) => (
+                              <td key={m} className="py-2 px-2 text-right">
+                                {matrix[s.name]?.[m] ? BRL(matrix[s.name][m]) : "—"}
+                              </td>
+                            ))}
+                            <td className="py-2 px-2 text-right font-semibold">{BRL(total * 100)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <ResponsiveContainer width="100%" height={isPrint ? 260 : 300}>
+                        <BarChart data={series.map((r) => ({ mes: r.label, v: r.v }))}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="mes" />
+                          <YAxis tickFormatter={(v) => `R$ ${(Number(v) / 1000).toFixed(0)}k`} />
+                          <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
+                          <Legend className="print:hidden" />
+                          <Bar dataKey="v" name="Faturamento" fill="#059669" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {!hasAny && <div className="text-xs text-muted-foreground mt-2">Sem movimentos no período.</div>}
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -760,9 +795,7 @@ export default function FinanceExecutiveReport() {
       </div>
 
       {mode === "summary" ? (
-        <>
-          <OnePageSummary total={suppliers.reduce((s, v) => s + v.total, 0)} suppliers={suppliers} />
-        </>
+        <OnePageSummary total={suppliers.reduce((s, v) => s + v.total, 0)} suppliers={suppliers} />
       ) : (
         <>
           <CompanyHeader title="Relatório Executivo para Sócios" subtitle="BYD — 2025 (Jan–Out)" />
@@ -770,8 +803,8 @@ export default function FinanceExecutiveReport() {
           <MonthlyTable monthly={monthly} />
           <ExecutiveInsights suppliers={suppliers} monthly={monthly} />
           <SuppliersCharts suppliers={suppliers} />
-          <HistoricalMatrix suppliers={suppliers.map((s) => s.name)} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
-          <SupplierDetailPages suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
+          {/* Histórico corrido por fornecedor em vez da matriz */}
+          <SupplierRunningHistory suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
         </>
       )}
 
