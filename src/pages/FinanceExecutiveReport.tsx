@@ -263,7 +263,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
   );
 };
 
-/* Tooltips */
+/* Tooltip de moeda consistente */
 const CurrencyTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   const v = payload[0].value as number; // valor em "reais" (não centavos)
@@ -271,18 +271,6 @@ const CurrencyTooltip = ({ active, payload, label }: any) => {
     <div className="rounded-md border bg-background p-2 text-xs shadow">
       <div className="font-semibold">{label}</div>
       <div className="mt-1">{BRL(v * 100)}</div>
-    </div>
-  );
-};
-const PieTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload as { name: string; value: number; pct: number };
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow">
-      <div className="font-semibold">{d.name}</div>
-      <div className="mt-1">
-        {BRL(d.value)} • {d.pct.toFixed(1)}%
-      </div>
     </div>
   );
 };
@@ -338,111 +326,52 @@ const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Rótulos compactos para leitura rápida (tooltip mostra o valor cheio).
-          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Rótulos usam valor compacto para leitura rápida.</p>
         </div>
       </div>
     </CardContent>
   </Card>
 );
 
-/* ===== Bloco de fornecedores (layout novo) ===== */
 const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
   const top = suppliers.slice(0, 8);
   const bars = top.map((s) => ({
     name: s.name.length > 24 ? s.name.slice(0, 24) + "…" : s.name,
     valor: s.total / 100,
   }));
-  const pies = top.map((s, i) => ({
-    name: s.name,
-    value: s.total,
-    pct: s.percentage,
-    color: COLORS[i % COLORS.length],
-  }));
-
+  const pies = top.map((s, i) => ({ name: bars[i].name, value: s.total, pct: s.percentage }));
   return (
-    <>
-      {/* 1/3 (ranking barras) + 2/3 (donut grande) */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-        <Card className="rounded-xl xl:col-span-1">
-          <CardHeader>
-            <CardTitle>Top fornecedores por valor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={360}>
-              <BarChart data={bars} layout="vertical" margin={{ left: 160, right: 16, top: 8, bottom: 8 }} barSize={22}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-                <YAxis type="category" dataKey="name" width={150} />
-                <Tooltip content={<CurrencyTooltip />} />
-                <Legend />
-                <Bar dataKey="valor" fill="#3B82F6" radius={[0, 6, 6, 0]}>
-                  <LabelList position="right" formatter={(v: number) => BRL_COMPACT(v * 100)} className="text-[10px]" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl xl:col-span-2">
+   
+        <Card className="rounded-xl">
           <CardHeader>
             <CardTitle>Distribuição por fornecedor</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col xl:flex-row gap-6 items-center xl:items-start">
-              {/* Donut grande */}
-              <div className="flex-1 min-w-0">
-                <ResponsiveContainer width="100%" height={420}>
-                  <PieChart margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
-                    <Pie
-                      data={pies}
-                      dataKey="value"
-                      cx="45%"
-                      cy="50%"
-                      innerRadius={90}
-                      outerRadius={160}
-                      labelLine={false}
-                      label={(e: any) =>
-                        `${e.name.length > 14 ? e.name.slice(0, 14) + "…" : e.name}: ${e.pct.toFixed(1)}%`
-                      }
-                    >
-                      {pies.map((p, i) => (
-                        <Cell key={i} fill={p.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<PieTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Legenda lateral rolável */}
-              <div className="w-full xl:w-80 max-h-[420px] overflow-auto pr-2">
-                <ul className="space-y-2 text-sm">
-                  {pies.map((p) => (
-                    <li key={p.name} className="flex items-center justify-between gap-3">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                        <span className="truncate" title={p.name}>
-                          {p.name}
-                        </span>
-                      </span>
-                      <span className="tabular-nums font-mono shrink-0">
-                        {p.pct.toFixed(1)}% • {BRL_COMPACT(p.value)}
-                      </span>
-                    </li>
+            <ResponsiveContainer width="100%" height={340}>
+              <PieChart>
+                <Pie
+                  data={pies}
+                  dataKey="value"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={68}
+                  outerRadius={110}
+                  labelLine={false}
+                  label={(e: any) => `${e.name}: ${e.pct.toFixed(1)}%`}
+                >
+                  {pies.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
-                </ul>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Mostrando top 8 fornecedores. Passe o mouse para ver valores completos.
-                </p>
-              </div>
-            </div>
+                </Pie>
+                <Tooltip formatter={(v: number) => BRL(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <p className="mt-2 text-xs text-muted-foreground">Mostrando top 8 fornecedores por participação.</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabela de ranking completa */}
       <Card className="mb-6 rounded-xl">
         <CardHeader>
           <CardTitle>Faturamento por fornecedor (ranking)</CardTitle>
@@ -489,7 +418,7 @@ const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
   );
 };
 
-/* ====== Matriz histórica ====== */
+/* ====== Matriz histórico com cabeçalho/1ª coluna colantes e zebra rows ====== */
 const HistoricalMatrix = ({
   suppliers,
   months,
@@ -557,7 +486,7 @@ const HistoricalMatrix = ({
   );
 };
 
-/* ====== Páginas detalhadas por fornecedor ====== */
+/* ====== Páginas detalhadas por fornecedor (gráfico com rótulo) ====== */
 const SupplierDetailPages = ({
   suppliers,
   months,
