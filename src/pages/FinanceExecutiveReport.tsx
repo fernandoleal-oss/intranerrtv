@@ -27,6 +27,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 // =====================================================
 // Utils
@@ -203,6 +204,22 @@ const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string 
   </div>
 );
 
+const OnePageHeader = ({ title, subtitle }: { title?: string; subtitle?: string }) => (
+  <div className="border rounded-lg p-4 mb-4 text-gray-900 bg-white avoid-break">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <div className="text-sm">WE/MOTTA COMUNICAÇÃO, MARKETING E PUBLICIDADE LTDA • CNPJ 05.265.118/0001-65</div>
+        <div className="font-semibold">{title}</div>
+        {subtitle && <div className="text-xs text-gray-500">{subtitle}</div>}
+      </div>
+      <div className="text-xs text-right">
+        <div>Gerado em {new Date().toLocaleDateString("pt-BR")}</div>
+        <div>Rua Chilon, 381 – SP</div>
+      </div>
+    </div>
+  </div>
+);
+
 const TopSummary = ({ total, meses, fornecedores }: { total: number; meses: number; fornecedores: number }) => (
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
     <Card className="md:col-span-2 avoid-break">
@@ -328,7 +345,6 @@ const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
               <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
               <Legend className="print:hidden" />
               <Bar dataKey="total" fill="#2563EB">
-                {/* Esconde rótulos na impressão para evitar corte */}
                 <LabelList
                   className="print:hidden"
                   dataKey="total"
@@ -346,11 +362,6 @@ const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
 
 // =====================================================
 // Suppliers Charts (UX melhor + impressão segura)
-//  • Cards em largura total
-//  • Seletor Top-N (oculto na impressão)
-//  • Donut com "Outros" agregado
-//  • Eixo-Y com largura dinâmica
-//  • Evita quebras no meio dos gráficos
 // =====================================================
 const SuppliersCharts = ({ suppliers }: { suppliers: SupplierRow[] }) => {
   const [topN, setTopN] = useState(8);
@@ -561,7 +572,7 @@ const HistoricalMatrix = ({
 };
 
 // =====================================================
-// Páginas detalhadas por fornecedor (cada bloco evita quebra)
+// Páginas detalhadas por fornecedor
 // =====================================================
 const SupplierDetailPages = ({
   suppliers,
@@ -636,9 +647,78 @@ const SupplierDetailPages = ({
 };
 
 // =====================================================
+// Resumo 1 página (total + fornecedores)
+// =====================================================
+const OnePageSummary = ({ total, suppliers }: { total: number; suppliers: SupplierRow[] }) => {
+  return (
+    <div className="onepage print:break-inside-avoid">
+      <OnePageHeader title="Resumo Executivo — BYD (1 página)" subtitle="Total faturado e ranking de fornecedores" />
+
+      <Card className="mb-4 avoid-break">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-muted-foreground">Faturamento total apurado</div>
+            <div className="text-2xl font-bold">{BRL(total)}</div>
+          </div>
+          <DollarSign className="w-8 h-8 text-primary" />
+        </CardContent>
+      </Card>
+
+      <Card className="avoid-break">
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Fornecedores — valor total</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <table className="w-full text-[12px] compact-table">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                <th className="text-left py-2 px-2 w-8">#</th>
+                <th className="text-left py-2 px-2">Fornecedor</th>
+                <th className="text-right py-2 px-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {suppliers.map((s, i) => (
+                <tr key={s.name} className={cn("border-b", i % 2 === 0 ? "bg-white" : "bg-muted/20")}>
+                  <td className="py-1.5 px-2 text-xs">{i + 1}</td>
+                  <td className="py-1.5 px-2">{s.name}</td>
+                  <td className="py-1.5 px-2 text-right font-medium">{BRL(s.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-primary/10 font-semibold">
+                <td className="py-2 px-2" colSpan={2}>
+                  TOTAL
+                </td>
+                <td className="py-2 px-2 text-right">{BRL(suppliers.reduce((sum, v) => sum + v.total, 0))}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* Regras para garantir que tudo caiba em 1 página ao imprimir */}
+      <style>{`
+        @media print {
+          .onepage { font-size: 11px; }
+          .onepage table.compact-table { font-size: 11px; }
+          .onepage .p-4 { padding: 12px !important; }
+          .onepage .py-2 { padding-top: 6px !important; padding-bottom: 6px !important; }
+          .onepage .py-1\\.5 { padding-top: 4px !important; padding-bottom: 4px !important; }
+          @page { size: A4 portrait; margin: 1.2cm; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// =====================================================
 // Página
 // =====================================================
 export default function FinanceExecutiveReport() {
+  const [mode, setMode] = useState<"full" | "summary">("full");
+
   const months = useMemo(() => Object.keys(MONTH_TOTALS_CENTS).sort(), []);
   const monthly: MonthlyRow[] = useMemo(
     () =>
@@ -663,25 +743,37 @@ export default function FinanceExecutiveReport() {
 
   return (
     <div className="min-h-screen bg-background p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-4 print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-2xl font-bold">Relatório Financeiro — BYD</h2>
-        <Button onClick={handlePrint} size="lg">
-          <Printer className="w-4 h-4 mr-2" />
-          Imprimir
-        </Button>
+        <div className="flex items-center gap-2 print:hidden">
+          <Button variant={mode === "full" ? "default" : "secondary"} onClick={() => setMode("full")}>
+            Visão completa
+          </Button>
+          <Button variant={mode === "summary" ? "default" : "secondary"} onClick={() => setMode("summary")}>
+            Resumo (1 página)
+          </Button>
+          <Button onClick={handlePrint}>
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimir
+          </Button>
+        </div>
       </div>
 
-      <CompanyHeader title="Relatório Executivo para Sócios" subtitle="BYD — 2025 (Jan–Out)" />
-
-      <TopSummary total={totalAteHoje} meses={months.length} fornecedores={suppliers.length} />
-      <MonthlyTable monthly={monthly} />
-      <ExecutiveInsights suppliers={suppliers} monthly={monthly} />
-
-      {/* Gráficos por fornecedor em cards separados (melhor para impressão) */}
-      <SuppliersCharts suppliers={suppliers} />
-
-      <HistoricalMatrix suppliers={suppliers.map((s) => s.name)} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
-      <SupplierDetailPages suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
+      {mode === "summary" ? (
+        <>
+          <OnePageSummary total={suppliers.reduce((s, v) => s + v.total, 0)} suppliers={suppliers} />
+        </>
+      ) : (
+        <>
+          <CompanyHeader title="Relatório Executivo para Sócios" subtitle="BYD — 2025 (Jan–Out)" />
+          <TopSummary total={totalAteHoje} meses={months.length} fornecedores={suppliers.length} />
+          <MonthlyTable monthly={monthly} />
+          <ExecutiveInsights suppliers={suppliers} monthly={monthly} />
+          <SuppliersCharts suppliers={suppliers} />
+          <HistoricalMatrix suppliers={suppliers.map((s) => s.name)} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
+          <SupplierDetailPages suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
+        </>
+      )}
 
       {/* Estilos de impressão e anti-quebra */}
       <style>{`
@@ -690,8 +782,8 @@ export default function FinanceExecutiveReport() {
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background: #fff !important; }
 
           /* Esconde elementos de UI desnecessários na impressão */
-          .print\:hidden { display: none !important; }
-          .print\:break-inside-avoid { break-inside: avoid; }
+          .print\\:hidden { display: none !important; }
+          .print\\:break-inside-avoid { break-inside: avoid; }
           .avoid-break { break-inside: avoid; page-break-inside: avoid; }
 
           /* Tabelas com cabeçalho e rodapé persistentes */
