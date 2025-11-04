@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -14,7 +15,6 @@ import {
   Cell,
   LabelList,
 } from "recharts";
-import { Button } from "@/components/ui/button";
 import {
   TrendingUp,
   DollarSign,
@@ -26,18 +26,13 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-/* ================== Utils ================== */
+// =========================
+// Utils
+// =========================
 const BRL = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-
-const BRL_COMPACT = (cents: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(cents / 100);
 
 const monthLabel = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
@@ -45,23 +40,33 @@ const monthLabel = (ym: string) => {
   return `${names[m - 1]}/${y}`;
 };
 
+// =========================
+// Types
+// =========================
 type MonthlyRow = { month: string; total: number; count: number };
 type SupplierRow = { name: string; total: number; percentage: number };
 
+// =========================
+// Color Palette (consistent, high-contrast)
+// =========================
 const COLORS = [
-  "#3B82F6",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#06B6D4",
-  "#84CC16",
-  "#F97316",
-  "#6366F1",
-  "#EC4899",
+  "#2563EB", // blue-600
+  "#059669", // emerald-600
+  "#D97706", // amber-600
+  "#DC2626", // red-600
+  "#7C3AED", // violet-600
+  "#0EA5E9", // sky-500
+  "#65A30D", // lime-600
+  "#EA580C", // orange-600
+  "#4F46E5", // indigo-600
+  "#DB2777", // pink-600
+  "#0891B2", // cyan-600
+  "#1D4ED8", // blue-700
 ];
 
-/* ================== Dados (iguais aos seus) ================== */
+// =========================
+// Data (preenchida a partir do PDF)
+// =========================
 const SUPPLIER_TOTALS_CENTS: Record<string, number> = {
   "MONALISA STUDIO LTDA": 97639478,
   "SUBSOUND AUDIO PRODUÇÕES LTDA": 59100000,
@@ -157,12 +162,14 @@ const SUPPLIER_MONTHLY_CENTS: Record<string, Record<string, number>> = {
   "FM MORAES FILMES": { "2025-08": 960500 },
 };
 
-/* ================== Header ================== */
+// =========================
+// Layout building blocks
+// =========================
 const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string }) => (
-  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-xl mb-6 shadow-sm">
+  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-lg mb-6">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow">
+        <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
           <div className="text-xl font-bold text-gray-800">WE/MOTTA</div>
         </div>
         <div>
@@ -180,29 +187,28 @@ const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string 
   </div>
 );
 
-/* ================== Blocos ================== */
 const TopSummary = ({ total, meses, fornecedores }: { total: number; meses: number; fornecedores: number }) => (
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <Card className="md:col-span-2 rounded-xl">
+    <Card className="md:col-span-2">
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm text-muted-foreground">Faturamento total até hoje</div>
-            <div className="text-3xl font-bold tabular-nums">{BRL(total)}</div>
+            <div className="text-3xl font-bold">{BRL(total)}</div>
             <div className="text-xs text-muted-foreground mt-1">Período: Jan–Out/2025 (apurado)</div>
           </div>
           <DollarSign className="w-10 h-10 text-primary" />
         </div>
       </CardContent>
     </Card>
-    <Card className="rounded-xl">
+    <Card>
       <CardContent className="p-5 text-center">
         <Building2 className="w-6 h-6 mx-auto mb-1" />
         <div className="text-xs">Fornecedores</div>
         <div className="text-xl font-bold">{fornecedores}</div>
       </CardContent>
     </Card>
-    <Card className="rounded-xl">
+    <Card>
       <CardContent className="p-5 text-center">
         <Calendar className="w-6 h-6 mx-auto mb-1" />
         <div className="text-xs">Meses analisados</div>
@@ -218,7 +224,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
     monthly.length > 1 ? ((monthly.at(-1)!.total - monthly.at(-2)!.total) / monthly.at(-2)!.total) * 100 : 0;
   const top3 = suppliers.slice(0, 3).reduce((s, v) => s + v.percentage, 0);
   return (
-    <Card className="mb-6 rounded-xl">
+    <Card className="mb-6">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5" />
@@ -227,7 +233,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-lg border-l-4 border-blue-500 bg-blue-50/70">
+          <div className="p-4 rounded-lg border-l-4 border-blue-600 bg-blue-50">
             <div className="flex items-center gap-2 mb-1">
               <Target className="w-4 h-4" />
               <b>Fornecedor destaque</b>
@@ -237,7 +243,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
             </div>
           </div>
           <div
-            className={`p-4 rounded-lg border-l-4 ${lastGrowth >= 0 ? "border-green-500 bg-green-50/70" : "border-yellow-500 bg-yellow-50/70"}`}
+            className={`p-4 rounded-lg border-l-4 ${lastGrowth >= 0 ? "border-green-600 bg-green-50" : "border-yellow-600 bg-yellow-50"}`}
           >
             <div className="flex items-center gap-2 mb-1">
               {lastGrowth >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
@@ -249,7 +255,7 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
             </div>
           </div>
           <div
-            className={`p-4 rounded-lg border-l-4 ${top3 > 60 ? "border-yellow-500 bg-yellow-50/70" : "border-blue-500 bg-blue-50/70"}`}
+            className={`p-4 rounded-lg border-l-4 ${top3 > 60 ? "border-yellow-600 bg-yellow-50" : "border-blue-600 bg-blue-50"}`}
           >
             <div className="flex items-center gap-2 mb-1">
               <AlertTriangle className="w-4 h-4" />
@@ -263,25 +269,13 @@ const ExecutiveInsights = ({ suppliers, monthly }: { suppliers: SupplierRow[]; m
   );
 };
 
-/* Tooltip de moeda consistente */
-const CurrencyTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  const v = payload[0].value as number; // valor em "reais" (não centavos)
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow">
-      <div className="font-semibold">{label}</div>
-      <div className="mt-1">{BRL(v * 100)}</div>
-    </div>
-  );
-};
-
 const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
-  <Card className="mb-6 rounded-xl">
+  <Card className="mb-6">
     <CardHeader>
       <CardTitle>Faturamento por mês</CardTitle>
     </CardHeader>
     <CardContent>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -293,132 +287,191 @@ const MonthlyTable = ({ monthly }: { monthly: MonthlyRow[] }) => (
             </thead>
             <tbody>
               {monthly.map((m) => (
-                <tr key={m.month} className="border-b odd:bg-muted/30">
+                <tr key={m.month} className="border-b">
                   <td className="py-2 px-3">{monthLabel(m.month)}</td>
-                  <td className="py-2 px-3 text-right font-semibold tabular-nums font-mono">{BRL(m.total)}</td>
-                  <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">{m.count}</td>
+                  <td className="py-2 px-3 text-right font-semibold">{BRL(m.total)}</td>
+                  <td className="py-2 px-3 text-right text-muted-foreground">{m.count}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-primary/10 font-bold">
                 <td className="py-2 px-3">TOTAL</td>
-                <td className="py-2 px-3 text-right tabular-nums">{BRL(monthly.reduce((s, m) => s + m.total, 0))}</td>
-                <td className="py-2 px-3 text-right tabular-nums">{monthly.reduce((s, m) => s + m.count, 0)}</td>
+                <td className="py-2 px-3 text-right">{BRL(monthly.reduce((s, m) => s + m.total, 0))}</td>
+                <td className="py-2 px-3 text-right">{monthly.reduce((s, m) => s + m.count, 0)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
-        <div>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart
-              data={monthly.map((m) => ({ mes: monthLabel(m.month), total: m.total / 100 }))}
-              margin={{ top: 10, right: 20, bottom: 30, left: 10 }}
-              barSize={28}
-            >
+        <div className="print:break-inside-avoid">
+          <ResponsiveContainer width="100%" height={360}>
+            <BarChart data={monthly.map((m) => ({ mes: monthLabel(m.month), total: m.total / 100 }))}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="mes" angle={-20} textAnchor="end" height={40} />
+              <XAxis dataKey="mes" />
               <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-              <Tooltip content={<CurrencyTooltip />} />
+              <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
               <Legend />
-              <Bar dataKey="total" fill="#3B82F6" radius={[6, 6, 0, 0]}>
-                <LabelList position="top" formatter={(v: number) => BRL_COMPACT(v * 100)} className="text-[10px]" />
+              <Bar dataKey="total" fill="#2563EB">
+                <LabelList
+                  dataKey="total"
+                  position="right"
+                  formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR")}`}
+                />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <p className="mt-2 text-xs text-muted-foreground">Rótulos usam valor compacto para leitura rápida.</p>
         </div>
       </div>
     </CardContent>
   </Card>
 );
 
-const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
-  const top = suppliers.slice(0, 8);
-  const bars = top.map((s) => ({
-    name: s.name.length > 24 ? s.name.slice(0, 24) + "…" : s.name,
-    valor: s.total / 100,
-  }));
-  const pies = top.map((s, i) => ({ name: bars[i].name, value: s.total, pct: s.percentage }));
+// =========================
+// Suppliers Charts (improved UX)
+//  - Full-width cards (no side-by-side squeeze)
+//  - Top-N selector
+//  - "Outros" agregado na pizza
+//  - Labels nos bares com valor
+//  - Largura dinâmica do eixo-Y para nomes longos
+// =========================
+const SuppliersCharts = ({ suppliers }: { suppliers: SupplierRow[] }) => {
+  const [topN, setTopN] = useState(8);
+
+  const { bars, pies, totalAll, longestLabel } = useMemo(() => {
+    const totalAll = suppliers.reduce((s, v) => s + v.total, 0);
+    const top = suppliers.slice(0, topN);
+    const sumTop = top.reduce((s, v) => s + v.total, 0);
+    const others = totalAll - sumTop;
+
+    const bars = top.map((s) => ({
+      full: s.name,
+      name: s.name.length > 26 ? s.name.slice(0, 26) + "…" : s.name,
+      valor: s.total / 100,
+      pct: s.percentage,
+    }));
+
+    const piesBase = top.map((s) => ({ name: s.name, value: s.total, pct: s.percentage }));
+    const pies =
+      others > 0 ? [...piesBase, { name: "Outros", value: others, pct: (others / totalAll) * 100 }] : piesBase;
+
+    const longestLabel = top.reduce((m, s) => Math.max(m, s.name.length), 0);
+    return { bars, pies, totalAll, longestLabel };
+  }, [suppliers, topN]);
+
+  const yAxisWidth = Math.min(280, Math.max(160, Math.round(longestLabel * 7.2)));
+
   return (
-   
-        <Card className="rounded-xl">
-          <CardHeader>
-            <CardTitle>Distribuição por fornecedor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={340}>
-              <PieChart>
-                <Pie
-                  data={pies}
-                  dataKey="value"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={68}
-                  outerRadius={110}
-                  labelLine={false}
-                  label={(e: any) => `${e.name}: ${e.pct.toFixed(1)}%`}
-                >
-                  {pies.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => BRL(v)} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-            <p className="mt-2 text-xs text-muted-foreground">Mostrando top 8 fornecedores por participação.</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Análise por fornecedor</h3>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">Top</span>
+          <Select value={String(topN)} onValueChange={(v) => setTopN(Number(v))}>
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[5, 8, 10, 12, 15].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <Card className="mb-6 rounded-xl">
+      {/* Top fornecedores por valor - FULL WIDTH */}
+      <Card className="print:break-inside-avoid">
         <CardHeader>
-          <CardTitle>Faturamento por fornecedor (ranking)</CardTitle>
+          <CardTitle>Top fornecedores por valor</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left py-2 px-3">#</th>
-                  <th className="text-left py-2 px-3">Fornecedor</th>
-                  <th className="text-right py-2 px-3">Total</th>
-                  <th className="text-right py-2 px-3">% do total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {suppliers.map((s, i) => (
-                  <tr key={s.name} className="border-b odd:bg-muted/30">
-                    <td className="py-2 px-3">{i + 1}</td>
-                    <td className="py-2 px-3">{s.name}</td>
-                    <td className="py-2 px-3 text-right font-semibold tabular-nums font-mono">{BRL(s.total)}</td>
-                    <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">
-                      {s.percentage.toFixed(1)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-primary/10 font-bold">
-                  <td className="py-2 px-3" colSpan={2}>
-                    TOTAL
-                  </td>
-                  <td className="py-2 px-3 text-right tabular-nums">
-                    {BRL(suppliers.reduce((s, v) => s + v.total, 0))}
-                  </td>
-                  <td className="py-2 px-3 text-right">100%</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <ResponsiveContainer width="100%" height={440}>
+            <BarChart data={bars} layout="vertical" margin={{ left: yAxisWidth, right: 24 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" tickFormatter={(v) => `R$ ${(Number(v) / 1000).toFixed(0)}k`} />
+              <YAxis type="category" dataKey="name" width={yAxisWidth} />
+              <Tooltip
+                formatter={(v: number, key: string, p: any) => {
+                  if (key === "valor") return [`R$ ${v.toLocaleString("pt-BR")}`, p.payload.full];
+                  return [String(v), key];
+                }}
+              />
+              <Legend />
+              <Bar dataKey="valor" name="Valor" fill="#2563EB" radius={[0, 6, 6, 0]}>
+                <LabelList
+                  dataKey="valor"
+                  position="right"
+                  formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR")}`}
+                />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
-    </>
+
+      {/* Distribuição por fornecedor - FULL WIDTH, com legenda ao lado em telas grandes */}
+      <Card className="print:break-inside-avoid">
+        <CardHeader>
+          <CardTitle>Distribuição por fornecedor</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-center">
+            <div className="w-full">
+              <ResponsiveContainer width="100%" height={420}>
+                <PieChart>
+                  <Pie
+                    data={pies}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={160}
+                    paddingAngle={2}
+                    label={(e) => `${e.name.length > 20 ? e.name.slice(0, 20) + "…" : e.name} • ${e.pct.toFixed(1)}%`}
+                  >
+                    {pies.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number, _n, p: any) => [`${BRL(v)}`, p?.payload?.name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="w-full max-h-[420px] overflow-auto pr-2">
+              <ul className="space-y-2 text-sm">
+                {pies.map((p, i) => (
+                  <li key={p.name} className="flex items-center justify-between border-b py-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-block w-3 h-3 rounded"
+                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                      />
+                      <span title={p.name} className="truncate max-w-[24ch]">
+                        {p.name}
+                      </span>
+                    </div>
+                    <div className="text-right text-muted-foreground">
+                      <span className="mr-3 font-medium">{p.pct.toFixed(1)}%</span>
+                      <span>{BRL(p.value)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground mt-3">Total considerado: {BRL(totalAll)}</div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
-/* ====== Matriz histórico com cabeçalho/1ª coluna colantes e zebra rows ====== */
+// =========================
+// Historical Matrix
+// =========================
 const HistoricalMatrix = ({
   suppliers,
   months,
@@ -432,17 +485,17 @@ const HistoricalMatrix = ({
   const grandTotal = colTotals.reduce((a, b) => a + b, 0);
 
   return (
-    <Card className="mb-6 rounded-xl">
+    <Card className="mb-6 print:break-inside-avoid">
       <CardHeader>
         <CardTitle>Histórico por fornecedor × mês</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-auto">
+      <CardContent className="overflow-x-auto">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 z-10">
+          <thead>
             <tr className="border-b bg-muted/50">
-              <th className="text-left py-2 px-3 sticky left-0 bg-muted/50">Fornecedor</th>
+              <th className="text-left py-2 px-3">Fornecedor</th>
               {months.map((m) => (
-                <th key={m} className="text-right py-2 px-3 whitespace-nowrap">
+                <th key={m} className="text-right py-2 px-3">
                   {monthLabel(m)}
                 </th>
               ))}
@@ -451,32 +504,32 @@ const HistoricalMatrix = ({
             </tr>
           </thead>
           <tbody>
-            {suppliers.map((name, idx) => {
+            {suppliers.map((name) => {
               const rowTotal = months.reduce((s, m) => s + (matrix[name]?.[m] || 0), 0);
               const pct = grandTotal > 0 ? (rowTotal / grandTotal) * 100 : 0;
               return (
-                <tr key={name} className={`border-b ${idx % 2 === 0 ? "bg-muted/20" : ""}`}>
-                  <td className="py-2 px-3 sticky left-0 bg-background">{name}</td>
+                <tr key={name} className="border-b hover:bg-muted/30">
+                  <td className="py-2 px-3">{name}</td>
                   {months.map((m) => (
-                    <td key={`${name}-${m}`} className="py-2 px-3 text-right tabular-nums font-mono">
+                    <td key={`${name}-${m}`} className="py-2 px-3 text-right">
                       {matrix[name]?.[m] ? BRL(matrix[name][m]) : "—"}
                     </td>
                   ))}
-                  <td className="py-2 px-3 text-right font-semibold tabular-nums font-mono">{BRL(rowTotal)}</td>
-                  <td className="py-2 px-3 text-right text-muted-foreground tabular-nums">{pct.toFixed(1)}%</td>
+                  <td className="py-2 px-3 text-right font-semibold">{BRL(rowTotal)}</td>
+                  <td className="py-2 px-3 text-right text-muted-foreground">{pct.toFixed(1)}%</td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot className="sticky bottom-0">
+          <tfoot>
             <tr className="bg-primary/10 font-bold">
-              <td className="py-2 px-3 sticky left-0 bg-primary/10">TOTAL</td>
+              <td className="py-2 px-3">TOTAL</td>
               {colTotals.map((v, i) => (
-                <td key={i} className="py-2 px-3 text-right tabular-nums">
+                <td key={i} className="py-2 px-3 text-right">
                   {BRL(v)}
                 </td>
               ))}
-              <td className="py-2 px-3 text-right tabular-nums">{BRL(grandTotal)}</td>
+              <td className="py-2 px-3 text-right">{BRL(grandTotal)}</td>
               <td className="py-2 px-3 text-right">100%</td>
             </tr>
           </tfoot>
@@ -486,7 +539,9 @@ const HistoricalMatrix = ({
   );
 };
 
-/* ====== Páginas detalhadas por fornecedor (gráfico com rótulo) ====== */
+// =========================
+// Supplier Detail Pages
+// =========================
 const SupplierDetailPages = ({
   suppliers,
   months,
@@ -503,25 +558,25 @@ const SupplierDetailPages = ({
       const count = months.reduce((sum, m) => sum + ((matrix[s.name]?.[m] || 0) > 0 ? 1 : 0), 0);
       return (
         <div key={s.name} className="mb-8">
-          <Card className="mb-4 rounded-xl">
+          <Card className="mb-4 print:break-inside-avoid">
             <CardHeader>
               <CardTitle className="text-lg">Relatório detalhado — {s.name}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <Card className="rounded-lg">
+                <Card>
                   <CardContent className="p-4 text-center">
                     <div className="text-sm text-muted-foreground">Total faturado</div>
-                    <div className="text-xl font-bold tabular-nums">{BRL(rowTotal)}</div>
+                    <div className="text-xl font-bold">{BRL(rowTotal)}</div>
                   </CardContent>
                 </Card>
-                <Card className="rounded-lg">
+                <Card>
                   <CardContent className="p-4 text-center">
                     <div className="text-sm text-muted-foreground">Meses com faturamento</div>
                     <div className="text-xl font-bold">{count}</div>
                   </CardContent>
                 </Card>
-                <Card className="rounded-lg">
+                <Card>
                   <CardContent className="p-4 text-center">
                     <div className="text-sm text-muted-foreground">% do total</div>
                     <div className="text-xl font-bold">{s.percentage.toFixed(1)}%</div>
@@ -529,18 +584,24 @@ const SupplierDetailPages = ({
                 </Card>
               </div>
 
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={series} margin={{ top: 10, right: 20, bottom: 10, left: 10 }} barSize={26}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mes" />
-                  <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip content={<CurrencyTooltip />} />
-                  <Legend />
-                  <Bar dataKey="valor" fill="#10B981" radius={[6, 6, 0, 0]}>
-                    <LabelList position="top" formatter={(v: number) => BRL_COMPACT(v * 100)} className="text-[10px]" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="print:break-inside-avoid">
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={series}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="mes" />
+                    <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR")}`, "Faturamento"]} />
+                    <Legend />
+                    <Bar dataKey="valor" fill="#059669">
+                      <LabelList
+                        dataKey="valor"
+                        position="top"
+                        formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR")}`}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -549,7 +610,9 @@ const SupplierDetailPages = ({
   </div>
 );
 
-/* ================== Página ================== */
+// =========================
+// Page
+// =========================
 export default function FinanceExecutiveReport() {
   const months = useMemo(() => Object.keys(MONTH_TOTALS_CENTS).sort(), []);
   const monthly: MonthlyRow[] = useMemo(
@@ -588,17 +651,19 @@ export default function FinanceExecutiveReport() {
       <TopSummary total={totalAteHoje} meses={months.length} fornecedores={suppliers.length} />
       <MonthlyTable monthly={monthly} />
       <ExecutiveInsights suppliers={suppliers} monthly={monthly} />
-      <SuppliersBlock suppliers={suppliers} />
+
+      {/* FULL-WIDTH (stacked) supplier charts for better readability */}
+      <SuppliersCharts suppliers={suppliers} />
+
       <HistoricalMatrix suppliers={suppliers.map((s) => s.name)} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
       <SupplierDetailPages suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
 
+      {/* Print styles tuned to avoid chart breaks */}
       <style>{`
-        .tabular-nums { font-variant-numeric: tabular-nums; }
         @media print {
           @page { margin: 1.5cm; size: A4 portrait; }
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          thead { position: static !important; }
-          td.sticky, th.sticky { position: static !important; }
+          .print\\:break-inside-avoid { break-inside: avoid; }
         }
       `}</style>
     </div>
