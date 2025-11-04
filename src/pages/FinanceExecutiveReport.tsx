@@ -26,7 +26,6 @@ import {
   ArrowDown,
 } from "lucide-react";
 
-/** ========= Utils ========= */
 const BRL = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
@@ -52,9 +51,6 @@ const COLORS = [
   "#EC4899",
 ];
 
-/** ========= DADOS REAIS (planilha) =========
- *  Totais por fornecedor (centavos) — Tabela Dinâmica
- */
 const SUPPLIER_TOTALS_CENTS: Record<string, number> = {
   "MONALISA STUDIO LTDA": 97639478,
   "SUBSOUND AUDIO PRODUÇÕES LTDA": 59100000,
@@ -80,7 +76,6 @@ const SUPPLIER_TOTALS_CENTS: Record<string, number> = {
   "FM MORAES FILMES": 960500,
 };
 
-/** Totais por mês (centavos) — Jan–Out/2025 */
 const MONTH_TOTALS_CENTS: Record<string, number> = {
   "2025-01": 24901200,
   "2025-02": 52980000,
@@ -94,7 +89,6 @@ const MONTH_TOTALS_CENTS: Record<string, number> = {
   "2025-10": 63641300,
 };
 
-/** Distribuição por fornecedor×mês (centavos) — da listagem */
 const SUPPLIER_MONTHLY_CENTS: Record<string, Record<string, number>> = {
   "MONALISA STUDIO LTDA": {
     "2025-01": 12800000,
@@ -152,9 +146,8 @@ const SUPPLIER_MONTHLY_CENTS: Record<string, Record<string, number>> = {
   "FM MORAES FILMES": { "2025-08": 960500 },
 };
 
-/** ========= Cabeçalho ========= */
 const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string }) => (
-  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-lg mb-6 print:bg-white print:text-black print:border print:border-gray-300">
+  <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 rounded-lg mb-6">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
         <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
@@ -175,7 +168,6 @@ const CompanyHeader = ({ title, subtitle }: { title?: string; subtitle?: string 
   </div>
 );
 
-/** ========= Blocos ========= */
 const TopSummary = ({ total, meses, fornecedores }: { total: number; meses: number; fornecedores: number }) => (
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
     <Card className="md:col-span-2">
@@ -405,7 +397,6 @@ const SuppliersBlock = ({ suppliers }: { suppliers: SupplierRow[] }) => {
   );
 };
 
-/** ========== (1) MATRIZ HISTÓRICA: Fornecedor × Mês ========== */
 const HistoricalMatrix = ({
   suppliers,
   months,
@@ -473,7 +464,6 @@ const HistoricalMatrix = ({
   );
 };
 
-/** ========== (2) PÁGINAS DETALHADAS POR FORNECEDOR ========== */
 const SupplierDetailPages = ({
   suppliers,
   months,
@@ -483,14 +473,14 @@ const SupplierDetailPages = ({
   months: string[];
   matrix: Record<string, Record<string, number>>;
 }) => (
-  <div className="print:block">
-    {suppliers.map((s, idx) => {
+  <div>
+    {suppliers.map((s) => {
       const series = months.map((m) => ({ mes: monthLabel(m), valor: (matrix[s.name]?.[m] || 0) / 100 }));
       const rowTotal = months.reduce((sum, m) => sum + (matrix[s.name]?.[m] || 0), 0);
       const count = months.reduce((sum, m) => sum + ((matrix[s.name]?.[m] || 0) > 0 ? 1 : 0), 0);
       return (
-        <div key={s.name} className="print:page break-inside-avoid mb-8">
-          <Card className="mb-4 print:border print:shadow-none">
+        <div key={s.name} className="mb-8">
+          <Card className="mb-4">
             <CardHeader>
               <CardTitle className="text-lg">Relatório detalhado — {s.name}</CardTitle>
             </CardHeader>
@@ -534,7 +524,6 @@ const SupplierDetailPages = ({
   </div>
 );
 
-/** ========= Página ========= */
 export default function FinanceExecutiveReport() {
   const months = useMemo(() => Object.keys(MONTH_TOTALS_CENTS).sort(), []);
   const monthly: MonthlyRow[] = useMemo(
@@ -559,8 +548,8 @@ export default function FinanceExecutiveReport() {
   const handlePrint = () => window.print();
 
   return (
-    <div className="min-h-screen bg-background p-6 max-w-7xl mx-auto print:p-0">
-      <div className="print:hidden flex justify-between items-center mb-4">
+    <div className="min-h-screen bg-background p-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Relatório Financeiro — BYD</h2>
         <Button onClick={handlePrint} size="lg">
           <Printer className="w-4 h-4 mr-2" />
@@ -570,30 +559,12 @@ export default function FinanceExecutiveReport() {
 
       <CompanyHeader title="Relatório Executivo para Sócios" subtitle="BYD — 2025 (Jan–Out)" />
 
-      {/* 1) Cardão + por mês */}
       <TopSummary total={totalAteHoje} meses={months.length} fornecedores={suppliers.length} />
       <MonthlyTable monthly={monthly} />
-
-      {/* 2) Insights */}
       <ExecutiveInsights suppliers={suppliers} monthly={monthly} />
-
-      {/* 3) Ranking/Distribuição */}
       <SuppliersBlock suppliers={suppliers} />
-
-      {/* 4) MATRIZ HISTÓRICA */}
       <HistoricalMatrix suppliers={suppliers.map((s) => s.name)} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
-
-      {/* 5) PÁGINAS INDIVIDUAIS (ótimas para imprimir) */}
       <SupplierDetailPages suppliers={suppliers} months={months} matrix={SUPPLIER_MONTHLY_CENTS} />
-
-      {/* Print helpers */}
-      <style>{`
-        @media print {
-          @page { margin: 1.5cm; size: A4 portrait; }
-          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .print\\:page { page-break-after: always; }
-        }
-      `}</style>
     </div>
   );
 }
