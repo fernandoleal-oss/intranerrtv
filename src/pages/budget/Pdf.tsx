@@ -156,6 +156,7 @@ export default function BudgetPdf() {
   const [generating, setGenerating] = useState(false);
   const [addingMiagui, setAddingMiagui] = useState(false);
   const [data, setData] = useState<BudgetData | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'cards'>('list');
   const contentRef = useRef<HTMLDivElement>(null);
 
   const payload = data?.payload ?? {};
@@ -167,26 +168,7 @@ export default function BudgetPdf() {
   // Detectar se é orçamento com estrutura de fornecedores → fases
   const isFornecedoresFases = payload.estrutura === 'fornecedores_fases' && payload.fornecedores && Array.isArray(payload.fornecedores);
 
-  const totaisPorCampanha = useMemo(() => {
-    return campanhas.map((camp) => {
-      const film = pickFilm(camp.quotes_film || []);
-      const audio = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
-      const filmVal = film ? lowestQuoteValue(film) : 0;
-      const audioVal = audio ? finalAudioValue(audio) : 0;
-      return { id: camp.id, nome: camp.nome, total: filmVal + audioVal };
-    });
-  }, [JSON.stringify(campanhas)]);
-
-  const totalGeral = useMemo(() => {
-    if (isFornecedoresFases) {
-      // Calcular total para estrutura de fornecedores → fases
-      return (payload.fornecedores || []).reduce((total: number, fornecedor: Fornecedor) => 
-        total + fornecedor.fases.reduce((totalFase: number, fase: FornecedorFase) => 
-          totalFase + fase.itens.reduce((totalItem: number, item: FornecedorItem) => 
-            totalItem + item.valor, 0), 0), 0);
-    }
-    return totaisPorCampanha.reduce((sum, camp) => sum + camp.total, 0);
-  }, [totaisPorCampanha, isFornecedoresFases, payload.fornecedores]);
+  // Removidos cálculos de totais conforme solicitado
 
   /** ====== Carrega orçamento ====== */
   useEffect(() => {
@@ -444,6 +426,22 @@ export default function BudgetPdf() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="flex gap-2 border rounded-lg p-1">
+              <Button 
+                variant={viewMode === 'list' ? 'default' : 'ghost'} 
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                Lista
+              </Button>
+              <Button 
+                variant={viewMode === 'cards' ? 'default' : 'ghost'} 
+                size="sm"
+                onClick={() => setViewMode('cards')}
+              >
+                Cards
+              </Button>
+            </div>
             {id === '56213599-35e3-4192-896c-57e78148fc22' && (
               <Button 
                 onClick={handleAddMiagui} 
@@ -572,14 +570,10 @@ export default function BudgetPdf() {
                 </div>
               </div>
 
-              {/* Lista de Fornecedores */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => {
-                  const totalFornecedor = fornecedor.fases.reduce((totalFase: number, fase: FornecedorFase) => 
-                    totalFase + fase.itens.reduce((totalItem: number, item: FornecedorItem) => 
-                      totalItem + item.valor, 0), 0);
-
-                  return (
+              {/* MODO LISTA */}
+              {viewMode === 'list' && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => (
                     <div
                       key={fornecedor.id || fornecedorIndex}
                       className="campaign-section page-break-before"
@@ -595,100 +589,176 @@ export default function BudgetPdf() {
                           border: "1px solid #BAE6FD",
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div className="flex items-center gap-3">
-                            <Building2 className="h-5 w-5 text-sky-600" />
-                            <div>
-                              <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E" }}>
-                                {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
-                              </h3>
-                              {fornecedor.contato && (
-                                <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
-                                  Contato: {fornecedor.contato}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <p style={{ fontSize: "12px", color: "#64748B", marginBottom: "2px" }}>Total do Fornecedor</p>
-                            <span style={{ fontSize: "18px", fontWeight: "bold", color: "#0369A1" }}>
-                              {money(totalFornecedor)}
-                            </span>
+                        <div className="flex items-center gap-3">
+                          <Building2 className="h-5 w-5 text-sky-600" />
+                          <div>
+                            <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E" }}>
+                              {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
+                            </h3>
+                            {fornecedor.contato && (
+                              <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
+                                Contato: {fornecedor.contato}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {/* Fases do Fornecedor */}
                       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                        {fornecedor.fases.map((fase: FornecedorFase, faseIndex: number) => {
-                          const totalFase = fase.itens.reduce((total: number, item: FornecedorItem) => total + item.valor, 0);
+                        {fornecedor.fases.map((fase: FornecedorFase, faseIndex: number) => (
+                          <div
+                            key={fase.id || faseIndex}
+                            className="fase-section rounded-lg p-4"
+                            style={{
+                              backgroundColor: "#FFFFFF",
+                              border: "1px solid #E2E8F0",
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            {/* Cabeçalho da Fase */}
+                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
+                              <Layers className="h-4 w-4 text-green-600" />
+                              <h4 style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
+                                {fase.nome || `Fase ${faseIndex + 1}`}
+                              </h4>
+                            </div>
 
-                          return (
-                            <div
-                              key={fase.id || faseIndex}
-                              className="fase-section rounded-lg p-4"
-                              style={{
-                                backgroundColor: "#FFFFFF",
-                                border: "1px solid #E2E8F0",
-                                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                              }}
-                            >
-                              {/* Cabeçalho da Fase */}
-                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                                <div className="flex items-center gap-3">
-                                  <Layers className="h-4 w-4 text-green-600" />
-                                  <h4 style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
-                                    {fase.nome || `Fase ${faseIndex + 1}`}
-                                  </h4>
-                                </div>
-                                <div style={{ textAlign: "right" }}>
-                                  <p style={{ fontSize: "11px", color: "#64748B", marginBottom: "2px" }}>Total da Fase</p>
-                                  <span style={{ fontSize: "16px", fontWeight: "bold", color: "#059669" }}>
-                                    {money(totalFase)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Itens da Fase */}
-                              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                                {fase.itens.map((item: FornecedorItem, itemIndex: number) => (
-                                  <div
-                                    key={item.id || itemIndex}
-                                    className="item-row"
-                                  >
-                                    <div style={{ flex: 1 }}>
-                                      <p style={{ fontSize: "13px", fontWeight: "600", color: "#1E293B", marginBottom: "4px" }}>
-                                        {item.nome || `Item ${itemIndex + 1}`}
-                                      </p>
-                                      <div style={{ display: "flex", gap: "16px", fontSize: "11px", color: "#64748B" }}>
-                                        {item.prazo && (
-                                          <span>
-                                            <strong>Prazo:</strong> {item.prazo}
-                                          </span>
-                                        )}
-                                        {item.observacao && (
-                                          <span>
-                                            <strong>Obs:</strong> {item.observacao}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                      <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
-                                        {money(item.valor)}
-                                      </span>
+                            {/* Itens da Fase */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {fase.itens.map((item: FornecedorItem, itemIndex: number) => (
+                                <div
+                                  key={item.id || itemIndex}
+                                  className="item-row"
+                                >
+                                  <div style={{ flex: 1 }}>
+                                    <p style={{ fontSize: "13px", fontWeight: "600", color: "#1E293B", marginBottom: "4px" }}>
+                                      {item.nome || `Item ${itemIndex + 1}`}
+                                    </p>
+                                    <div style={{ display: "flex", gap: "16px", fontSize: "11px", color: "#64748B" }}>
+                                      {item.prazo && (
+                                        <span>
+                                          <strong>Prazo:</strong> {item.prazo}
+                                        </span>
+                                      )}
+                                      {item.observacao && (
+                                        <span>
+                                          <strong>Obs:</strong> {item.observacao}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
-                                ))}
-                              </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
+                                      {money(item.valor)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
+
+              {/* MODO CARDS - Fornecedores lado a lado */}
+              {viewMode === 'cards' && (
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(2, 1fr)", 
+                  gap: "20px",
+                  marginBottom: "24px"
+                }}>
+                  {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => (
+                    <div
+                      key={fornecedor.id || fornecedorIndex}
+                      className="supplier-card"
+                      style={{
+                        background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+                        border: "2px solid #0369A1",
+                        borderRadius: "12px",
+                        padding: "20px",
+                        boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      {/* Cabeçalho do Card */}
+                      <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-sky-200">
+                        <Building2 className="h-6 w-6 text-sky-600" />
+                        <div style={{ flex: 1 }}>
+                          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E", marginBottom: "4px" }}>
+                            {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
+                          </h3>
+                          {fornecedor.contato && (
+                            <p style={{ fontSize: "11px", color: "#475569" }}>
+                              {fornecedor.contato}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Fases do Fornecedor */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                        {fornecedor.fases.map((fase: FornecedorFase, faseIndex: number) => (
+                          <div
+                            key={fase.id || faseIndex}
+                            style={{
+                              backgroundColor: "#FFFFFF",
+                              borderRadius: "8px",
+                              padding: "12px",
+                              border: "1px solid #BAE6FD",
+                            }}
+                          >
+                            {/* Nome da Fase */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <Layers className="h-4 w-4 text-green-600" />
+                              <h4 style={{ fontSize: "13px", fontWeight: "bold", color: "#1E293B" }}>
+                                {fase.nome || `Fase ${faseIndex + 1}`}
+                              </h4>
+                            </div>
+
+                            {/* Itens da Fase */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {fase.itens.map((item: FornecedorItem, itemIndex: number) => (
+                                <div
+                                  key={item.id || itemIndex}
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
+                                    padding: "6px 0",
+                                    borderBottom: itemIndex < fase.itens.length - 1 ? "1px solid #F1F5F9" : "none",
+                                  }}
+                                >
+                                  <div style={{ flex: 1, paddingRight: "8px" }}>
+                                    <p style={{ fontSize: "12px", fontWeight: "600", color: "#1E293B", marginBottom: "2px" }}>
+                                      {item.nome || `Item ${itemIndex + 1}`}
+                                    </p>
+                                    {(item.prazo || item.observacao) && (
+                                      <p style={{ fontSize: "10px", color: "#64748B" }}>
+                                        {item.prazo && `Prazo: ${item.prazo}`}
+                                        {item.prazo && item.observacao && ' • '}
+                                        {item.observacao && item.observacao}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    <span style={{ fontSize: "13px", fontWeight: "bold", color: "#1E293B" }}>
+                                      {money(item.valor)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -811,7 +881,6 @@ export default function BudgetPdf() {
             
             let filmSel: QuoteFilm | null = null;
             let audioSel: QuoteAudio | null = null;
-            let campTotal = 0;
             let films: QuoteFilm[] = [];
             let audios: QuoteAudio[] = [];
             let globalMinFilm = Infinity;
@@ -819,24 +888,9 @@ export default function BudgetPdf() {
             if (hasOldStructure) {
               filmSel = pickFilm(camp.quotes_film || []);
               audioSel = camp.inclui_audio ? pickAudio(camp.quotes_audio || []) : null;
-              campTotal = (filmSel ? lowestQuoteValue(filmSel) : 0) + (audioSel ? finalAudioValue(audioSel) : 0);
               films = camp.quotes_film || [];
               audios = camp.quotes_audio || [];
               globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
-            } else if (hasNewStructure) {
-              campTotal = (camp.categorias || [])
-                .filter((cat: any) => cat.visivel !== false)
-                .reduce((sum: number, cat: any) => {
-                  if (cat.modoPreco === "fechado" && cat.fornecedores?.length > 0) {
-                    const maisBarato = cat.fornecedores.reduce((min: any, f: any) => {
-                      const valor = (f.valor || 0) - (f.desconto || 0);
-                      const minValor = (min.valor || 0) - (min.desconto || 0);
-                      return valor < minValor ? f : min;
-                    });
-                    return sum + ((maisBarato.valor || 0) - (maisBarato.desconto || 0));
-                  }
-                  return sum;
-                }, 0);
             }
 
             return (
@@ -852,17 +906,11 @@ export default function BudgetPdf() {
                     border: "1px solid #E2E8F0",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div className="flex items-center gap-3">
-                      <Building2 className="h-5 w-5 text-gray-600" />
-                      <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>
-                        {camp.nome || `Campanha ${campIdx + 1}`}
-                      </h2>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <p style={{ fontSize: "12px", color: "#64748B", marginBottom: "2px" }}>Total da Campanha</p>
-                      <span style={{ fontSize: "20px", fontWeight: "bold", color: "#E6191E" }}>{money(campTotal)}</span>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Building2 className="h-5 w-5 text-gray-600" />
+                    <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>
+                      {camp.nome || `Campanha ${campIdx + 1}`}
+                    </h2>
                   </div>
                 </div>
 
@@ -1381,8 +1429,9 @@ export default function BudgetPdf() {
             );
           })}
 
-          {/* Resumo Financeiro */}
-          {(totaisPorCampanha.length > 0 || totalGeral > 0 || isFornecedoresFases) && (
+
+          {/* Observações (sem totais conforme solicitado) */}
+          {payload.observacoes && (
             <div
               className="avoid-break mt-8 p-6 rounded-xl border"
               style={{
@@ -1390,131 +1439,29 @@ export default function BudgetPdf() {
                 border: "2px solid #E2E8F0",
               }}
             >
-              <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px", color: "#1E293B" }}>
-                Resumo Financeiro
+              <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "12px", color: "#1E293B" }}>
+                Observações
               </h2>
+              <p style={{ fontSize: "12px", color: "#475569", whiteSpace: "pre-wrap" }}>
+                {payload.observacoes}
+              </p>
+            </div>
+          )}
 
-              {/* Totais por Fornecedor (nova estrutura) */}
-              {isFornecedoresFases && (
-                <div style={{ marginBottom: "16px" }}>
-                  <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#475569" }}>
-                    Totais por Fornecedor
-                  </h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: "12px" }}>
-                    {(payload.fornecedores || []).map((fornecedor: Fornecedor, index: number) => {
-                      const totalFornecedor = fornecedor.fases.reduce((totalFase: number, fase: FornecedorFase) => 
-                        totalFase + fase.itens.reduce((totalItem: number, item: FornecedorItem) => 
-                          totalItem + item.valor, 0), 0);
-                      
-                      return (
-                        <div
-                          key={fornecedor.id || index}
-                          style={{
-                            background: "#fff",
-                            border: "1px solid #E2E8F0",
-                            borderRadius: 8,
-                            padding: "12px",
-                            boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontWeight: 600, fontSize: "13px", color: "#1E293B" }}>
-                              {fornecedor.nome || `Fornecedor ${index + 1}`}
-                            </span>
-                            <span style={{ fontWeight: 700, fontSize: "14px", color: "#0369A1" }}>
-                              {money(totalFornecedor)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Totais por Campanha (estrutura antiga) */}
-              {!isFornecedoresFases && totaisPorCampanha.length > 0 && (
-                <div style={{ marginBottom: "16px" }}>
-                  <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#475569" }}>
-                    Totais por Campanha
-                  </h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: "12px" }}>
-                    {totaisPorCampanha.map((t) => (
-                      <div
-                        key={t.id}
-                        style={{
-                          background: "#fff",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 8,
-                          padding: "12px",
-                          boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontWeight: 600, fontSize: "13px", color: "#1E293B" }}>{t.nome}</span>
-                          <span style={{ fontWeight: 700, fontSize: "14px", color: "#E6191E" }}>{money(t.total)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Total Geral */}
-              {totalGeral > 0 && (
-                <div
-                  className="avoid-break"
-                  style={{
-                    padding: "16px",
-                    background: "#FFFFFF",
-                    border: "2px solid #E6191E",
-                    borderRadius: "8px",
-                    textAlign: "center",
-                  }}
-                >
-                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#64748B", marginBottom: "4px" }}>
-                    TOTAL GERAL
-                  </p>
-                  <p style={{ fontSize: "24px", fontWeight: "bold", color: "#E6191E" }}>{money(totalGeral)}</p>
-                </div>
-              )}
-
-              {/* Observações */}
-              {payload.observacoes && (
-                <div
-                  className="avoid-break"
-                  style={{
-                    marginTop: "16px",
-                    padding: "12px",
-                    background: "#FFF",
-                    borderRadius: "8px",
-                    border: "1px solid #E2E8F0",
-                  }}
-                >
-                  <p style={{ fontSize: "11px", fontWeight: 600, color: "#64748B", marginBottom: "4px" }}>
-                    Observações:
-                  </p>
-                  <p style={{ fontSize: "11px", color: "#475569", whiteSpace: "pre-wrap" }}>{payload.observacoes}</p>
-                </div>
-              )}
-
-              {payload.pendente_faturamento && (
-                <div
-                  className="avoid-break"
-                  style={{
-                    marginTop: "12px",
-                    padding: "8px 12px",
-                    background: "#FEF3C7",
-                    border: "1px solid #F59E0B",
-                    borderRadius: "6px",
-                    textAlign: "center",
-                  }}
-                >
-                  <p style={{ fontSize: "11px", fontWeight: 600, color: "#92400E" }}>
-                    ⚠️ ORÇAMENTO PENDENTE DE FATURAMENTO
-                  </p>
-                </div>
-              )}
+          {payload.pendente_faturamento && (
+            <div
+              className="avoid-break mt-4"
+              style={{
+                padding: "12px",
+                background: "#FEF3C7",
+                border: "1px solid #F59E0B",
+                borderRadius: "6px",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ fontSize: "11px", fontWeight: 600, color: "#92400E" }}>
+                ⚠️ ORÇAMENTO PENDENTE DE FATURAMENTO
+              </p>
             </div>
           )}
         </div>
