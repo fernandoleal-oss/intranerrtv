@@ -30,13 +30,14 @@ interface VersionRow {
   id: string;
   versao: number;
   payload: Record<string, any> | null;
-  budgets: {
+  budget_id: string;
+  budgets?: {
     id: string;
     display_id: string;
     type: BudgetType;
     status: string;
     budget_number: string;
-  } | null;
+  };
 }
 
 interface BudgetData {
@@ -135,37 +136,6 @@ function EmsMultimixBudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: Bud
               },
             ],
           },
-          {
-            id: "1-2",
-            nome: "Multimix Assets 3D - Fase 2",
-            total_fase: 153760.0,
-            itens: [
-              {
-                id: "1-2-1",
-                descricao: "PACOTE 1 (MODELAGEM + 9 STILLS)",
-                valor: 63700.0,
-                prazo: "35 dias",
-              },
-              {
-                id: "1-2-2",
-                descricao: "PACOTE 2 (MODELAGEM + 8 STILLS)",
-                valor: 56700.0,
-                prazo: "35 dias",
-              },
-              {
-                id: "1-2-3",
-                descricao: "5 STILLS EXTRAS",
-                valor: 27500.0,
-                prazo: "18 dias",
-              },
-              {
-                id: "1-2-4",
-                descricao: "1 STILL EXTRA",
-                valor: 5860.0,
-                prazo: "18 dias",
-              },
-            ],
-          },
         ],
       },
     ];
@@ -227,12 +197,6 @@ function EmsMultimixBudgetEditForm({ budgetData, onSaveSuccess, onRefresh }: Bud
           "Os encargos financeiros incidentes sobre o não pagamento dos boletos em data prevista decorrerá de acréscimo de 1% de juros ao mês, acrescidos de 5% de multa.",
           "Em caso de cancelamento deste orçamento após a aprovação, será cobrado custo mínimo de 50% do custo total.",
         ],
-        especificacoes: {
-          formatos: ["9:16", "16:9", "4:5"],
-          veiculacao: "Internet e mídias alternativas",
-          alcance: "Nacional",
-          vigencia: "1 ano",
-        },
       };
 
       const { error: versionError } = await supabase.from("versions").insert([
@@ -734,21 +698,6 @@ export default function BudgetEdit() {
     document.title = title;
   }, [title]);
 
-  const mapRowToData = (row: VersionRow): BudgetData | null => {
-    if (!row?.budgets) return null;
-
-    return {
-      id: row.budgets.id,
-      display_id: row.budgets.display_id,
-      type: row.budgets.type,
-      status: row.budgets.status,
-      payload: row.payload || {},
-      version_id: row.id,
-      versao: row.versao ?? 1,
-      budget_number: row.budgets.budget_number || "000",
-    };
-  };
-
   const fetchBudget = useCallback(
     async (silent = false) => {
       if (!id) return;
@@ -770,41 +719,47 @@ export default function BudgetEdit() {
       abortRef.current = new AbortController();
 
       try {
-        const { data: row, error } = await supabase
+        // Primeiro, buscar o budget para verificar se existe
+        const { data: budget, error: budgetError } = await supabase.from("budgets").select("*").eq("id", id).single();
+
+        if (budgetError) throw budgetError;
+        if (!budget) throw new Error("not_found");
+
+        // Depois, buscar a última versão
+        const { data: versions, error: versionsError } = await supabase
           .from("versions")
-          .select(
-            `
-            id,
-            payload,
-            versao,
-            budgets!inner(
-              id,
-              display_id,
-              type,
-              status,
-              budget_number
-            )
-          `,
-          )
+          .select("*")
           .eq("budget_id", id)
           .order("versao", { ascending: false })
           .limit(1)
-          .maybeSingle<VersionRow>();
+          .single();
 
-        if (error) throw error;
-        if (!row) throw new Error("not_found");
+        if (versionsError) throw versionsError;
+        if (!versions) throw new Error("no_versions");
 
-        const mapped = mapRowToData(row);
-        if (!mapped) throw new Error("not_found");
+        const budgetData: BudgetData = {
+          id: budget.id,
+          display_id: budget.display_id,
+          type: budget.type,
+          status: budget.status,
+          payload: versions.payload || {},
+          version_id: versions.id,
+          versao: versions.versao ?? 1,
+          budget_number: budget.budget_number || "000",
+        };
 
-        setData(mapped);
+        setData(budgetData);
 
         if (silent) {
           toast({ title: "Atualizado", description: "Dados recarregados." });
         }
       } catch (err: any) {
         const code = err?.code || err?.message;
-        const notFound = code === "not_found" || err?.details?.includes("No rows");
+        const notFound =
+          code === "not_found" ||
+          err?.details?.includes("No rows") ||
+          err?.message === "not_found" ||
+          err?.message === "no_versions";
         toast({
           title: notFound ? "Orçamento não encontrado" : "Erro ao carregar",
           description: notFound
