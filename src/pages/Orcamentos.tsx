@@ -20,6 +20,8 @@ import {
   FileUp,
   Brain,
   Sparkles,
+  Calculator,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,8 +48,28 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
+
+interface BudgetItem {
+  descricao: string;
+  quantidade: number;
+  unidade: string;
+  valor_unitario: number;
+  valor_total: number;
+  prazo: string;
+  selecionado?: boolean;
+}
+
+interface BudgetPhase {
+  nome: string;
+  itens: BudgetItem[];
+  total: number;
+  selecionado?: boolean;
+}
 
 interface Budget {
   id: string;
@@ -59,6 +81,7 @@ interface Budget {
   produtor?: string;
   total?: number;
   created_at: string;
+  versions?: any[];
 }
 
 interface ExtractedBudgetData {
@@ -77,6 +100,284 @@ interface ExtractedBudgetData {
   observacoes: string[];
 }
 
+// Componente para seleção de pacotes
+function PackageSelector({
+  phases,
+  onSelectionChange,
+}: {
+  phases: BudgetPhase[];
+  onSelectionChange: (selectedPhases: BudgetPhase[], total: number) => void;
+}) {
+  const [localPhases, setLocalPhases] = useState<BudgetPhase[]>(
+    phases.map((phase) => ({
+      ...phase,
+      selecionado: false,
+      itens: phase.itens.map((item) => ({
+        ...item,
+        selecionado: false,
+      })),
+    })),
+  );
+
+  const updateSelection = (updatedPhases: BudgetPhase[]) => {
+    setLocalPhases(updatedPhases);
+
+    const selectedPhases = updatedPhases
+      .filter((phase) => phase.selecionado)
+      .map((phase) => ({
+        ...phase,
+        itens: phase.itens.filter((item) => item.selecionado),
+      }))
+      .filter((phase) => phase.itens.length > 0);
+
+    const total = selectedPhases.reduce(
+      (sum, phase) => sum + phase.itens.reduce((phaseSum, item) => phaseSum + item.valor_total, 0),
+      0,
+    );
+
+    onSelectionChange(selectedPhases, total);
+  };
+
+  const togglePhase = (phaseIndex: number) => {
+    const updatedPhases = [...localPhases];
+    const phase = updatedPhases[phaseIndex];
+    phase.selecionado = !phase.selecionado;
+
+    phase.itens = phase.itens.map((item) => ({
+      ...item,
+      selecionado: phase.selecionado,
+    }));
+
+    updateSelection(updatedPhases);
+  };
+
+  const toggleItem = (phaseIndex: number, itemIndex: number) => {
+    const updatedPhases = [...localPhases];
+    const item = updatedPhases[phaseIndex].itens[itemIndex];
+    item.selecionado = !item.selecionado;
+
+    const phase = updatedPhases[phaseIndex];
+    phase.selecionado = phase.itens.every((item) => item.selecionado);
+
+    updateSelection(updatedPhases);
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Selecionar Pacotes</h3>
+        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+          {localPhases.flatMap((p) => p.itens).filter((i) => i.selecionado).length} itens selecionados
+        </Badge>
+      </div>
+
+      {localPhases.map((phase, phaseIndex) => (
+        <Card
+          key={phaseIndex}
+          className={`border-l-4 ${phase.selecionado ? "border-l-green-500 bg-green-50/30" : "border-l-gray-300"}`}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Checkbox checked={phase.selecionado} onCheckedChange={() => togglePhase(phaseIndex)} />
+                <CardTitle className="text-base">{phase.nome}</CardTitle>
+              </div>
+              <Badge variant="secondary">{formatCurrency(phase.total)}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2 ml-7">
+              {phase.itens.map((item, itemIndex) => (
+                <div
+                  key={itemIndex}
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    item.selecionado ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    <Checkbox checked={item.selecionado} onCheckedChange={() => toggleItem(phaseIndex, itemIndex)} />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">{item.descricao}</p>
+                      <p className="text-xs text-gray-600">
+                        {item.quantidade} {item.unidade} • {item.prazo}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-green-600">{formatCurrency(item.valor_total)}</p>
+                    <p className="text-xs text-gray-500">{formatCurrency(item.valor_unitario)}/un</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// Componente para criar versão com pacotes
+function CreatePackageVersionDialog({
+  budget,
+  onVersionCreate,
+}: {
+  budget: Budget;
+  onVersionCreate: (versionData: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selectedPhases, setSelectedPhases] = useState<BudgetPhase[]>([]);
+  const [total, setTotal] = useState(0);
+  const [versionName, setVersionName] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+
+  const handleSelectionChange = (phases: BudgetPhase[], totalValue: number) => {
+    setSelectedPhases(phases);
+    setTotal(totalValue);
+  };
+
+  const handleCreateVersion = () => {
+    if (selectedPhases.length === 0) {
+      alert("Selecione pelo menos um pacote para criar a versão");
+      return;
+    }
+
+    const versionData = {
+      name: versionName || `Versão Pacotes - ${new Date().toLocaleDateString()}`,
+      phases: selectedPhases,
+      total_geral: total,
+      observacoes: observacoes ? [observacoes] : [],
+      tipo: "pacotes_selecionados",
+    };
+
+    onVersionCreate(versionData);
+    setOpen(false);
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setSelectedPhases([]);
+    setTotal(0);
+    setVersionName("");
+    setObservacoes("");
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const budgetPayload = budget.versions?.[0]?.payload;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 border-orange-200 text-orange-700 hover:bg-orange-50">
+          <Calculator className="h-4 w-4" />
+          Criar Versão com Pacotes
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-orange-600" />
+            Criar Versão com Pacotes Selecionados
+          </DialogTitle>
+          <DialogDescription>Selecione os pacotes que deseja incluir nesta versão do orçamento</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Informações da Versão</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="versionName">Nome da Versão</Label>
+                <Input
+                  id="versionName"
+                  placeholder="Ex: Pacotes Essenciais - MULTIMIX"
+                  value={versionName}
+                  onChange={(e) => setVersionName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="observacoes">Observações</Label>
+                <Textarea
+                  id="observacoes"
+                  placeholder="Adicione observações sobre esta versão..."
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {budgetPayload?.fases && (
+            <PackageSelector phases={budgetPayload.fases} onSelectionChange={handleSelectionChange} />
+          )}
+
+          {selectedPhases.length > 0 && (
+            <Card className="bg-green-50 border-green-200">
+              <CardHeader>
+                <CardTitle className="text-lg text-green-900">Resumo da Versão</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {selectedPhases.map((phase, index) => (
+                    <div key={index} className="border-b border-green-200 pb-2 last:border-0">
+                      <h4 className="font-semibold text-green-900">{phase.nome}</h4>
+                      <div className="space-y-1 ml-4">
+                        {phase.itens.map((item, itemIndex) => (
+                          <div key={itemIndex} className="flex justify-between text-sm">
+                            <span className="text-green-800">• {item.descricao}</span>
+                            <span className="font-medium text-green-700">{formatCurrency(item.valor_total)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="pt-2 border-t border-green-300">
+                    <div className="flex justify-between items-center text-lg font-bold text-green-900">
+                      <span>Total da Versão:</span>
+                      <span>{formatCurrency(total)}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateVersion}
+              disabled={selectedPhases.length === 0}
+              className="gap-2 bg-orange-600 hover:bg-orange-700"
+            >
+              <Plus className="h-4 w-4" />
+              Criar Versão
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Orcamentos() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -85,8 +386,7 @@ export default function Orcamentos() {
   const [search, setSearch] = useState("");
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Estados para o upload de PDF
+
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -108,8 +408,8 @@ export default function Orcamentos() {
           type,
           status,
           created_at,
-          versions!inner(payload, total_geral)
-        `
+          versions!inner(payload, total_geral, version_number)
+        `,
         )
         .order("created_at", { ascending: false });
 
@@ -128,6 +428,7 @@ export default function Orcamentos() {
           produtor: payload?.produtor,
           total: latestVersion?.total_geral,
           created_at: b.created_at,
+          versions: b.versions,
         };
       });
 
@@ -140,7 +441,55 @@ export default function Orcamentos() {
     }
   };
 
-  // Função para processar upload de PDF
+  const handleCreatePackageVersion = async (budgetId: string, versionData: any) => {
+    try {
+      const { data: currentBudget, error: budgetError } = await supabase
+        .from("budgets")
+        .select(
+          `
+          *,
+          versions!inner(*)
+        `,
+        )
+        .eq("id", budgetId)
+        .single();
+
+      if (budgetError) throw budgetError;
+
+      const currentVersion = currentBudget.versions[0];
+      const nextVersionNumber = (currentVersion.version_number || 1) + 1;
+
+      const { error: versionError } = await supabase.from("versions").insert({
+        budget_id: budgetId,
+        payload: {
+          ...currentVersion.payload,
+          fases: versionData.phases,
+          observacoes: [...(currentVersion.payload.observacoes || []), ...versionData.observacoes],
+        },
+        total_geral: versionData.total_geral,
+        version_number: nextVersionNumber,
+        version_name: versionData.name,
+        tipo: "pacotes_selecionados",
+      });
+
+      if (versionError) throw versionError;
+
+      toast({
+        title: "Versão criada com sucesso!",
+        description: `Versão "${versionData.name}" criada com ${versionData.phases.flatMap((p: any) => p.itens).length} itens`,
+      });
+
+      loadBudgets();
+    } catch (error) {
+      console.error("Erro ao criar versão:", error);
+      toast({
+        title: "Erro ao criar versão",
+        description: "Não foi possível criar a nova versão",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -154,7 +503,7 @@ export default function Orcamentos() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "Arquivo muito grande",
         description: "O PDF deve ter menos de 10MB",
@@ -168,9 +517,8 @@ export default function Orcamentos() {
     setExtractedData(null);
 
     try {
-      // Simular progresso de upload
       const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
+        setUploadProgress((prev) => {
           if (prev >= 90) {
             clearInterval(progressInterval);
             return 90;
@@ -179,11 +527,9 @@ export default function Orcamentos() {
         });
       }, 200);
 
-      // Criar FormData para upload
       const formData = new FormData();
       formData.append("pdf", file);
 
-      // Fazer upload para o endpoint de processamento
       const response = await fetch("/api/process-pdf", {
         method: "POST",
         body: formData,
@@ -196,15 +542,14 @@ export default function Orcamentos() {
       }
 
       const result = await response.json();
-      
+
       setUploadProgress(100);
       setExtractedData(result.data);
-      
+
       toast({
         title: "PDF processado com sucesso!",
         description: `Orçamento extraído de ${result.data.fornecedor}`,
       });
-
     } catch (error) {
       console.error("Erro no upload:", error);
       toast({
@@ -218,60 +563,53 @@ export default function Orcamentos() {
     }
   };
 
-  // Função para criar orçamento a partir dos dados extraídos
   const createBudgetFromExtractedData = async () => {
     if (!extractedData) return;
 
     setProcessing(true);
     try {
-      // Gerar ID de exibição
       const timestamp = new Date().getTime();
       const displayId = `ORC-${timestamp.toString().slice(-6)}`;
 
-      // Criar estrutura do payload
       const payload = {
         cliente: "Cliente a definir",
         produto: "Produto a definir",
         produtor: "Produtor a definir",
         fornecedor: extractedData.fornecedor,
-        fases: extractedData.fases.map(fase => ({
+        fases: extractedData.fases.map((fase) => ({
           nome: fase.nome,
-          itens: fase.itens.map(item => ({
+          itens: fase.itens.map((item) => ({
             descricao: item.descricao,
             quantidade: 1,
             unidade: "un",
             valor_unitario: item.valor,
             valor_total: item.valor,
-            prazo: item.prazo || ""
+            prazo: item.prazo || "",
           })),
-          total: fase.total
+          total: fase.total,
         })),
         observacoes: extractedData.observacoes,
-        prazos_entregas: extractedData.prazos_entregas
+        prazos_entregas: extractedData.prazos_entregas,
       };
 
-      // Inserir no banco de dados
       const { data: budgetData, error: budgetError } = await supabase
         .from("budgets")
         .insert({
           display_id: displayId,
-          type: "filme", // Tipo padrão, pode ser ajustado depois
-          status: "rascunho"
+          type: "filme",
+          status: "rascunho",
         })
         .select()
         .single();
 
       if (budgetError) throw budgetError;
 
-      // Criar versão do orçamento
-      const { error: versionError } = await supabase
-        .from("versions")
-        .insert({
-          budget_id: budgetData.id,
-          payload: payload,
-          total_geral: extractedData.total_geral,
-          version_number: 1
-        });
+      const { error: versionError } = await supabase.from("versions").insert({
+        budget_id: budgetData.id,
+        payload: payload,
+        total_geral: extractedData.total_geral,
+        version_number: 1,
+      });
 
       if (versionError) throw versionError;
 
@@ -282,8 +620,7 @@ export default function Orcamentos() {
 
       setUploadDialogOpen(false);
       setExtractedData(null);
-      loadBudgets(); // Recarregar lista
-
+      loadBudgets();
     } catch (error) {
       console.error("Erro ao criar orçamento:", error);
       toast({
@@ -410,7 +747,6 @@ export default function Orcamentos() {
         backTo="/"
         actions={
           <div className="flex gap-2">
-            {/* Botão de Upload de PDF com IA */}
             <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -444,13 +780,11 @@ export default function Orcamentos() {
                     <Card className="border-2 border-dashed border-green-300 bg-green-50/50">
                       <CardContent className="p-6 text-center">
                         <FileUp className="h-12 w-12 mx-auto text-green-600 mb-4" />
-                        <h3 className="text-lg font-semibold text-green-900 mb-2">
-                          Upload de PDF do Fornecedor
-                        </h3>
+                        <h3 className="text-lg font-semibold text-green-900 mb-2">Upload de PDF do Fornecedor</h3>
                         <p className="text-green-700 mb-4">
                           A IA vai extrair automaticamente: fornecedor, fases, itens, valores e prazos
                         </p>
-                        
+
                         <div className="space-y-4">
                           <Input
                             type="file"
@@ -459,13 +793,11 @@ export default function Orcamentos() {
                             disabled={uploading}
                             className="cursor-pointer"
                           />
-                          
+
                           {uploading && (
                             <div className="space-y-2">
                               <Progress value={uploadProgress} className="h-2" />
-                              <p className="text-sm text-green-700">
-                                Processando PDF... {uploadProgress}%
-                              </p>
+                              <p className="text-sm text-green-700">Processando PDF... {uploadProgress}%</p>
                             </div>
                           )}
                         </div>
@@ -488,18 +820,14 @@ export default function Orcamentos() {
                       <div className="space-y-6">
                         <Card>
                           <CardHeader>
-                            <CardTitle className="text-lg">
-                              Dados Extraídos - {extractedData.fornecedor}
-                            </CardTitle>
+                            <CardTitle className="text-lg">Dados Extraídos - {extractedData.fornecedor}</CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            {/* Fornecedor */}
                             <div>
                               <h4 className="font-semibold text-gray-900 mb-2">Fornecedor</h4>
                               <p className="text-gray-700">{extractedData.fornecedor}</p>
                             </div>
 
-                            {/* Fases e Itens */}
                             <div>
                               <h4 className="font-semibold text-gray-900 mb-3">Estrutura do Orçamento</h4>
                               <div className="space-y-3">
@@ -514,7 +842,10 @@ export default function Orcamentos() {
                                     <CardContent className="pt-0">
                                       <div className="space-y-2">
                                         {fase.itens.map((item, itemIndex) => (
-                                          <div key={itemIndex} className="flex justify-between text-sm py-1 border-b border-gray-200">
+                                          <div
+                                            key={itemIndex}
+                                            className="flex justify-between text-sm py-1 border-b border-gray-200"
+                                          >
                                             <span className="text-gray-700">{item.descricao}</span>
                                             <span className="font-medium">{formatCurrency(item.valor)}</span>
                                           </div>
@@ -526,7 +857,6 @@ export default function Orcamentos() {
                               </div>
                             </div>
 
-                            {/* Total Geral */}
                             <div className="bg-green-50 p-4 rounded-lg">
                               <div className="flex justify-between items-center">
                                 <span className="font-semibold text-green-900">Total Geral</span>
@@ -536,7 +866,6 @@ export default function Orcamentos() {
                               </div>
                             </div>
 
-                            {/* Observações */}
                             {extractedData.observacoes.length > 0 && (
                               <div>
                                 <h4 className="font-semibold text-gray-900 mb-2">Observações</h4>
@@ -551,11 +880,7 @@ export default function Orcamentos() {
                         </Card>
 
                         <div className="flex gap-3 justify-end">
-                          <Button
-                            variant="outline"
-                            onClick={() => setExtractedData(null)}
-                            disabled={processing}
-                          >
+                          <Button variant="outline" onClick={() => setExtractedData(null)} disabled={processing}>
                             Voltar
                           </Button>
                           <Button
@@ -595,7 +920,6 @@ export default function Orcamentos() {
       />
 
       <div className="container-page py-6">
-        {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className="bg-white/80 backdrop-blur-sm border-blue-200">
             <CardContent className="p-4">
@@ -646,11 +970,9 @@ export default function Orcamentos() {
           </Card>
         </div>
 
-        {/* Filtros */}
         <Card className="mb-6 border-blue-100 bg-white/80 backdrop-blur-sm">
           <CardContent className="p-4">
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
-              {/* Tipo */}
               <div className="flex gap-2 flex-wrap">
                 <Button
                   variant={selectedType === "todos" ? "default" : "outline"}
@@ -674,7 +996,6 @@ export default function Orcamentos() {
                 ))}
               </div>
 
-              {/* Status */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -695,7 +1016,6 @@ export default function Orcamentos() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Busca */}
               <div className="relative lg:ml-auto">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -709,7 +1029,6 @@ export default function Orcamentos() {
           </CardContent>
         </Card>
 
-        {/* Lista de Orçamentos */}
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -732,10 +1051,7 @@ export default function Orcamentos() {
               <div className="flex gap-3 justify-center">
                 <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="gap-2 border-green-500 text-green-700 hover:bg-green-50"
-                    >
+                    <Button variant="outline" className="gap-2 border-green-500 text-green-700 hover:bg-green-50">
                       <Brain className="h-4 w-4" />
                       Extrair de PDF
                     </Button>
@@ -766,7 +1082,6 @@ export default function Orcamentos() {
                   <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 bg-white/80 backdrop-blur-sm">
                     <CardContent className="p-6">
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        {/* Informações principais */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-3">
                             <div className="flex items-center gap-2">
@@ -812,8 +1127,11 @@ export default function Orcamentos() {
                           </div>
                         </div>
 
-                        {/* Ações */}
                         <div className="flex gap-2 flex-shrink-0">
+                          <CreatePackageVersionDialog
+                            budget={budget}
+                            onVersionCreate={(versionData) => handleCreatePackageVersion(budget.id, versionData)}
+                          />
                           <Button
                             size="sm"
                             variant="outline"
