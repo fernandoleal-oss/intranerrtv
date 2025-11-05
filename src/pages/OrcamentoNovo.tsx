@@ -742,7 +742,7 @@ export default function BudgetEdit() {
           display_id: budget.display_id,
           type: budget.type,
           status: budget.status,
-          payload: versions.payload || {},
+          payload: (versions.payload as Record<string, any>) || {},
           version_id: versions.id,
           versao: versions.versao ?? 1,
           budget_number: budget.budget_number || "000",
