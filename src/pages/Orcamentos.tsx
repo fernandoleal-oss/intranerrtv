@@ -408,7 +408,7 @@ export default function Orcamentos() {
           type,
           status,
           created_at,
-          versions!inner(payload, total_geral, version_number)
+          versions!inner(payload, total_geral, versao)
         `,
         )
         .order("created_at", { ascending: false });
@@ -457,19 +457,18 @@ export default function Orcamentos() {
       if (budgetError) throw budgetError;
 
       const currentVersion = currentBudget.versions[0];
-      const nextVersionNumber = (currentVersion.version_number || 1) + 1;
+      const nextVersionNumber = (currentVersion.versao || 1) + 1;
+      const currentPayload = (currentVersion.payload as Record<string, any>) || {};
 
       const { error: versionError } = await supabase.from("versions").insert({
         budget_id: budgetId,
         payload: {
-          ...currentVersion.payload,
+          ...currentPayload,
           fases: versionData.phases,
-          observacoes: [...(currentVersion.payload.observacoes || []), ...versionData.observacoes],
+          observacoes: [...(currentPayload.observacoes || []), ...versionData.observacoes],
         },
         total_geral: versionData.total_geral,
-        version_number: nextVersionNumber,
-        version_name: versionData.name,
-        tipo: "pacotes_selecionados",
+        versao: nextVersionNumber,
       });
 
       if (versionError) throw versionError;
@@ -608,7 +607,7 @@ export default function Orcamentos() {
         budget_id: budgetData.id,
         payload: payload,
         total_geral: extractedData.total_geral,
-        version_number: 1,
+        versao: 1,
       });
 
       if (versionError) throw versionError;
