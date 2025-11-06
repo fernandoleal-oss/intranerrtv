@@ -16,6 +16,7 @@ const NovoFilme     = lazy(() => import('@/pages/new/Filme'))
 const NovoAudio     = lazy(() => import('@/pages/new/Audio'))
 const NovoCC        = lazy(() => import('@/pages/new/CC'))
 const NovaImagem    = lazy(() => import('@/pages/new/Imagem'))
+const NovoLivre     = lazy(() => import('@/pages/new/Livre'))
 const BudgetPreview = lazy(() => import('@/pages/budget/Preview'))
 const PdfView       = lazy(() => import('@/pages/budget/Pdf'))
 const BudgetEdit    = lazy(() => import('@/pages/budget/Edit'))
@@ -145,6 +146,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <NovaImagem />
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/new/livre"
+                element={
+                  <ProtectedRoute>
+                    <NovoLivre />
                   </ProtectedRoute>
                 }
               />

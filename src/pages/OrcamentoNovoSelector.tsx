@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Film, Music, Image, Building2 } from "lucide-react";
+import { ArrowLeft, Film, Music, Image, Building2, FileText } from "lucide-react";
 
 export default function OrcamentoNovoSelector() {
   const navigate = useNavigate();
@@ -40,6 +40,14 @@ export default function OrcamentoNovoSelector() {
       path: "/new/cc",
       color: "from-orange-500 to-orange-600",
     },
+    {
+      type: "livre",
+      title: "Orçamento Livre",
+      description: "Criar orçamento customizado para qualquer serviço (tradução, consultoria, etc.)",
+      icon: FileText,
+      path: "/new/livre",
+      color: "from-teal-500 to-teal-600",
+    },
   ];
 
   return (
@@ -62,7 +70,7 @@ export default function OrcamentoNovoSelector() {
 
       {/* Content */}
       <div className="container mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {budgetTypes.map((budget, index) => (
             <motion.div
               key={budget.type}
