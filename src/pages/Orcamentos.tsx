@@ -277,7 +277,14 @@ function CreatePackageVersionDialog({
   };
 
   const budgetPayload = budget.versions?.[0]?.payload;
-  const hasFases = budgetPayload?.fases && Array.isArray(budgetPayload.fases) && budgetPayload.fases.length > 0;
+  
+  // Detectar se tem fases (pode estar em payload.fases ou payload.fornecedores[].fases)
+  const hasFasesDirect = budgetPayload?.fases && Array.isArray(budgetPayload.fases) && budgetPayload.fases.length > 0;
+  const hasFasesInFornecedores = budgetPayload?.fornecedores && 
+    Array.isArray(budgetPayload.fornecedores) && 
+    budgetPayload.fornecedores.some((f: any) => f.fases && Array.isArray(f.fases) && f.fases.length > 0);
+  
+  const hasFases = hasFasesDirect || hasFasesInFornecedores;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -330,7 +337,20 @@ function CreatePackageVersionDialog({
             </CardContent>
           </Card>
 
-          {hasFases && <PackageSelector phases={budgetPayload.fases} onSelectionChange={handleSelectionChange} />}
+          {hasFases && (
+            <PackageSelector 
+              phases={
+                budgetPayload.fases || 
+                budgetPayload.fornecedores?.flatMap((f: any) => 
+                  f.fases?.map((fase: any) => ({
+                    ...fase,
+                    nome: `${f.nome} - ${fase.nome}`
+                  })) || []
+                ) || []
+              } 
+              onSelectionChange={handleSelectionChange} 
+            />
+          )}
 
           {selectedPhases.length > 0 && (
             <Card className="bg-green-50 border-green-200">
