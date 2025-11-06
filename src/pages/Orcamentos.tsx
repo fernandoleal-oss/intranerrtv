@@ -277,6 +277,12 @@ function CreatePackageVersionDialog({
   };
 
   const budgetPayload = budget.versions?.[0]?.payload;
+  const hasFases = budgetPayload?.fases && Array.isArray(budgetPayload.fases) && budgetPayload.fases.length > 0;
+  
+  // Não mostrar o botão se não houver fases
+  if (!hasFases) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -323,9 +329,7 @@ function CreatePackageVersionDialog({
             </CardContent>
           </Card>
 
-          {budgetPayload?.fases && (
-            <PackageSelector phases={budgetPayload.fases} onSelectionChange={handleSelectionChange} />
-          )}
+          <PackageSelector phases={budgetPayload.fases} onSelectionChange={handleSelectionChange} />
 
           {selectedPhases.length > 0 && (
             <Card className="bg-green-50 border-green-200">
