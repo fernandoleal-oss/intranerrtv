@@ -278,16 +278,17 @@ function CreatePackageVersionDialog({
 
   const budgetPayload = budget.versions?.[0]?.payload;
   const hasFases = budgetPayload?.fases && Array.isArray(budgetPayload.fases) && budgetPayload.fases.length > 0;
-  
-  // Não mostrar o botão se não houver fases
-  if (!hasFases) {
-    return null;
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 border-orange-200 text-orange-700 hover:bg-orange-50">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
+          disabled={!hasFases}
+          title={!hasFases ? "Este orçamento não possui fases para criar versões por pacotes" : "Criar versão selecionando pacotes específicos"}
+        >
           <Calculator className="h-4 w-4" />
           Criar Versão com Pacotes
         </Button>
@@ -329,7 +330,7 @@ function CreatePackageVersionDialog({
             </CardContent>
           </Card>
 
-          <PackageSelector phases={budgetPayload.fases} onSelectionChange={handleSelectionChange} />
+          {hasFases && <PackageSelector phases={budgetPayload.fases} onSelectionChange={handleSelectionChange} />}
 
           {selectedPhases.length > 0 && (
             <Card className="bg-green-50 border-green-200">
