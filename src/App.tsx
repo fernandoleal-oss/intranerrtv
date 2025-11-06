@@ -26,6 +26,7 @@ const FinanceExecutiveReport = lazy(() => import('@/pages/FinanceExecutiveReport
 const Direitos      = lazy(() => import('@/pages/Direitos'))
 const Orcamentos    = lazy(() => import('@/pages/Orcamentos'))
 const OrcamentoNovo = lazy(() => import('@/pages/OrcamentoNovo'))
+const OrcamentoNovoSelector = lazy(() => import('@/pages/OrcamentoNovoSelector'))
 const ComparadorBYD = lazy(() => import('@/pages/ComparadorBYD'))
 const Ancine        = lazy(() => import('@/pages/Ancine'))
 const Claquete      = lazy(() => import('@/pages/Claquete'))
@@ -223,6 +224,15 @@ const App = () => (
 
               <Route
                 path="/orcamentos/novo"
+                element={
+                  <ProtectedRoute>
+                    <OrcamentoNovoSelector />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/orcamentos/:id/edit"
                 element={
                   <ProtectedRoute>
                     <OrcamentoNovo />
