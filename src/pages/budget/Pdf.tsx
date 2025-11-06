@@ -168,6 +168,9 @@ export default function BudgetPdf() {
   // Detectar se é orçamento com estrutura de fornecedores → fases
   const isFornecedoresFases = payload.estrutura === 'fornecedores_fases' && payload.fornecedores && Array.isArray(payload.fornecedores);
 
+  // Detectar se é orçamento livre (customizado)
+  const isLivreBudget = payload.type === 'livre' && payload.itens && Array.isArray(payload.itens);
+
   // Removidos cálculos de totais conforme solicitado
 
   /** ====== Carrega orçamento ====== */
@@ -523,6 +526,12 @@ export default function BudgetPdf() {
                   <p style={{ fontWeight: "bold", color: "#000" }}>{payload.job}</p>
                 </div>
               )}
+              {payload.tipo_servico && (
+                <div>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Tipo de Serviço</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.tipo_servico}</p>
+                </div>
+              )}
               {payload.produtor && (
                 <div>
                   <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Produtor</p>
@@ -867,6 +876,119 @@ export default function BudgetPdf() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Orçamento Livre (Customizado) */}
+          {isLivreBudget && (
+            <div className="allow-break mb-8">
+              {/* Cabeçalho */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+                  borderLeft: "4px solid #0369A1",
+                  padding: "16px 20px",
+                  marginBottom: "16px",
+                  borderRadius: "0 8px 8px 0",
+                  border: "1px solid #BAE6FD",
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-sky-600" />
+                  <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#0C4A6E" }}>
+                    Itens do Orçamento
+                  </h2>
+                </div>
+                {payload.tipo_servico && (
+                  <p style={{ fontSize: "12px", color: "#64748B", marginTop: "8px" }}>
+                    Serviço: {payload.tipo_servico}
+                  </p>
+                )}
+              </div>
+
+              {/* Lista de Itens */}
+              <div
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "8px",
+                  overflow: "hidden",
+                }}
+              >
+                {/* Cabeçalho da tabela */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 100px 120px 120px",
+                    gap: "12px",
+                    padding: "12px 16px",
+                    backgroundColor: "#F8FAFC",
+                    borderBottom: "2px solid #E2E8F0",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    color: "#64748B",
+                  }}
+                >
+                  <div>DESCRIÇÃO</div>
+                  <div style={{ textAlign: "center" }}>QTD</div>
+                  <div style={{ textAlign: "right" }}>VALOR UNIT.</div>
+                  <div style={{ textAlign: "right" }}>VALOR TOTAL</div>
+                </div>
+
+                {/* Linhas de itens */}
+                {payload.itens.map((item: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="item-row"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 100px 120px 120px",
+                      gap: "12px",
+                      padding: "12px 16px",
+                      borderBottom: idx < payload.itens.length - 1 ? "1px solid #F1F5F9" : "none",
+                      fontSize: "12px",
+                    }}
+                  >
+                    <div>
+                      <p style={{ fontWeight: "600", color: "#1E293B", marginBottom: "4px" }}>
+                        {item.descricao || "-"}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: "center", color: "#64748B" }}>
+                      {item.quantidade || 1}
+                    </div>
+                    <div style={{ textAlign: "right", color: "#64748B" }}>
+                      {money(item.valor_unitario || 0)}
+                    </div>
+                    <div style={{ textAlign: "right", fontWeight: "bold", color: "#1E293B" }}>
+                      {money(item.valor_total || 0)}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Total Geral */}
+                {payload.total_geral && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 100px 120px 120px",
+                      gap: "12px",
+                      padding: "16px",
+                      backgroundColor: "#F0FDF4",
+                      borderTop: "2px solid #16A34A",
+                      fontSize: "14px",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    <div style={{ gridColumn: "1 / 4", textAlign: "right", color: "#1E293B" }}>
+                      TOTAL GERAL:
+                    </div>
+                    <div style={{ textAlign: "right", color: "#16A34A" }}>
+                      {money(payload.total_geral)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1442,9 +1564,19 @@ export default function BudgetPdf() {
               <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "12px", color: "#1E293B" }}>
                 Observações
               </h2>
-              <p style={{ fontSize: "12px", color: "#475569", whiteSpace: "pre-wrap" }}>
-                {payload.observacoes}
-              </p>
+              {Array.isArray(payload.observacoes) ? (
+                <ul style={{ fontSize: "12px", color: "#475569", paddingLeft: "20px" }}>
+                  {payload.observacoes.map((obs: string, idx: number) => (
+                    <li key={idx} style={{ marginBottom: "8px" }}>
+                      {obs}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ fontSize: "12px", color: "#475569", whiteSpace: "pre-wrap" }}>
+                  {payload.observacoes}
+                </p>
+              )}
             </div>
           )}
 
