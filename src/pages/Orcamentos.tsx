@@ -51,6 +51,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ItemSelector } from "@/components/budget/ItemSelector";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -234,6 +235,7 @@ function CreatePackageVersionDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [selectedPhases, setSelectedPhases] = useState<BudgetPhase[]>([]);
+  const [selectedItems, setSelectedItems] = useState<any>({});
   const [total, setTotal] = useState(0);
   const [versionName, setVersionName] = useState("");
   const [observacoes, setObservacoes] = useState("");
@@ -243,18 +245,29 @@ function CreatePackageVersionDialog({
     setTotal(totalValue);
   };
 
+  const handleItemSelectionChange = (itemsByFornecedor: any) => {
+    setSelectedItems(itemsByFornecedor);
+    const newTotal = Object.values(itemsByFornecedor).reduce((sum: number, fornecedor: any) => {
+      return sum + (fornecedor.total || 0);
+    }, 0) as number;
+    setTotal(newTotal);
+  };
+
   const handleCreateVersion = () => {
-    if (selectedPhases.length === 0) {
-      alert("Selecione pelo menos um pacote para criar a versão");
+    const hasSelection = Object.keys(selectedItems).length > 0 || selectedPhases.length > 0;
+    
+    if (!hasSelection) {
+      alert("Selecione pelo menos um item para criar a versão");
       return;
     }
 
     const versionData = {
-      name: versionName || `Versão Pacotes - ${new Date().toLocaleDateString()}`,
+      name: versionName || `Versão Itens - ${new Date().toLocaleDateString()}`,
       phases: selectedPhases,
+      itemsByFornecedor: selectedItems,
       total_geral: total,
       observacoes: observacoes ? [observacoes] : [],
-      tipo: "pacotes_selecionados",
+      tipo: Object.keys(selectedItems).length > 0 ? "itens_selecionados" : "pacotes_selecionados",
     };
 
     onVersionCreate(versionData);
@@ -264,6 +277,7 @@ function CreatePackageVersionDialog({
 
   const resetForm = () => {
     setSelectedPhases([]);
+    setSelectedItems({});
     setTotal(0);
     setVersionName("");
     setObservacoes("");
@@ -337,43 +351,83 @@ function CreatePackageVersionDialog({
             </CardContent>
           </Card>
 
-          {hasFases && (
+          {hasFases && budgetPayload.fornecedores && (
+            <ItemSelector 
+              fornecedores={budgetPayload.fornecedores.map((f: any, index: number) => ({
+                id: f.id || String(index + 1),
+                nome: f.nome,
+                cnpj: f.cnpj,
+                contato: f.contato,
+                fases: f.fases?.map((fase: any) => ({
+                  id: fase.id,
+                  nome: fase.nome,
+                  itens: fase.itens?.map((item: any) => ({
+                    id: item.id,
+                    nome: item.nome,
+                    valor: item.valor,
+                    prazo: item.prazo,
+                    observacao: item.observacao,
+                    desconto: item.desconto
+                  })) || []
+                })) || []
+              }))}
+              onSelectionChange={handleItemSelectionChange}
+            />
+          )}
+
+          {hasFases && !budgetPayload.fornecedores && (
             <PackageSelector 
               phases={
-                budgetPayload.fases || 
-                budgetPayload.fornecedores?.flatMap((f: any) => 
-                  f.fases?.map((fase: any) => ({
-                    ...fase,
-                    nome: `${f.nome} - ${fase.nome}`
-                  })) || []
-                ) || []
+                budgetPayload.fases || []
               } 
               onSelectionChange={handleSelectionChange} 
             />
           )}
 
-          {selectedPhases.length > 0 && (
+          {(Object.keys(selectedItems).length > 0 || selectedPhases.length > 0) && (
             <Card className="bg-green-50 border-green-200">
               <CardHeader>
                 <CardTitle className="text-lg text-green-900">Resumo da Versão</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {selectedPhases.map((phase, index) => (
-                    <div key={index} className="border-b border-green-200 pb-2 last:border-0">
-                      <h4 className="font-semibold text-green-900">{phase.nome}</h4>
-                      <div className="space-y-1 ml-4">
-                        {phase.itens.map((item, itemIndex) => (
-                          <div key={itemIndex} className="flex justify-between text-sm">
-                            <span className="text-green-800">• {item.descricao}</span>
-                            <span className="font-medium text-green-700">{formatCurrency(item.valor_total)}</span>
+                  {Object.keys(selectedItems).length > 0 ? (
+                    Object.entries(selectedItems).map(([fornecedor, data]: [string, any]) => (
+                      <div key={fornecedor} className="border-b border-green-200 pb-3 last:border-0">
+                        <h4 className="font-bold text-green-900 mb-2">{fornecedor}</h4>
+                        <div className="space-y-1 ml-4">
+                          {data.items.map((item: any, itemIndex: number) => (
+                            <div key={itemIndex} className="flex justify-between text-sm">
+                              <span className="text-green-800">
+                                • {item.nome} <span className="text-green-600">({item.fase})</span>
+                              </span>
+                              <span className="font-medium text-green-700">{formatCurrency(item.valor)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between text-sm font-semibold pt-1 border-t border-green-300 mt-2">
+                            <span className="text-green-900">Subtotal {fornecedor}:</span>
+                            <span className="text-green-900">{formatCurrency(data.total)}</span>
                           </div>
-                        ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    selectedPhases.map((phase, index) => (
+                      <div key={index} className="border-b border-green-200 pb-2 last:border-0">
+                        <h4 className="font-semibold text-green-900">{phase.nome}</h4>
+                        <div className="space-y-1 ml-4">
+                          {phase.itens.map((item, itemIndex) => (
+                            <div key={itemIndex} className="flex justify-between text-sm">
+                              <span className="text-green-800">• {item.descricao}</span>
+                              <span className="font-medium text-green-700">{formatCurrency(item.valor_total)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
 
-                  <div className="pt-2 border-t border-green-300">
+                  <div className="pt-2 border-t-2 border-green-400">
                     <div className="flex justify-between items-center text-lg font-bold text-green-900">
                       <span>Total da Versão:</span>
                       <span>{formatCurrency(total)}</span>
@@ -390,7 +444,7 @@ function CreatePackageVersionDialog({
             </Button>
             <Button
               onClick={handleCreateVersion}
-              disabled={selectedPhases.length === 0}
+              disabled={Object.keys(selectedItems).length === 0 && selectedPhases.length === 0}
               className="gap-2 bg-orange-600 hover:bg-orange-700"
             >
               <Plus className="h-4 w-4" />
