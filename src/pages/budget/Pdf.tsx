@@ -10,6 +10,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import logoWE from "@/assets/LOGO-WE-2.png";
 import { addMiaguiToOrcamento } from "@/utils/addMiaguiToBudget";
+import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
 
 /** ====== Tipagens ====== */
 interface FilmOption {
@@ -157,6 +158,8 @@ export default function BudgetPdf() {
   const [addingMiagui, setAddingMiagui] = useState(false);
   const [data, setData] = useState<BudgetData | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list');
+  const [fornecedorDisplayMode, setFornecedorDisplayMode] = useState<"somado" | "separado" | "nenhum">("separado");
+  const [showDisplayDialog, setShowDisplayDialog] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const payload = data?.payload ?? {};
@@ -366,7 +369,12 @@ export default function BudgetPdf() {
     <AppLayout>
       {/* Estilos para impressão + grid 2 colunas de opções */}
       <style>{`
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { 
+          -webkit-print-color-adjust: exact; 
+          print-color-adjust: exact;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
         @media print {
           @page { size: A4 portrait; margin: 15mm 20mm; }
           .no-print { display: none !important; }
@@ -383,6 +391,11 @@ export default function BudgetPdf() {
           color: #000000;
           box-sizing: border-box;
           font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        }
+        .print-content * {
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          hyphens: auto;
         }
         .grid-opts {
           display: grid;
@@ -409,11 +422,29 @@ export default function BudgetPdf() {
           align-items: flex-start;
           padding: 8px 0;
           border-bottom: 1px solid #F1F5F9;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
         .item-row:last-child {
           border-bottom: none;
         }
+        .total-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
+          margin-top: 20px;
+          padding: 16px;
+          background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+          border: 2px solid #F59E0B;
+          border-radius: 8px;
+        }
       `}</style>
+
+      <FornecedorDisplayDialog
+        open={showDisplayDialog}
+        onOpenChange={setShowDisplayDialog}
+        onConfirm={setFornecedorDisplayMode}
+        currentMode={fornecedorDisplayMode}
+      />
 
       <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
         {/* Header */}
@@ -429,22 +460,38 @@ export default function BudgetPdf() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex gap-2 border rounded-lg p-1">
-              <Button 
-                variant={viewMode === 'list' ? 'default' : 'ghost'} 
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                Lista
-              </Button>
-              <Button 
-                variant={viewMode === 'cards' ? 'default' : 'ghost'} 
-                size="sm"
-                onClick={() => setViewMode('cards')}
-              >
-                Cards
-              </Button>
-            </div>
+            {isFornecedoresFases && (
+              <>
+                <div className="flex gap-2 border rounded-lg p-1">
+                  <Button 
+                    variant={viewMode === 'list' ? 'default' : 'ghost'} 
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    Lista
+                  </Button>
+                  <Button 
+                    variant={viewMode === 'cards' ? 'default' : 'ghost'} 
+                    size="sm"
+                    onClick={() => setViewMode('cards')}
+                  >
+                    Cards
+                  </Button>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDisplayDialog(true)}
+                  className="gap-2"
+                >
+                  Exibição de Totais: {
+                    fornecedorDisplayMode === 'somado' ? 'Somado' :
+                    fornecedorDisplayMode === 'separado' ? 'Por Fornecedor' :
+                    'Sem Totais'
+                  }
+                </Button>
+              </>
+            )}
             {id === '56213599-35e3-4192-896c-57e78148fc22' && (
               <Button 
                 onClick={handleAddMiagui} 
@@ -665,11 +712,56 @@ export default function BudgetPdf() {
                                 </div>
                               ))}
                             </div>
-                          </div>
+                           </div>
                         ))}
                       </div>
+
+                      {/* Total do Fornecedor (modo separado) */}
+                      {fornecedorDisplayMode === 'separado' && (
+                        <div className="total-section mt-4">
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E" }}>
+                              Total {fornecedor.nome}
+                            </span>
+                            <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                              {money(
+                                fornecedor.fases.reduce(
+                                  (total: number, fase: FornecedorFase) =>
+                                    total + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
+                                  0
+                                )
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
+
+                  {/* Total Geral Somado (modo somado) */}
+                  {fornecedorDisplayMode === 'somado' && (
+                    <div className="total-section">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                          Total Geral
+                        </span>
+                        <span style={{ fontSize: "20px", fontWeight: "bold", color: "#92400E" }}>
+                          {money(
+                            (payload.fornecedores || []).reduce(
+                              (total: number, fornecedor: Fornecedor) =>
+                                total +
+                                fornecedor.fases.reduce(
+                                  (faseTotal: number, fase: FornecedorFase) =>
+                                    faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
+                                  0
+                                ),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -762,10 +854,55 @@ export default function BudgetPdf() {
                               ))}
                             </div>
                           </div>
-                        ))}
+                         ))}
                       </div>
+
+                      {/* Total do Fornecedor (modo separado) */}
+                      {fornecedorDisplayMode === 'separado' && (
+                        <div className="total-section">
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "14px", fontWeight: "bold", color: "#92400E" }}>
+                              Total {fornecedor.nome}
+                            </span>
+                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E" }}>
+                              {money(
+                                fornecedor.fases.reduce(
+                                  (total: number, fase: FornecedorFase) =>
+                                    total + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
+                                  0
+                                )
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
+
+                  {/* Total Geral Somado (modo somado) */}
+                  {fornecedorDisplayMode === 'somado' && (
+                    <div className="total-section">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E" }}>
+                          Total Geral
+                        </span>
+                        <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                          {money(
+                            (payload.fornecedores || []).reduce(
+                              (total: number, fornecedor: Fornecedor) =>
+                                total +
+                                fornecedor.fases.reduce(
+                                  (faseTotal: number, fase: FornecedorFase) =>
+                                    faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
+                                  0
+                                ),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
