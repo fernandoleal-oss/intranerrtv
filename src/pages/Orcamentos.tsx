@@ -52,6 +52,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ItemSelector } from "@/components/budget/ItemSelector";
+import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -239,6 +240,8 @@ function CreatePackageVersionDialog({
   const [total, setTotal] = useState(0);
   const [versionName, setVersionName] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [fornecedorDisplayMode, setFornecedorDisplayMode] = useState<"somado" | "separado" | "nenhum">("separado");
+  const [showDisplayDialog, setShowDisplayDialog] = useState(false);
 
   const handleSelectionChange = (phases: BudgetPhase[], totalValue: number) => {
     setSelectedPhases(phases);
@@ -352,27 +355,50 @@ function CreatePackageVersionDialog({
           </Card>
 
           {hasFases && budgetPayload.fornecedores && (
-            <ItemSelector 
-              fornecedores={budgetPayload.fornecedores.map((f: any, index: number) => ({
-                id: f.id || String(index + 1),
-                nome: f.nome,
-                cnpj: f.cnpj,
-                contato: f.contato,
-                fases: f.fases?.map((fase: any) => ({
-                  id: fase.id,
-                  nome: fase.nome,
-                  itens: fase.itens?.map((item: any) => ({
-                    id: item.id,
-                    nome: item.nome,
-                    valor: item.valor,
-                    prazo: item.prazo,
-                    observacao: item.observacao,
-                    desconto: item.desconto
+            <>
+              <Card>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg">Modo de Exibição</CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => setShowDisplayDialog(true)}>
+                      Alterar Modo
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm">
+                    <span className="font-medium">Modo atual: </span>
+                    <Badge variant="secondary">
+                      {fornecedorDisplayMode === "somado" && "Total Somado"}
+                      {fornecedorDisplayMode === "separado" && "Por Fornecedor"}
+                      {fornecedorDisplayMode === "nenhum" && "Sem Totais"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <ItemSelector 
+                fornecedores={budgetPayload.fornecedores.map((f: any, index: number) => ({
+                  id: f.id || String(index + 1),
+                  nome: f.nome,
+                  cnpj: f.cnpj,
+                  contato: f.contato,
+                  fases: f.fases?.map((fase: any) => ({
+                    id: fase.id,
+                    nome: fase.nome,
+                    itens: fase.itens?.map((item: any) => ({
+                      id: item.id,
+                      nome: item.nome,
+                      valor: item.valor,
+                      prazo: item.prazo,
+                      observacao: item.observacao,
+                      desconto: item.desconto
+                    })) || []
                   })) || []
-                })) || []
-              }))}
-              onSelectionChange={handleItemSelectionChange}
-            />
+                }))}
+                onSelectionChange={handleItemSelectionChange}
+              />
+            </>
           )}
 
           {hasFases && !budgetPayload.fornecedores && (
@@ -452,6 +478,13 @@ function CreatePackageVersionDialog({
             </Button>
           </div>
         </div>
+
+        <FornecedorDisplayDialog 
+          open={showDisplayDialog}
+          onOpenChange={setShowDisplayDialog}
+          onConfirm={setFornecedorDisplayMode}
+          currentMode={fornecedorDisplayMode}
+        />
       </DialogContent>
     </Dialog>
   );
