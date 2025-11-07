@@ -36,7 +36,9 @@ interface ItemSelectorProps {
 
 export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorProps) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [openFornecedores, setOpenFornecedores] = useState<Set<string>>(new Set());
+  const [openFornecedores, setOpenFornecedores] = useState<Set<string>>(
+    new Set(fornecedores.length > 0 ? [fornecedores[0].id] : [])
+  );
   const [openFases, setOpenFases] = useState<Set<string>>(new Set());
 
   const formatCurrency = (value: number) => {
@@ -168,6 +170,9 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
     onSelectionChange(itemsByFornecedor);
   }, [selectedItems, fornecedores]);
 
+  const totalSelectedItems = Array.from(selectedItems).length;
+  const totalGeral = fornecedores.reduce((sum, fornecedor) => sum + calculateFornecedorTotal(fornecedor), 0);
+
   return (
     <Card>
       <CardHeader>
@@ -175,6 +180,16 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
           <Building2 className="h-5 w-5" />
           Selecione os Itens por Fornecedor
         </CardTitle>
+        {totalSelectedItems > 0 && (
+          <div className="flex items-center justify-between mt-2 p-3 bg-primary/10 rounded-lg">
+            <Badge variant="secondary" className="text-sm">
+              {totalSelectedItems} {totalSelectedItems === 1 ? 'item selecionado' : 'itens selecionados'}
+            </Badge>
+            <div className="text-lg font-bold text-primary">
+              {formatCurrency(totalGeral)}
+            </div>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {fornecedores.map((fornecedor) => {
@@ -184,7 +199,7 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
           const isPartiallySelected = isFornecedorPartiallySelected(fornecedor);
 
           return (
-            <Card key={fornecedor.id} className="border-2">
+            <Card key={fornecedor.id} className={`border-2 transition-all ${isFullySelected ? 'border-primary' : isPartiallySelected ? 'border-orange-400' : ''}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                   <Checkbox
@@ -198,13 +213,18 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
                     className="flex-1 flex items-center justify-between hover:bg-muted/50 rounded p-2 transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      <Label htmlFor={`fornecedor-${fornecedor.id}`} className="font-bold text-base cursor-pointer">
-                        {fornecedor.nome}
-                      </Label>
+                      {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                      <div className="text-left">
+                        <Label htmlFor={`fornecedor-${fornecedor.id}`} className="font-bold text-base cursor-pointer block">
+                          {fornecedor.nome}
+                        </Label>
+                        {fornecedor.cnpj && (
+                          <span className="text-xs text-muted-foreground">CNPJ: {fornecedor.cnpj}</span>
+                        )}
+                      </div>
                     </div>
                     {fornecedorTotal > 0 && (
-                      <Badge variant="secondary" className="ml-2">
+                      <Badge variant="default" className="ml-2 bg-primary">
                         {formatCurrency(fornecedorTotal)}
                       </Badge>
                     )}
@@ -221,7 +241,7 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
                     const isFasePartial = isFasePartiallySelected(fase);
 
                     return (
-                      <Card key={fase.id} className="border">
+                      <Card key={fase.id} className={`border transition-all ${isFaseFull ? 'bg-primary/5 border-primary/30' : isFasePartial ? 'bg-orange-50 border-orange-200' : ''}`}>
                         <CardHeader className="pb-2">
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -235,13 +255,16 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
                               className="flex-1 flex items-center justify-between hover:bg-muted/50 rounded p-1 transition-colors"
                             >
                               <div className="flex items-center gap-2">
-                                {isFaseOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                {isFaseOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 <Label htmlFor={`fase-${fase.id}`} className="font-semibold text-sm cursor-pointer">
                                   {fase.nome}
                                 </Label>
+                                <Badge variant="outline" className="text-xs">
+                                  {fase.itens.length} {fase.itens.length === 1 ? 'item' : 'itens'}
+                                </Badge>
                               </div>
                               {faseTotal > 0 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="secondary" className="text-xs font-bold">
                                   {formatCurrency(faseTotal)}
                                 </Badge>
                               )}
@@ -251,32 +274,51 @@ export function ItemSelector({ fornecedores, onSelectionChange }: ItemSelectorPr
 
                         {isFaseOpen && (
                           <CardContent className="space-y-2 pt-2">
-                            {fase.itens.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-start gap-3 p-2 rounded hover:bg-muted/50 transition-colors"
-                              >
-                                <Checkbox
-                                  id={`item-${item.id}`}
-                                  checked={selectedItems.has(item.id)}
-                                  onCheckedChange={() => toggleItem(item.id)}
-                                />
-                                <div className="flex-1">
-                                  <Label htmlFor={`item-${item.id}`} className="cursor-pointer font-medium text-sm">
-                                    {item.nome}
-                                  </Label>
-                                  {item.observacao && (
-                                    <p className="text-xs text-muted-foreground mt-1">{item.observacao}</p>
-                                  )}
-                                  {item.prazo && (
-                                    <p className="text-xs text-muted-foreground mt-1">Prazo: {item.prazo}</p>
-                                  )}
+                            {fase.itens.map((item) => {
+                              const isSelected = selectedItems.has(item.id);
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
+                                    isSelected 
+                                      ? 'bg-primary/10 border-primary shadow-sm' 
+                                      : 'bg-muted/30 border-transparent hover:border-muted-foreground/20'
+                                  }`}
+                                >
+                                  <Checkbox
+                                    id={`item-${item.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleItem(item.id)}
+                                    className="mt-0.5"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <Label htmlFor={`item-${item.id}`} className="cursor-pointer font-medium text-sm block">
+                                      {item.nome}
+                                    </Label>
+                                    {item.observacao && (
+                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.observacao}</p>
+                                    )}
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                      {item.prazo && (
+                                        <Badge variant="outline" className="text-xs">
+                                          📅 {item.prazo}
+                                        </Badge>
+                                      )}
+                                      {item.desconto && item.desconto > 0 && (
+                                        <Badge variant="outline" className="text-xs text-green-600">
+                                          -{item.desconto}% desconto
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-sm font-bold text-primary whitespace-nowrap">
+                                      {formatCurrency(item.valor)}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="text-sm font-semibold whitespace-nowrap">
-                                  {formatCurrency(item.valor)}
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </CardContent>
                         )}
                       </Card>
