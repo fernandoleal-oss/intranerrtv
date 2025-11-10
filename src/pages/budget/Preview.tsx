@@ -84,15 +84,28 @@ export default function BudgetPreview() {
 
       // Se não tem ID ainda, criar o orçamento
       if (!budgetId) {
+        console.log("Creating new budget with data:", { type: data.type, total: data.total });
+        
         const { data: result, error } = await supabase.rpc("create_budget_full_rpc", {
           p_type_text: data.type || "filme",
           p_payload: data,
           p_total: data.total || 0
         });
 
-        if (error) throw error;
-        if (!result || result.length === 0) throw new Error("Falha ao criar orçamento");
+        console.log("RPC result:", result);
+        console.log("RPC error:", error);
+
+        if (error) {
+          console.error("RPC error details:", error);
+          throw error;
+        }
+        
+        if (!result || result.length === 0) {
+          throw new Error("RPC não retornou dados");
+        }
+        
         budgetId = result[0].id;
+        console.log("Budget created with ID:", budgetId);
       } else {
         // Se já existe, criar nova versão
         const { data: versions, error: versionError } = await supabase
@@ -122,9 +135,13 @@ export default function BudgetPreview() {
 
       toast({ title: "Orçamento salvo com sucesso!" });
       navigate(`/budget/${budgetId}/pdf`);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Erro ao salvar", variant: "destructive" });
+    } catch (err: any) {
+      console.error("Error in handleGeneratePDF:", err);
+      toast({ 
+        title: "Erro ao salvar", 
+        description: err.message || "Erro desconhecido",
+        variant: "destructive" 
+      });
     } finally {
       setSaving(false);
     }
