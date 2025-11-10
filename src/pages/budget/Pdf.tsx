@@ -182,6 +182,7 @@ export default function BudgetPdf() {
       if (!id) return;
       
       setLoading(true);
+      console.log("Fetching budget with ID:", id);
 
       try {
         // Força bypass do cache adicionando timestamp
@@ -206,8 +207,24 @@ export default function BudgetPdf() {
           .limit(1)
           .maybeSingle();
 
-        if (error) throw error;
-        if (!row) throw new Error("Orçamento não encontrado");
+        console.log("Query result:", row);
+        console.log("Query error:", error);
+
+        if (error) {
+          console.error("Supabase error:", error);
+          throw error;
+        }
+        if (!row) {
+          console.error("No budget found for ID:", id);
+          throw new Error("Orçamento não encontrado");
+        }
+
+        console.log("Setting data:", {
+          id: row.budgets!.id,
+          display_id: row.budgets!.display_id,
+          type: row.budgets!.type,
+          payload: row.payload
+        });
 
         setData({
           id: row.budgets!.id,
@@ -219,6 +236,7 @@ export default function BudgetPdf() {
           budget_number: row.budgets!.budget_number || "000",
         });
       } catch (err: any) {
+        console.error("Error in fetchBudget:", err);
         toast({
           title: "Erro ao carregar orçamento",
           description: err.message,
