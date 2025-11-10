@@ -33,6 +33,7 @@ const Ancine        = lazy(() => import('@/pages/Ancine'))
 const Claquete      = lazy(() => import('@/pages/Claquete'))
 const BydProntaEntrega = lazy(() => import('@/pages/BydProntaEntrega'))
 const OrcamentoZero = lazy(() => import('@/pages/OrcamentoZero'))
+const BydBlackFriday = lazy(() => import('@/pages/BydBlackFriday'))
 
 const queryClient = new QueryClient()
 
@@ -321,6 +322,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <BydProntaEntrega />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/byd-black-friday"
+                element={
+                  <ProtectedRoute>
+                    <BydBlackFriday />
                   </ProtectedRoute>
                 }
               />
