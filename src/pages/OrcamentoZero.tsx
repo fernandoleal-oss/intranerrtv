@@ -274,6 +274,42 @@ export default function OrcamentoZero() {
     return subtotalGeral;
   };
 
+  const handlePreview = () => {
+    if (!briefText.trim()) {
+      toast({ title: "Brief obrigatório", description: "Preencha o brief antes de visualizar", variant: "destructive" });
+      return;
+    }
+
+    const payload = {
+      type: "filme",
+      produtor,
+      email,
+      cliente,
+      produto,
+      job,
+      midias,
+      territorio,
+      periodo,
+      entregaveis,
+      adaptacoes,
+      exclusividadeElenco,
+      briefText,
+      combinarModo,
+      honorarioPerc: clienteHonorario,
+      pendenteFaturamento,
+      observacoes,
+      campanhas: campanhas.map(c => ({
+        id: c.id,
+        nome: c.nome,
+        inclui_audio: c.inclui_audio,
+        categorias: c.categorias
+      })),
+      total: calcularTotal()
+    };
+
+    navigate("/budget/preview", { state: { data: payload } });
+  };
+
   const handleSalvar = async () => {
     if (!briefText.trim()) {
       toast({ title: "Brief obrigatório", description: "Preencha o brief antes de salvar", variant: "destructive" });
@@ -399,7 +435,7 @@ export default function OrcamentoZero() {
               <Save className="h-4 w-4" />
               Salvar
             </Button>
-            <Button onClick={() => toast({ title: "Preview em breve" })} className="gap-2">
+            <Button onClick={handlePreview} className="gap-2">
               <Eye className="h-4 w-4" />
               Preview
             </Button>

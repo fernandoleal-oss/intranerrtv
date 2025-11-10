@@ -84,14 +84,15 @@ export default function BudgetPreview() {
 
       // Se não tem ID ainda, criar o orçamento
       if (!budgetId) {
-        const { data: created, error } = await supabase.rpc("create_budget_full_rpc", {
+        const { data: result, error } = await supabase.rpc("create_budget_full_rpc", {
           p_type_text: data.type || "filme",
           p_payload: data,
           p_total: data.total || 0
-        }) as { data: any; error: any };
+        });
 
         if (error) throw error;
-        budgetId = created.id;
+        if (!result || result.length === 0) throw new Error("Falha ao criar orçamento");
+        budgetId = result[0].id;
       } else {
         // Se já existe, criar nova versão
         const { data: versions, error: versionError } = await supabase
