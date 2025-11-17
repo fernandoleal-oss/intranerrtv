@@ -55,6 +55,8 @@ export default function BudgetEdit() {
       if (!id) return;
       
       setLoading(true);
+      console.log("🔵 Carregando orçamento para edição:", id);
+      
       try {
         const { data: row, error } = await supabase
           .from("versions")
@@ -75,21 +77,36 @@ export default function BudgetEdit() {
           .limit(1)
           .maybeSingle();
 
+        console.log("📦 Dados carregados:", row);
+
         if (error) throw error;
         if (!row) throw new Error("Orçamento não encontrado");
+
+        const payload = row.payload as any;
+        console.log("📋 Payload:", payload);
 
         setBudgetData({
           id: row.budgets!.id,
           version_id: row.id,
-          payload: row.payload || {},
+          payload: payload,
         });
 
-        // Carregar fornecedores do payload
-        const payload = row.payload as any;
-        if (payload?.fornecedores) {
+        // Detectar estrutura e converter se necessário
+        if (payload?.fornecedores && Array.isArray(payload.fornecedores)) {
+          // Formato antigo com fornecedores diretos
+          console.log("✅ Formato com fornecedores detectado");
           setFornecedores(payload.fornecedores);
+        } else if (payload?.campanhas && Array.isArray(payload.campanhas)) {
+          // Formato novo com campanhas/categorias - converter para fornecedores
+          console.log("✅ Formato com campanhas detectado, convertendo...");
+          const fornecedoresConvertidos = convertCampanhasToFornecedores(payload);
+          setFornecedores(fornecedoresConvertidos);
+        } else {
+          console.log("⚠️ Estrutura não reconhecida, iniciando vazio");
+          setFornecedores([]);
         }
       } catch (err: any) {
+        console.error("❌ Erro ao carregar:", err);
         toast({
           title: "Erro ao carregar orçamento",
           description: err.message,
@@ -103,6 +120,62 @@ export default function BudgetEdit() {
 
     fetchBudget();
   }, [id, navigate]);
+
+  // Converter estrutura de campanhas/categorias para fornecedores
+  const convertCampanhasToFornecedores = (payload: any): Fornecedor[] => {
+    const campanhas = payload.campanhas || [];
+    const fornecedoresMap = new Map<string, Fornecedor>();
+
+    campanhas.forEach((campanha: any) => {
+      const categorias = campanha.categorias || [];
+      
+      categorias.forEach((categoria: any) => {
+        const faseNome = categoria.nome || "Sem nome";
+        const itens = categoria.itens || [];
+
+        // Para cada item, criar ou adicionar ao fornecedor
+        itens.forEach((item: any, index: number) => {
+          const fornecedorNome = `Fornecedor ${categoria.nome}`;
+          
+          if (!fornecedoresMap.has(fornecedorNome)) {
+            fornecedoresMap.set(fornecedorNome, {
+              id: `forn-${Date.now()}-${index}`,
+              nome: fornecedorNome,
+              contato: "",
+              cnpj: "",
+              fases: [],
+              desconto: 0
+            });
+          }
+
+          const fornecedor = fornecedoresMap.get(fornecedorNome)!;
+          
+          // Verificar se já existe uma fase com este nome
+          let fase = fornecedor.fases.find(f => f.nome === faseNome);
+          if (!fase) {
+            fase = {
+              id: `fase-${Date.now()}-${index}`,
+              nome: faseNome,
+              itens: []
+            };
+            fornecedor.fases.push(fase);
+          }
+
+          // Adicionar item à fase
+          fase.itens.push({
+            id: item.id || `item-${Date.now()}-${index}`,
+            nome: item.descricao || "Sem descrição",
+            valor: item.valorUnitario * (item.quantidade || 1),
+            prazo: "",
+            observacao: item.observacao || "",
+            desconto: item.desconto || 0
+          });
+        });
+      });
+    });
+
+    return Array.from(fornecedoresMap.values());
+  };
 
   // Calcular totais
   const calcularTotalFase = (fase: FornecedorFase) => {
@@ -226,34 +299,50 @@ export default function BudgetEdit() {
   // Salvar alterações
   const handleSave = async () => {
     setSaving(true);
+    console.log("💾 Salvando orçamento...");
+    
     try {
       if (!budgetData) throw new Error("Dados do orçamento não encontrados");
 
+      const totalGeral = calcularTotalGeral();
+      
       const payload = {
         ...budgetData.payload,
         fornecedores: fornecedores,
         estrutura: 'fornecedores_fases'
       };
 
+      console.log("📦 Payload a salvar:", payload);
+      console.log("💰 Total geral:", totalGeral);
+
       // Atualizar versão existente
       const { error: updateError } = await supabase
         .from("versions")
         .update({
           payload: payload,
+          total_geral: totalGeral,
           updated_at: new Date().toISOString()
         })
         .eq("id", budgetData.version_id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("❌ Erro ao atualizar:", updateError);
+        throw updateError;
+      }
 
+      console.log("✅ Orçamento salvo com sucesso!");
+      
       toast({
         title: "Orçamento salvo!",
         description: "As alterações foram salvas com sucesso.",
       });
 
-      // Recarregar dados
-      window.location.reload();
+      // Navegar de volta para visualização
+      setTimeout(() => {
+        navigate(`/budget/${budgetData.id}`);
+      }, 500);
     } catch (err: any) {
+      console.error("❌ Erro ao salvar:", err);
       toast({
         title: "Erro ao salvar",
         description: err.message,

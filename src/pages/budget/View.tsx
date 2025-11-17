@@ -138,10 +138,24 @@ export default function BudgetView() {
       .reduce((sum: number, c: any) => sum + calcularSubtotal(c), 0);
   };
 
+  const calcularTotalFornecedores = () => {
+    if (!payload.fornecedores || !Array.isArray(payload.fornecedores)) return 0;
+    
+    return payload.fornecedores.reduce((sum: number, fornecedor: any) => {
+      const totalFornecedor = (fornecedor.fases || []).reduce((faseSum: number, fase: any) => {
+        return faseSum + (fase.itens || []).reduce(
+          (itemSum: number, item: any) => itemSum + (item.valor - (item.desconto || 0)),
+          0
+        );
+      }, 0) - (fornecedor.desconto || 0);
+      return sum + totalFornecedor;
+    }, 0);
+  };
+
   const totalGeral = campanhas.reduce(
     (sum: number, camp: any) => sum + calcularTotalCampanha(camp),
     0
-  );
+  ) + calcularTotalFornecedores();
 
   return (
     <AppLayout>
@@ -402,6 +416,84 @@ export default function BudgetView() {
             </div>
           );
         })}
+
+        {/* Estrutura de Fornecedores - Se existir */}
+        {!isImageBudget && payload.fornecedores && Array.isArray(payload.fornecedores) && payload.fornecedores.length > 0 && (
+          <div className="space-y-4 mb-6">
+            <h2 className="text-xl font-semibold mb-4">Fornecedores</h2>
+            {payload.fornecedores.map((fornecedor: any) => (
+              <Card key={fornecedor.id}>
+                <CardHeader>
+                  <CardTitle className="flex justify-between items-center">
+                    <span>{fornecedor.nome}</span>
+                    {fornecedor.desconto > 0 && (
+                      <span className="text-sm text-muted-foreground font-normal">
+                        Desconto: {formatCurrency(fornecedor.desconto)}
+                      </span>
+                    )}
+                  </CardTitle>
+                  {(fornecedor.contato || fornecedor.cnpj) && (
+                    <p className="text-sm text-muted-foreground">
+                      {fornecedor.contato} {fornecedor.cnpj && `• CNPJ: ${fornecedor.cnpj}`}
+                    </p>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(fornecedor.fases || []).map((fase: any) => (
+                    <Card key={fase.id} className="border-l-4 border-l-primary">
+                      <CardHeader>
+                        <CardTitle className="text-base">{fase.nome}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {(fase.itens || []).map((item: any) => (
+                            <div key={item.id} className="flex justify-between items-start border-b pb-2 last:border-0">
+                              <div className="flex-1">
+                                <p className="font-medium">{item.nome}</p>
+                                {item.prazo && <p className="text-sm text-muted-foreground">Prazo: {item.prazo}</p>}
+                                {item.observacao && <p className="text-sm text-muted-foreground italic">{item.observacao}</p>}
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="font-semibold">{formatCurrency(item.valor)}</p>
+                                {item.desconto > 0 && (
+                                  <p className="text-sm text-green-600">-{formatCurrency(item.desconto)}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="pt-3 mt-3 border-t flex justify-between font-semibold">
+                          <span>Subtotal Fase:</span>
+                          <span>
+                            {formatCurrency(
+                              (fase.itens || []).reduce(
+                                (sum: number, item: any) => sum + (item.valor - (item.desconto || 0)),
+                                0
+                              )
+                            )}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  <div className="pt-3 border-t-2 flex justify-between text-lg font-bold">
+                    <span>Total Fornecedor:</span>
+                    <span className="text-primary">
+                      {formatCurrency(
+                        (fornecedor.fases || []).reduce((sum: number, fase: any) => {
+                          return sum + (fase.itens || []).reduce(
+                            (faseSum: number, item: any) => faseSum + (item.valor - (item.desconto || 0)),
+                            0
+                          );
+                        }, 0) - (fornecedor.desconto || 0)
+                      )}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* Total Geral - Apenas para orçamentos não-imagem */}
         {!isImageBudget && (
