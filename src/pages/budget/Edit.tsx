@@ -101,6 +101,11 @@ export default function BudgetEdit() {
           console.log("✅ Formato com campanhas detectado, convertendo...");
           const fornecedoresConvertidos = convertCampanhasToFornecedores(payload);
           setFornecedores(fornecedoresConvertidos);
+        } else if (payload?.type === "livre" && payload?.itens && Array.isArray(payload.itens)) {
+          // Formato livre do OrcamentoZero - converter para fornecedores
+          console.log("✅ Formato livre detectado, convertendo...");
+          const fornecedoresConvertidos = convertLivreToFornecedores(payload);
+          setFornecedores(fornecedoresConvertidos);
         } else {
           console.log("⚠️ Estrutura não reconhecida, iniciando vazio");
           setFornecedores([]);
@@ -120,6 +125,32 @@ export default function BudgetEdit() {
 
     fetchBudget();
   }, [id, navigate]);
+
+  // Converter formato livre (OrcamentoZero) em fornecedores
+  const convertLivreToFornecedores = (payload: any): Fornecedor[] => {
+    const itens = payload.itens || [];
+    
+    // Criar um fornecedor único com todos os itens
+    const fornecedor: Fornecedor = {
+      id: crypto.randomUUID(),
+      nome: payload.tipo_servico || "Itens do Orçamento",
+      contato: "",
+      fases: [{
+        id: crypto.randomUUID(),
+        nome: "Itens",
+        itens: itens.map((item: any) => ({
+          id: crypto.randomUUID(),
+          nome: item.descricao || "",
+          valor: item.valor_total || item.valor_unitario || 0,
+          prazo: "",
+          observacao: `Quantidade: ${item.quantidade || 1}`,
+          desconto: 0
+        }))
+      }]
+    };
+    
+    return [fornecedor];
+  };
 
   // Converter estrutura de campanhas/categorias para fornecedores
   const convertCampanhasToFornecedores = (payload: any): Fornecedor[] => {
