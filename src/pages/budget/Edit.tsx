@@ -337,8 +337,11 @@ export default function BudgetEdit() {
 
       const totalGeral = calcularTotalGeral();
       
+      // Remove estruturas antigas para evitar duplicação no PDF
+      const { itens, campanhas, categorias, type, ...cleanPayload } = budgetData.payload;
+      
       const payload = {
-        ...budgetData.payload,
+        ...cleanPayload,
         fornecedores: fornecedores,
         estrutura: 'fornecedores_fases'
       };
