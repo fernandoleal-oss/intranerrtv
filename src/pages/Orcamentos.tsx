@@ -519,16 +519,34 @@ export default function Orcamentos() {
           display_id,
           type,
           status,
-          created_at,
-          versions!inner(payload, total_geral, versao)
+          created_at
         `,
         )
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
+      // Buscar a versão mais recente de cada budget
+      const budgetIds = (data || []).map((b: any) => b.id);
+      
+      const { data: versionsData, error: versionsError } = await supabase
+        .from("versions")
+        .select("budget_id, payload, total_geral, versao")
+        .in("budget_id", budgetIds)
+        .order("versao", { ascending: false });
+
+      if (versionsError) throw versionsError;
+
+      // Agrupar versões por budget_id e pegar apenas a mais recente
+      const versionsByBudget = new Map();
+      versionsData?.forEach((v: any) => {
+        if (!versionsByBudget.has(v.budget_id)) {
+          versionsByBudget.set(v.budget_id, v);
+        }
+      });
+
       const formatted: Budget[] = (data || []).map((b: any) => {
-        const latestVersion = b.versions?.[0];
+        const latestVersion = versionsByBudget.get(b.id);
         const payload = latestVersion?.payload || {};
         return {
           id: b.id,
@@ -540,7 +558,7 @@ export default function Orcamentos() {
           produtor: payload?.produtor,
           total: latestVersion?.total_geral,
           created_at: b.created_at,
-          versions: b.versions,
+          versions: latestVersion ? [latestVersion] : [],
         };
       });
 
