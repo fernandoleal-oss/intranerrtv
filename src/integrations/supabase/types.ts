@@ -622,6 +622,7 @@ export type Database = {
           expire_date: string | null
           first_air: string | null
           id: string
+          idempotent_key: string | null
           link_drive: string | null
           link_film: string | null
           notified_15d: boolean
@@ -645,6 +646,7 @@ export type Database = {
           expire_date?: string | null
           first_air?: string | null
           id?: string
+          idempotent_key?: string | null
           link_drive?: string | null
           link_film?: string | null
           notified_15d?: boolean
@@ -668,6 +670,7 @@ export type Database = {
           expire_date?: string | null
           first_air?: string | null
           id?: string
+          idempotent_key?: string | null
           link_drive?: string | null
           link_film?: string | null
           notified_15d?: boolean
@@ -804,6 +807,33 @@ export type Database = {
         }
         Relationships: []
       }
+      transfers: {
+        Row: {
+          created_at: string | null
+          files: Json
+          id: string
+          link: string | null
+          note: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          files: Json
+          id?: string
+          link?: string | null
+          note?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          files?: Json
+          id?: string
+          link?: string | null
+          note?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       versions: {
         Row: {
           budget_id: string | null
@@ -863,10 +893,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cleanup_old_budget_previews: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      cleanup_old_budget_previews: { Args: never; Returns: undefined }
       create_budget_full_rpc: {
         Args: { p_payload: Json; p_total: number; p_type_text: string }
         Returns: {
@@ -875,23 +902,17 @@ export type Database = {
           version_id: string
         }[]
       }
-      create_budget_with_version: {
-        Args:
-          | {
+      create_budget_with_version:
+        | { Args: { p_tipo: string }; Returns: Json }
+        | {
+            Args: {
               p_campaign_id: string
               p_type: Database["public"]["Enums"]["budget_type"]
             }
-          | { p_tipo: string }
-        Returns: Json
-      }
-      generate_budget_number: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_display_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+            Returns: Json
+          }
+      generate_budget_number: { Args: never; Returns: string }
+      generate_display_id: { Args: never; Returns: string }
       get_budget_view_rpc: {
         Args: { p_budget_id: string }
         Returns: {
@@ -913,10 +934,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_finance_editor: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      is_finance_editor: { Args: never; Returns: boolean }
     }
     Enums: {
       budget_status: "rascunho" | "enviado_atendimento" | "aprovado"
