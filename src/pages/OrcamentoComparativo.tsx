@@ -11,6 +11,7 @@ import {
   createComparativeBudget,
   gluckliveTemplate,
   digitalPepperTemplate,
+  blankTemplate,
   type ComparativeBudgetTemplate,
 } from "@/utils/createComparativeBudget";
 
@@ -102,9 +103,33 @@ export default function OrcamentoComparativo() {
           </CardContent>
         </Card>
 
+        {/* Template em Branco - Destaque */}
+        <Card className="border-2 border-primary bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Template em Branco
+            </CardTitle>
+            <CardDescription>
+              Crie um orçamento comparativo do zero para editar livremente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => handleCreateFromTemplate(blankTemplate)}
+              disabled={loading}
+              className="w-full"
+              size="lg"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Criar Template em Branco
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Templates disponíveis */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Templates Disponíveis</h2>
+          <h2 className="text-xl font-semibold mb-4">Templates Pré-configurados</h2>
           <div className="grid gap-4 md:grid-cols-2">
             {/* Gluck Live */}
             <Card className="hover:border-primary transition-colors">
