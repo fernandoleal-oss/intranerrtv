@@ -6,8 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus } from "lucide-react";
+import { ArrowLeft, Save, Plus, ArrowUpDown } from "lucide-react";
 import { SupplierOptionsManager } from "@/components/budget/SupplierOptionsManager";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface FornecedorItem {
   id: string;
@@ -45,6 +53,12 @@ export default function OrcamentoLivre() {
 
   const [cliente, setCliente] = useState("");
   const [produto, setProduto] = useState("");
+  
+  // Configurações de visualização
+  const [somarTodasOpcoes, setSomarTodasOpcoes] = useState(false);
+  const [mostrarValores, setMostrarValores] = useState(true);
+  const [ordenacao, setOrdenacao] = useState<"original" | "barato" | "caro">("original");
+  
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([
     {
       id: crypto.randomUUID(),
@@ -107,17 +121,45 @@ export default function OrcamentoLivre() {
     }
   };
 
+  const calcularTotalOpcao = (opcao: FornecedorOpcao) => {
+    return opcao.fases.reduce((total, fase) => {
+      return total + fase.itens.reduce((itemTotal, item) => {
+        return itemTotal + (item.valor * (1 - (item.desconto || 0) / 100));
+      }, 0);
+    }, 0);
+  };
+
+  const calcularTotalFornecedor = (fornecedor: Fornecedor) => {
+    if (somarTodasOpcoes) {
+      // Soma todas as opções
+      return fornecedor.opcoes.reduce((total, opcao) => {
+        return total + calcularTotalOpcao(opcao);
+      }, 0);
+    } else {
+      // Pega apenas a opção mais barata
+      const valores = fornecedor.opcoes.map(calcularTotalOpcao);
+      return valores.length > 0 ? Math.min(...valores) : 0;
+    }
+  };
+
   const calcularTotal = () => {
     return fornecedores.reduce((total, fornecedor) => {
-      fornecedor.opcoes.forEach((opcao) => {
-        opcao.fases.forEach((fase) => {
-          fase.itens.forEach((item) => {
-            total += item.valor * (1 - (item.desconto || 0) / 100);
-          });
-        });
-      });
-      return total;
+      return total + calcularTotalFornecedor(fornecedor);
     }, 0);
+  };
+
+  const getFornecedoresOrdenados = () => {
+    const fornecedoresComValor = fornecedores.map((f) => ({
+      ...f,
+      valorTotal: calcularTotalFornecedor(f),
+    }));
+
+    if (ordenacao === "barato") {
+      return fornecedoresComValor.sort((a, b) => a.valorTotal - b.valorTotal);
+    } else if (ordenacao === "caro") {
+      return fornecedoresComValor.sort((a, b) => b.valorTotal - a.valorTotal);
+    }
+    return fornecedoresComValor;
   };
 
   const handleSave = async () => {
@@ -148,6 +190,11 @@ export default function OrcamentoLivre() {
         cliente,
         projeto: produto,
         fornecedores,
+        configuracoes: {
+          somarTodasOpcoes,
+          mostrarValores,
+          ordenacao,
+        },
       };
 
       const { data, error } = await supabase.rpc("create_budget_full_rpc", {
@@ -237,6 +284,59 @@ export default function OrcamentoLivre() {
             </CardContent>
           </Card>
 
+          {/* Controles de Visualização */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowUpDown className="h-5 w-5" />
+                Opções de Visualização
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="somar-opcoes">Somar todas as opções</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Quando ativado, soma os valores de todas as opções de cada fornecedor
+                  </p>
+                </div>
+                <Switch
+                  id="somar-opcoes"
+                  checked={somarTodasOpcoes}
+                  onCheckedChange={setSomarTodasOpcoes}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="mostrar-valores">Mostrar valores</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Ocultar ou exibir os valores totais dos fornecedores
+                  </p>
+                </div>
+                <Switch
+                  id="mostrar-valores"
+                  checked={mostrarValores}
+                  onCheckedChange={setMostrarValores}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ordenacao">Ordenar fornecedores</Label>
+                <Select value={ordenacao} onValueChange={(value: any) => setOrdenacao(value)}>
+                  <SelectTrigger id="ordenacao">
+                    <SelectValue placeholder="Selecione a ordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="original">Ordem original</SelectItem>
+                    <SelectItem value="barato">Mais barato primeiro</SelectItem>
+                    <SelectItem value="caro">Mais caro primeiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label className="text-lg font-semibold">Fornecedores</Label>
@@ -252,11 +352,18 @@ export default function OrcamentoLivre() {
               </Button>
             </div>
 
-            {fornecedores.map((fornecedor, index) => (
+            {getFornecedoresOrdenados().map((fornecedor, index) => (
               <Card key={fornecedor.id} className="relative">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Fornecedor {index + 1}</CardTitle>
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg">Fornecedor {index + 1}</CardTitle>
+                      {mostrarValores && (
+                        <p className="text-sm text-muted-foreground">
+                          Total: {formatCurrency(fornecedor.valorTotal)}
+                        </p>
+                      )}
+                    </div>
                     {fornecedores.length > 1 && (
                       <Button
                         type="button"
