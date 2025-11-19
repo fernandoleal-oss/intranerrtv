@@ -248,6 +248,13 @@ export default function Home() {
       path: "/orcamentos",
     },
     {
+      title: "Orçamento Comparativo",
+      description: "Criar orçamentos com múltiplas opções de fornecedores",
+      icon: Zap,
+      gradient: "from-blue-500 to-cyan-500",
+      path: "/orcamentos/comparativo",
+    },
+    {
       title: "Direitos",
       description: "Gestão de direitos autorais e renovações",
       icon: Eye,

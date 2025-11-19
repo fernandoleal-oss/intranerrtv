@@ -34,6 +34,7 @@ const Claquete      = lazy(() => import('@/pages/Claquete'))
 const BydProntaEntrega = lazy(() => import('@/pages/BydProntaEntrega'))
 const OrcamentoZero = lazy(() => import('@/pages/OrcamentoZero'))
 const BydBlackFriday = lazy(() => import('@/pages/BydBlackFriday'))
+const OrcamentoComparativo = lazy(() => import('@/pages/OrcamentoComparativo'))
 
 const queryClient = new QueryClient()
 
@@ -259,6 +260,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <OrcamentoZero />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/orcamentos/comparativo"
+                element={
+                  <ProtectedRoute>
+                    <OrcamentoComparativo />
                   </ProtectedRoute>
                 }
               />
