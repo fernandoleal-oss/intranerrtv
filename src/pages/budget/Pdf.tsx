@@ -834,30 +834,28 @@ export default function BudgetPdf() {
 
               {/* Total Geral Somado (modo somado) */}
               {fornecedorDisplayMode === 'somado' && (
-                    <div className="total-section">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
-                          Total Geral
-                        </span>
-                        <span style={{ fontSize: "20px", fontWeight: "bold", color: "#92400E" }}>
-                          {money(
-                            (payload.fornecedores || []).reduce(
-                              (total: number, fornecedor: Fornecedor) =>
-                                total + fornecedor.opcoes.reduce((opcTotal: number, opcao: FornecedorOpcao) =>
-                                  opcTotal + opcao.fases.reduce(
-                                    (faseTotal: number, fase: FornecedorFase) =>
-                                      faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor - (item.desconto || 0)), 0),
-                                    0
-                                  ), 0),
-                              0
-                            )
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-              </div>
-            )}
+                <div className="total-section">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                      Total Geral
+                    </span>
+                    <span style={{ fontSize: "20px", fontWeight: "bold", color: "#92400E" }}>
+                      {money(
+                        (payload.fornecedores || []).reduce(
+                          (total: number, fornecedor: Fornecedor) =>
+                            total + fornecedor.opcoes.reduce((opcTotal: number, opcao: FornecedorOpcao) =>
+                              opcTotal + opcao.fases.reduce(
+                                (faseTotal: number, fase: FornecedorFase) =>
+                                  faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor - (item.desconto || 0)), 0),
+                                0
+                              ), 0),
+                          0
+                        )
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* MODO CARDS - Fornecedores lado a lado */}
               {viewMode === 'cards' && (
@@ -873,146 +871,6 @@ export default function BudgetPdf() {
                       ℹ️ Modo de visualização em cards não suporta múltiplas opções. Use o modo lista para ver a tabela comparativa.
                     </p>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-                <div style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "repeat(2, 1fr)", 
-                  gap: "20px",
-                  marginBottom: "24px"
-                }}>
-                  {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => (
-                    <div
-                      key={fornecedor.id || fornecedorIndex}
-                      className="supplier-card"
-                      style={{
-                        background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
-                        border: "2px solid #0369A1",
-                        borderRadius: "12px",
-                        padding: "20px",
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                      }}
-                    >
-                      {/* Cabeçalho do Card */}
-                      <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-sky-200">
-                        <Building2 className="h-6 w-6 text-sky-600" />
-                        <div style={{ flex: 1 }}>
-                          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E", marginBottom: "4px" }}>
-                            {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
-                          </h3>
-                          {fornecedor.contato && (
-                            <p style={{ fontSize: "11px", color: "#475569" }}>
-                              {fornecedor.contato}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Fases do Fornecedor */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                        {fornecedor.fases.map((fase: FornecedorFase, faseIndex: number) => (
-                          <div
-                            key={fase.id || faseIndex}
-                            style={{
-                              backgroundColor: "#FFFFFF",
-                              borderRadius: "8px",
-                              padding: "12px",
-                              border: "1px solid #BAE6FD",
-                            }}
-                          >
-                            {/* Nome da Fase */}
-                            <div className="flex items-center gap-2 mb-3">
-                              <Layers className="h-4 w-4 text-green-600" />
-                              <h4 style={{ fontSize: "13px", fontWeight: "bold", color: "#1E293B" }}>
-                                {fase.nome || `Fase ${faseIndex + 1}`}
-                              </h4>
-                            </div>
-
-                            {/* Itens da Fase */}
-                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                              {fase.itens.map((item: FornecedorItem, itemIndex: number) => (
-                                <div
-                                  key={item.id || itemIndex}
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "flex-start",
-                                    padding: "6px 0",
-                                    borderBottom: itemIndex < fase.itens.length - 1 ? "1px solid #F1F5F9" : "none",
-                                  }}
-                                >
-                                  <div style={{ flex: 1, paddingRight: "8px" }}>
-                                    <p style={{ fontSize: "12px", fontWeight: "600", color: "#1E293B", marginBottom: "2px" }}>
-                                      {item.nome || `Item ${itemIndex + 1}`}
-                                    </p>
-                                    {(item.prazo || item.observacao) && (
-                                      <p style={{ fontSize: "10px", color: "#64748B" }}>
-                                        {item.prazo && `Prazo: ${item.prazo}`}
-                                        {item.prazo && item.observacao && ' • '}
-                                        {item.observacao && item.observacao}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <span style={{ fontSize: "13px", fontWeight: "bold", color: "#1E293B" }}>
-                                      {money(item.valor)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                         ))}
-                      </div>
-
-                      {/* Total do Fornecedor (modo separado) */}
-                      {fornecedorDisplayMode === 'separado' && (
-                        <div className="total-section">
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: "14px", fontWeight: "bold", color: "#92400E" }}>
-                              Total {fornecedor.nome}
-                            </span>
-                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E" }}>
-                              {money(
-                                fornecedor.fases.reduce(
-                                  (total: number, fase: FornecedorFase) =>
-                                    total + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
-                                  0
-                                )
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Total Geral Somado (modo somado) */}
-                  {fornecedorDisplayMode === 'somado' && (
-                    <div className="total-section">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E" }}>
-                          Total Geral
-                        </span>
-                        <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
-                          {money(
-                            (payload.fornecedores || []).reduce(
-                              (total: number, fornecedor: Fornecedor) =>
-                                total +
-                                fornecedor.fases.reduce(
-                                  (faseTotal: number, fase: FornecedorFase) =>
-                                    faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
-                                  0
-                                ),
-                              0
-                            )
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
