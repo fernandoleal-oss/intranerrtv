@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -68,13 +68,14 @@ interface CampaignQuotes {
   }>;
 }
 
-// NOVA ESTRUTURA: Fornecedores → Fases → Itens
+// NOVA ESTRUTURA: Fornecedores → Opções → Fases → Itens
 interface FornecedorItem {
   id: string;
   nome: string;
   valor: number;
   prazo: string;
   observacao: string;
+  desconto?: number;
 }
 
 interface FornecedorFase {
@@ -83,11 +84,19 @@ interface FornecedorFase {
   itens: FornecedorItem[];
 }
 
+interface FornecedorOpcao {
+  id: string;
+  nome: string;
+  fases: FornecedorFase[];
+}
+
 interface Fornecedor {
   id: string;
   nome: string;
   contato: string;
-  fases: FornecedorFase[];
+  cnpj?: string;
+  opcoes: FornecedorOpcao[];
+  desconto?: number;
 }
 
 interface BudgetData {
@@ -647,117 +656,184 @@ export default function BudgetPdf() {
               {/* MODO LISTA */}
               {viewMode === 'list' && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                  {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => (
-                    <div
-                      key={fornecedor.id || fornecedorIndex}
-                      className="campaign-section page-break-before"
-                    >
-                      {/* Cabeçalho do Fornecedor */}
+                  {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => {
+                    // Calcular total de cada opção
+                    const calcularTotalOpcao = (opcao: FornecedorOpcao) => {
+                      return opcao.fases.reduce((total, fase) => {
+                        return total + fase.itens.reduce((sum, item) => sum + (item.valor - (item.desconto || 0)), 0);
+                      }, 0);
+                    };
+
+                    return (
                       <div
-                        style={{
-                          background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
-                          borderLeft: "4px solid #0369A1",
-                          padding: "16px 20px",
-                          marginBottom: "16px",
-                          borderRadius: "0 8px 8px 0",
-                          border: "1px solid #BAE6FD",
-                        }}
+                        key={fornecedor.id || fornecedorIndex}
+                        className="campaign-section page-break-before"
                       >
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-5 w-5 text-sky-600" />
-                          <div>
-                            <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E" }}>
-                              {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
-                            </h3>
-                            {fornecedor.contato && (
-                              <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
-                                Contato: {fornecedor.contato}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Fases do Fornecedor */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                        {fornecedor.fases.map((fase: FornecedorFase, faseIndex: number) => (
-                          <div
-                            key={fase.id || faseIndex}
-                            className="fase-section rounded-lg p-4"
-                            style={{
-                              backgroundColor: "#FFFFFF",
-                              border: "1px solid #E2E8F0",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                            }}
-                          >
-                            {/* Cabeçalho da Fase */}
-                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
-                              <Layers className="h-4 w-4 text-green-600" />
-                              <h4 style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
-                                {fase.nome || `Fase ${faseIndex + 1}`}
-                              </h4>
-                            </div>
-
-                            {/* Itens da Fase */}
-                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                              {fase.itens.map((item: FornecedorItem, itemIndex: number) => (
-                                <div
-                                  key={item.id || itemIndex}
-                                  className="item-row"
-                                >
-                                  <div style={{ flex: 1 }}>
-                                    <p style={{ fontSize: "13px", fontWeight: "600", color: "#1E293B", marginBottom: "4px" }}>
-                                      {item.nome || `Item ${itemIndex + 1}`}
-                                    </p>
-                                    <div style={{ display: "flex", gap: "16px", fontSize: "11px", color: "#64748B" }}>
-                                      {item.prazo && (
-                                        <span>
-                                          <strong>Prazo:</strong> {item.prazo}
-                                        </span>
-                                      )}
-                                      {item.observacao && (
-                                        <span>
-                                          <strong>Obs:</strong> {item.observacao}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                    <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B" }}>
-                                      {money(item.valor)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                           </div>
-                        ))}
-                      </div>
-
-                      {/* Total do Fornecedor (modo separado) */}
-                      {fornecedorDisplayMode === 'separado' && (
-                        <div className="total-section mt-4">
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E" }}>
-                              Total {fornecedor.nome}
-                            </span>
-                            <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
-                              {money(
-                                fornecedor.fases.reduce(
-                                  (total: number, fase: FornecedorFase) =>
-                                    total + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
-                                  0
-                                )
+                        {/* Cabeçalho do Fornecedor */}
+                        <div
+                          style={{
+                            background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+                            borderLeft: "4px solid #0369A1",
+                            padding: "16px 20px",
+                            marginBottom: "16px",
+                            borderRadius: "0 8px 8px 0",
+                            border: "1px solid #BAE6FD",
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Building2 className="h-5 w-5 text-sky-600" />
+                            <div>
+                              <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E" }}>
+                                {fornecedor.nome || `Fornecedor ${fornecedorIndex + 1}`}
+                              </h3>
+                              {fornecedor.contato && (
+                                <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
+                                  Contato: {fornecedor.contato}
+                                </p>
                               )}
-                            </span>
+                              {fornecedor.cnpj && (
+                                <p style={{ fontSize: "12px", color: "#475569" }}>
+                                  CNPJ: {fornecedor.cnpj}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
 
-                  {/* Total Geral Somado (modo somado) */}
-                  {fornecedorDisplayMode === 'somado' && (
+                        {/* Tabela Comparativa de Opções */}
+                        <div style={{ overflowX: "auto" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                            <thead>
+                              <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "2px solid #E2E8F0" }}>
+                                <th style={{ padding: "12px", textAlign: "left", fontWeight: "bold", color: "#475569", width: "25%" }}>
+                                  Fase / Item
+                                </th>
+                                {fornecedor.opcoes.map((opcao) => (
+                                  <th
+                                    key={opcao.id}
+                                    style={{
+                                      padding: "12px",
+                                      textAlign: "center",
+                                      fontWeight: "bold",
+                                      color: "#0369A1",
+                                      borderLeft: "1px solid #E2E8F0"
+                                    }}
+                                  >
+                                    {opcao.nome}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {/* Agrupar fases de todas as opções */}
+                              {fornecedor.opcoes[0]?.fases.map((_, faseIndex) => {
+                                const fasePrimeiraOpcao = fornecedor.opcoes[0].fases[faseIndex];
+                                
+                                return (
+                                  <React.Fragment key={faseIndex}>
+                                    {/* Linha com nome da fase */}
+                                    <tr style={{ backgroundColor: "#F1F5F9", borderTop: "2px solid #CBD5E1" }}>
+                                      <td
+                                        colSpan={fornecedor.opcoes.length + 1}
+                                        style={{
+                                          padding: "10px 12px",
+                                          fontWeight: "bold",
+                                          color: "#1E293B",
+                                          fontSize: "13px"
+                                        }}
+                                      >
+                                        <Layers className="h-4 w-4 inline mr-2 text-green-600" />
+                                        {fasePrimeiraOpcao.nome}
+                                      </td>
+                                    </tr>
+                                    {/* Linhas com itens */}
+                                    {fasePrimeiraOpcao.itens.map((_, itemIndex) => (
+                                      <tr
+                                        key={itemIndex}
+                                        style={{
+                                          borderBottom: "1px solid #E2E8F0",
+                                          backgroundColor: itemIndex % 2 === 0 ? "#FFFFFF" : "#F9FAFB"
+                                        }}
+                                      >
+                                        <td style={{ padding: "10px 12px" }}>
+                                          <div>
+                                            <p style={{ fontWeight: "600", color: "#1E293B", marginBottom: "2px" }}>
+                                              {fornecedor.opcoes[0].fases[faseIndex].itens[itemIndex].nome}
+                                            </p>
+                                            {fornecedor.opcoes[0].fases[faseIndex].itens[itemIndex].prazo && (
+                                              <p style={{ fontSize: "10px", color: "#64748B" }}>
+                                                Prazo: {fornecedor.opcoes[0].fases[faseIndex].itens[itemIndex].prazo}
+                                              </p>
+                                            )}
+                                            {fornecedor.opcoes[0].fases[faseIndex].itens[itemIndex].observacao && (
+                                              <p style={{ fontSize: "10px", color: "#64748B", fontStyle: "italic" }}>
+                                                {fornecedor.opcoes[0].fases[faseIndex].itens[itemIndex].observacao}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </td>
+                                        {fornecedor.opcoes.map((opcao) => {
+                                          const item = opcao.fases[faseIndex]?.itens[itemIndex];
+                                          const valorFinal = item ? item.valor - (item.desconto || 0) : 0;
+                                          
+                                          return (
+                                            <td
+                                              key={opcao.id}
+                                              style={{
+                                                padding: "10px 12px",
+                                                textAlign: "center",
+                                                borderLeft: "1px solid #E2E8F0"
+                                              }}
+                                            >
+                                              <div>
+                                                <p style={{ fontWeight: "bold", color: "#0369A1" }}>
+                                                  {item ? money(valorFinal) : "-"}
+                                                </p>
+                                                {item && item.desconto > 0 && (
+                                                  <p style={{ fontSize: "10px", color: "#DC2626" }}>
+                                                    Desc: {money(item.desconto)}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    ))}
+                                  </React.Fragment>
+                                );
+                              })}
+                              {/* Linha de total por opção */}
+                              <tr style={{ backgroundColor: "#EFF6FF", borderTop: "2px solid #0369A1", fontWeight: "bold" }}>
+                                <td style={{ padding: "14px 12px", fontSize: "14px", color: "#1E293B" }}>
+                                  TOTAL POR OPÇÃO
+                                </td>
+                                {fornecedor.opcoes.map((opcao) => (
+                                  <td
+                                    key={opcao.id}
+                                    style={{
+                                      padding: "14px 12px",
+                                      textAlign: "center",
+                                      fontSize: "15px",
+                                      color: "#0369A1",
+                                      borderLeft: "1px solid #BAE6FD"
+                                    }}
+                                  >
+                                    {money(calcularTotalOpcao(opcao))}
+                                  </td>
+                                ))}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Total Geral Somado (modo somado) */}
+              {fornecedorDisplayMode === 'somado' && (
                     <div className="total-section">
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
@@ -767,12 +843,12 @@ export default function BudgetPdf() {
                           {money(
                             (payload.fornecedores || []).reduce(
                               (total: number, fornecedor: Fornecedor) =>
-                                total +
-                                fornecedor.fases.reduce(
-                                  (faseTotal: number, fase: FornecedorFase) =>
-                                    faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor || 0), 0),
-                                  0
-                                ),
+                                total + fornecedor.opcoes.reduce((opcTotal: number, opcao: FornecedorOpcao) =>
+                                  opcTotal + opcao.fases.reduce(
+                                    (faseTotal: number, fase: FornecedorFase) =>
+                                      faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor - (item.desconto || 0)), 0),
+                                    0
+                                  ), 0),
                               0
                             )
                           )}
@@ -780,11 +856,27 @@ export default function BudgetPdf() {
                       </div>
                     </div>
                   )}
-                </div>
-              )}
+              </div>
+            )}
 
               {/* MODO CARDS - Fornecedores lado a lado */}
               {viewMode === 'cards' && (
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(2, 1fr)", 
+                  gap: "20px",
+                  marginBottom: "24px"
+                }}>
+                  {/* Modo cards não suporta múltiplas opções, mostrar aviso */}
+                  <div style={{ gridColumn: "1 / -1", padding: "16px", backgroundColor: "#FEF3C7", border: "1px solid #F59E0B", borderRadius: "8px" }}>
+                    <p style={{ fontSize: "12px", color: "#92400E" }}>
+                      ℹ️ Modo de visualização em cards não suporta múltiplas opções. Use o modo lista para ver a tabela comparativa.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
                 <div style={{ 
                   display: "grid", 
                   gridTemplateColumns: "repeat(2, 1fr)", 
