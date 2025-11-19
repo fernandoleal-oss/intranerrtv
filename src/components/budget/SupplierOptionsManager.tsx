@@ -263,13 +263,13 @@ export function SupplierOptionsManager({ fornecedor, onUpdate }: SupplierOptions
           <CardContent className="space-y-4">
             {/* Fases */}
             {opcaoAtiva.fases.map((fase) => (
-              <Card key={fase.id} className="border-l-4 border-l-primary">
+              <Card key={fase.id} className="border-l-4 border-l-primary bg-muted/20">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <Input
                       value={fase.nome}
                       onChange={(e) => atualizarFase(opcaoAtiva.id, fase.id, "nome", e.target.value)}
-                      className="max-w-xs font-semibold"
+                      className="max-w-xs font-bold text-lg"
                     />
                     <Button
                       onClick={() => removerFase(opcaoAtiva.id, fase.id)}
