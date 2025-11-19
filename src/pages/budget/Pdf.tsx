@@ -1113,109 +1113,13 @@ export default function BudgetPdf() {
                             })}
                           </div>
 
-                          {/* Subtotal da Fase */}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "flex-end",
-                              padding: "8px 0",
-                              marginTop: "4px",
-                              borderTop: "1px solid #E2E8F0",
-                            }}
-                          >
-                            <span style={{ fontSize: "12px", fontWeight: "600", color: "#475569" }}>
-                              Subtotal da Fase: {money(
-                                fase.itens.reduce((sum, item) => 
-                                  sum + (item.valor * (1 - (item.desconto || 0) / 100)), 0
-                                )
-                              )}
-                            </span>
-                          </div>
                         </div>
                       ))}
-
-                      {/* Total da Opção */}
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          padding: "12px 0",
-                          marginTop: "8px",
-                          borderTop: "2px solid #E2E8F0",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px", fontWeight: "bold", color: "#0369A1" }}>
-                          Total da {opcao.nome}: {money(
-                            opcao.fases.reduce((total, fase) =>
-                              total + fase.itens.reduce((sum, item) => 
-                                sum + (item.valor * (1 - (item.desconto || 0) / 100)), 0
-                              ), 0
-                            )
-                          )}
-                        </span>
-                      </div>
                     </div>
                   ))}
 
-                  {/* Total do Fornecedor */}
-                  <div
-                    style={{
-                      padding: "16px 20px",
-                      backgroundColor: "#F8FAFC",
-                      borderTop: "2px solid #0369A1",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "15px", fontWeight: "bold", color: "#1E293B" }}>
-                        Total do Fornecedor
-                      </span>
-                      <span style={{ fontSize: "16px", fontWeight: "bold", color: "#0369A1" }}>
-                        {money(
-                          fornecedor.opcoes.reduce((total, opcao) =>
-                            total + opcao.fases.reduce((fTotal, fase) =>
-                              fTotal + fase.itens.reduce((iTotal, item) =>
-                                iTotal + (item.valor * (1 - (item.desconto || 0) / 100)), 0
-                              ), 0
-                            ), 0
-                          )
-                        )}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               ))}
-
-              {/* Total Geral do Orçamento */}
-              <div className="total-section" style={{ marginTop: "24px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "16px",
-                    backgroundColor: "#FEF3C7",
-                    border: "2px solid #F59E0B",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
-                    TOTAL GERAL
-                  </span>
-                  <span style={{ fontSize: "22px", fontWeight: "bold", color: "#92400E" }}>
-                    {money(
-                      (payload.fornecedores || []).reduce((total: number, fornecedor: Fornecedor) =>
-                        total + fornecedor.opcoes.reduce((oTotal, opcao) =>
-                          oTotal + opcao.fases.reduce((fTotal, fase) =>
-                            fTotal + fase.itens.reduce((iTotal, item) =>
-                              iTotal + (item.valor * (1 - (item.desconto || 0) / 100)), 0
-                            ), 0
-                          ), 0
-                        ), 0
-                      )
-                    )}
-                  </span>
-                </div>
-              </div>
             </div>
           )}
 
