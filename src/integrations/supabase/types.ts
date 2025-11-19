@@ -938,7 +938,7 @@ export type Database = {
     }
     Enums: {
       budget_status: "rascunho" | "enviado_atendimento" | "aprovado"
-      budget_type: "filme" | "audio" | "cc" | "imagem"
+      budget_type: "filme" | "audio" | "cc" | "imagem" | "livre"
       user_role: "admin" | "rtv" | "financeiro"
     }
     CompositeTypes: {
@@ -1068,7 +1068,7 @@ export const Constants = {
   public: {
     Enums: {
       budget_status: ["rascunho", "enviado_atendimento", "aprovado"],
-      budget_type: ["filme", "audio", "cc", "imagem"],
+      budget_type: ["filme", "audio", "cc", "imagem", "livre"],
       user_role: ["admin", "rtv", "financeiro"],
     },
   },
