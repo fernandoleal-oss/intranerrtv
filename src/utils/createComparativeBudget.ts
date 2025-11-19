@@ -170,3 +170,35 @@ export const digitalPepperTemplate: ComparativeBudgetTemplate = {
     },
   ],
 };
+
+export const blankTemplate: ComparativeBudgetTemplate = {
+  fornecedorNome: "Nome do Fornecedor",
+  fornecedorContato: "Contato do fornecedor",
+  fornecedorCNPJ: "",
+  opcoes: [
+    {
+      nome: "Opção 1",
+      descricao: "Descrição da primeira opção",
+      valor: 0,
+      itensInclusos: [
+        "Item 1",
+        "Item 2",
+        "Item 3",
+        "Item 4",
+        "Item 5",
+      ],
+    },
+    {
+      nome: "Opção 2",
+      descricao: "Descrição da segunda opção",
+      valor: 0,
+      itensInclusos: [
+        "Item 1",
+        "Item 2",
+        "Item 3",
+        "Item 4",
+        "Item 5",
+      ],
+    },
+  ],
+};
