@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
 import { UpdateEmsButton } from "@/components/budget/UpdateEmsButton";
+import { SupplierOptionsManager } from "@/components/budget/SupplierOptionsManager";
 
 interface FornecedorItem {
   id: string;
@@ -27,12 +28,18 @@ interface FornecedorFase {
   itens: FornecedorItem[];
 }
 
+interface FornecedorOpcao {
+  id: string;
+  nome: string;
+  fases: FornecedorFase[];
+}
+
 interface Fornecedor {
   id: string;
   nome: string;
   contato: string;
   cnpj?: string;
-  fases: FornecedorFase[];
+  opcoes: FornecedorOpcao[];
   desconto?: number;
 }
 
@@ -91,12 +98,38 @@ export default function BudgetEdit() {
           payload: payload,
         });
 
-        // Detectar estrutura e converter se necessário
-        if (payload?.fornecedores && Array.isArray(payload.fornecedores)) {
-          // Formato antigo com fornecedores diretos
-          console.log("✅ Formato com fornecedores detectado");
-          setFornecedores(payload.fornecedores);
-        } else if (payload?.campanhas && Array.isArray(payload.campanhas)) {
+  // Detectar estrutura e converter se necessário
+  if (payload?.fornecedores && Array.isArray(payload.fornecedores)) {
+    console.log("✅ Formato com fornecedores detectado");
+    // Migrar para nova estrutura com opções se necessário
+    const fornecedoresMigrados = payload.fornecedores.map((f: any) => {
+      // Se já tem opções, manter
+      if (f.opcoes && Array.isArray(f.opcoes)) {
+        return f;
+      }
+      // Se tem fases diretamente, migrar para opções
+      if (f.fases && Array.isArray(f.fases)) {
+        return {
+          ...f,
+          opcoes: [{
+            id: crypto.randomUUID(),
+            nome: "Opção 1",
+            fases: f.fases
+          }]
+        };
+      }
+      // Fornecedor vazio
+      return {
+        ...f,
+        opcoes: [{
+          id: crypto.randomUUID(),
+          nome: "Opção 1",
+          fases: []
+        }]
+      };
+    });
+    setFornecedores(fornecedoresMigrados);
+  } else if (payload?.campanhas && Array.isArray(payload.campanhas)) {
           // Formato novo com campanhas/categorias - converter para fornecedores
           console.log("✅ Formato com campanhas detectado, convertendo...");
           const fornecedoresConvertidos = convertCampanhasToFornecedores(payload);
@@ -130,29 +163,33 @@ export default function BudgetEdit() {
   const convertLivreToFornecedores = (payload: any): Fornecedor[] => {
     const itens = payload.itens || [];
     
-    // Criar um fornecedor único com todos os itens
+    // Criar um fornecedor único com todos os itens em uma opção
     const fornecedor: Fornecedor = {
       id: crypto.randomUUID(),
       nome: payload.tipo_servico || "Itens do Orçamento",
       contato: "",
-      fases: [{
+      opcoes: [{
         id: crypto.randomUUID(),
-        nome: "Itens",
-        itens: itens.map((item: any) => ({
+        nome: "Opção 1",
+        fases: [{
           id: crypto.randomUUID(),
-          nome: item.descricao || "",
-          valor: item.valor_total || item.valor_unitario || 0,
-          prazo: "",
-          observacao: `Quantidade: ${item.quantidade || 1}`,
-          desconto: 0
-        }))
+          nome: "Itens",
+          itens: itens.map((item: any) => ({
+            id: crypto.randomUUID(),
+            nome: item.descricao || "",
+            valor: item.valor || 0,
+            prazo: "",
+            observacao: "",
+            desconto: 0
+          }))
+        }]
       }]
     };
-    
+
     return [fornecedor];
   };
 
-  // Converter estrutura de campanhas/categorias para fornecedores
+  // Converter formato campanhas/categorias em fornecedores
   const convertCampanhasToFornecedores = (payload: any): Fornecedor[] => {
     const campanhas = payload.campanhas || [];
     const fornecedoresMap = new Map<string, Fornecedor>();
@@ -161,46 +198,48 @@ export default function BudgetEdit() {
       const categorias = campanha.categorias || [];
       
       categorias.forEach((categoria: any) => {
-        const faseNome = categoria.nome || "Sem nome";
-        const itens = categoria.itens || [];
-
-        // Para cada item, criar ou adicionar ao fornecedor
-        itens.forEach((item: any, index: number) => {
-          const fornecedorNome = `Fornecedor ${categoria.nome}`;
+        const fornecedoresCat = categoria.fornecedores || [];
+        
+        fornecedoresCat.forEach((forn: any) => {
+          const fornecedorId = forn.id || forn.nome || crypto.randomUUID();
           
-          if (!fornecedoresMap.has(fornecedorNome)) {
-            fornecedoresMap.set(fornecedorNome, {
-              id: `forn-${Date.now()}-${index}`,
-              nome: fornecedorNome,
-              contato: "",
-              cnpj: "",
-              fases: [],
-              desconto: 0
+          if (!fornecedoresMap.has(fornecedorId)) {
+            fornecedoresMap.set(fornecedorId, {
+              id: fornecedorId,
+              nome: forn.nome || "Fornecedor Sem Nome",
+              contato: forn.contato || "",
+              cnpj: forn.cnpj || "",
+              desconto: forn.desconto || 0,
+              opcoes: [{
+                id: crypto.randomUUID(),
+                nome: "Opção 1",
+                fases: []
+              }]
             });
           }
 
-          const fornecedor = fornecedoresMap.get(fornecedorNome)!;
+          const fornecedor = fornecedoresMap.get(fornecedorId)!;
+          const primeiraOpcao = fornecedor.opcoes[0];
           
-          // Verificar se já existe uma fase com este nome
-          let fase = fornecedor.fases.find(f => f.nome === faseNome);
+          let fase = primeiraOpcao.fases.find(f => f.nome === campanha.nome);
           if (!fase) {
             fase = {
-              id: `fase-${Date.now()}-${index}`,
-              nome: faseNome,
+              id: crypto.randomUUID(),
+              nome: campanha.nome,
               itens: []
             };
-            fornecedor.fases.push(fase);
+            primeiraOpcao.fases.push(fase);
           }
 
-          // Adicionar item à fase
-          fase.itens.push({
-            id: item.id || `item-${Date.now()}-${index}`,
-            nome: item.descricao || "Sem descrição",
-            valor: item.valorUnitario * (item.quantidade || 1),
+          const item = {
+            id: crypto.randomUUID(),
+            nome: categoria.nome,
+            valor: forn.valor || 0,
             prazo: "",
-            observacao: item.observacao || "",
-            desconto: item.desconto || 0
-          });
+            observacao: categoria.observacao || "",
+            desconto: forn.desconto || 0
+          };
+          fase.itens.push(item);
         });
       });
     });
@@ -209,12 +248,15 @@ export default function BudgetEdit() {
   };
 
   // Calcular totais
-  const calcularTotalFase = (fase: FornecedorFase) => {
-    return fase.itens.reduce((sum, item) => sum + (item.valor - (item.desconto || 0)), 0);
+  const calcularTotalOpcao = (opcao: FornecedorOpcao) => {
+    return opcao.fases.reduce((sum, fase) => {
+      return sum + fase.itens.reduce((itemSum, item) => itemSum + (item.valor - (item.desconto || 0)), 0);
+    }, 0);
   };
 
   const calcularTotalFornecedor = (fornecedor: Fornecedor) => {
-    const subtotal = fornecedor.fases.reduce((sum, fase) => sum + calcularTotalFase(fase), 0);
+    // Somar todas as opções
+    const subtotal = fornecedor.opcoes.reduce((sum, opcao) => sum + calcularTotalOpcao(opcao), 0);
     return subtotal - (fornecedor.desconto || 0);
   };
 
@@ -230,7 +272,11 @@ export default function BudgetEdit() {
       contato: "",
       cnpj: "",
       desconto: 0,
-      fases: []
+      opcoes: [{
+        id: crypto.randomUUID(),
+        nome: "Opção 1",
+        fases: []
+      }]
     };
     setFornecedores([...fornecedores, novoFornecedor]);
   };
@@ -247,85 +293,13 @@ export default function BudgetEdit() {
     ));
   };
 
-  // Handlers para Fase
-  const adicionarFase = (fornecedorId: string) => {
-    const novaFase: FornecedorFase = {
-      id: `fase-${Date.now()}`,
-      nome: "Nova Fase",
-      itens: []
-    };
+  const atualizarFornecedorCompleto = (fornecedor: Fornecedor) => {
     setFornecedores(fornecedores.map(f => 
-      f.id === fornecedorId ? { ...f, fases: [...f.fases, novaFase] } : f
+      f.id === fornecedor.id ? fornecedor : f
     ));
   };
 
-  const removerFase = (fornecedorId: string, faseId: string) => {
-    if (confirm("Deseja realmente remover esta fase?")) {
-      setFornecedores(fornecedores.map(f => 
-        f.id === fornecedorId ? { ...f, fases: f.fases.filter(fase => fase.id !== faseId) } : f
-      ));
-    }
-  };
-
-  const atualizarFase = (fornecedorId: string, faseId: string, campo: string, valor: any) => {
-    setFornecedores(fornecedores.map(f => 
-      f.id === fornecedorId ? {
-        ...f,
-        fases: f.fases.map(fase => 
-          fase.id === faseId ? { ...fase, [campo]: valor } : fase
-        )
-      } : f
-    ));
-  };
-
-  // Handlers para Item
-  const adicionarItem = (fornecedorId: string, faseId: string) => {
-    const novoItem: FornecedorItem = {
-      id: `item-${Date.now()}`,
-      nome: "Novo Item",
-      valor: 0,
-      prazo: "A combinar",
-      observacao: "",
-      desconto: 0
-    };
-    setFornecedores(fornecedores.map(f => 
-      f.id === fornecedorId ? {
-        ...f,
-        fases: f.fases.map(fase => 
-          fase.id === faseId ? { ...fase, itens: [...fase.itens, novoItem] } : fase
-        )
-      } : f
-    ));
-  };
-
-  const removerItem = (fornecedorId: string, faseId: string, itemId: string) => {
-    if (confirm("Deseja realmente remover este item?")) {
-      setFornecedores(fornecedores.map(f => 
-        f.id === fornecedorId ? {
-          ...f,
-          fases: f.fases.map(fase => 
-            fase.id === faseId ? { ...fase, itens: fase.itens.filter(item => item.id !== itemId) } : fase
-          )
-        } : f
-      ));
-    }
-  };
-
-  const atualizarItem = (fornecedorId: string, faseId: string, itemId: string, campo: string, valor: any) => {
-    setFornecedores(fornecedores.map(f => 
-      f.id === fornecedorId ? {
-        ...f,
-        fases: f.fases.map(fase => 
-          fase.id === faseId ? {
-            ...fase,
-            itens: fase.itens.map(item => 
-              item.id === itemId ? { ...item, [campo]: valor } : item
-            )
-          } : fase
-        )
-      } : f
-    ));
-  };
+  // Removemos os handlers antigos de Fase e Item, pois agora são gerenciados pelo SupplierOptionsManager
 
   // Salvar alterações
   const handleSave = async () => {
@@ -435,16 +409,16 @@ export default function BudgetEdit() {
                 <p className="text-2xl font-bold">{fornecedores.length}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total de Fases</p>
+                <p className="text-sm text-muted-foreground">Total de Opções</p>
                 <p className="text-2xl font-bold">
-                  {fornecedores.reduce((sum, f) => sum + f.fases.length, 0)}
+                  {fornecedores.reduce((sum, f) => sum + f.opcoes.length, 0)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total de Itens</p>
+                <p className="text-sm text-muted-foreground">Total de Fases</p>
                 <p className="text-2xl font-bold">
                   {fornecedores.reduce((sum, f) => 
-                    sum + f.fases.reduce((s, fase) => s + fase.itens.length, 0), 0
+                    sum + f.opcoes.reduce((s, op) => s + op.fases.length, 0), 0
                   )}
                 </p>
               </div>
@@ -515,158 +489,25 @@ export default function BudgetEdit() {
                 </div>
               </CardHeader>
               
-              <CardContent className="pt-6 space-y-4">
-                {/* Fases */}
-                {fornecedor.fases.map((fase) => (
-                  <Card key={fase.id} className="border border-slate-200">
-                    <CardHeader className="bg-slate-50/50">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-2">
-                            <div className="flex-1">
-                              <Label>Nome da Fase</Label>
-                              <Input
-                                value={fase.nome}
-                                onChange={(e) => atualizarFase(fornecedor.id, fase.id, 'nome', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">Total da Fase</p>
-                              <p className="text-lg font-bold text-green-600">
-                                {formatCurrency(calcularTotalFase(fase))}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removerFase(fornecedor.id, fase.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    
-                    <CardContent className="pt-4 space-y-3">
-                      {/* Itens */}
-                      {fase.itens.map((item) => (
-                        <div key={item.id} className="p-4 border rounded-lg bg-white space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-                              <div className="md:col-span-2">
-                                <Label>Descrição</Label>
-                                <Input
-                                  value={item.nome}
-                                  onChange={(e) => atualizarItem(fornecedor.id, fase.id, item.id, 'nome', e.target.value)}
-                                />
-                              </div>
-                              <div>
-                                <Label>Valor</Label>
-                                <Input
-                                  type="number"
-                                  value={item.valor}
-                                  onChange={(e) => atualizarItem(fornecedor.id, fase.id, item.id, 'valor', Number(e.target.value))}
-                                />
-                              </div>
-                              <div>
-                                <Label>Desconto</Label>
-                                <Input
-                                  type="number"
-                                  value={item.desconto || 0}
-                                  onChange={(e) => atualizarItem(fornecedor.id, fase.id, item.id, 'desconto', Number(e.target.value))}
-                                />
-                              </div>
-                              <div className="md:col-span-2">
-                                <Label>Prazo</Label>
-                                <Input
-                                  value={item.prazo}
-                                  onChange={(e) => atualizarItem(fornecedor.id, fase.id, item.id, 'prazo', e.target.value)}
-                                />
-                              </div>
-                              <div className="md:col-span-2">
-                                <Label>Observações</Label>
-                                <Textarea
-                                  value={item.observacao}
-                                  onChange={(e) => atualizarItem(fornecedor.id, fase.id, item.id, 'observacao', e.target.value)}
-                                  rows={2}
-                                />
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removerItem(fornecedor.id, fase.id, item.id)}
-                              className="text-destructive hover:text-destructive ml-2"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-muted-foreground">Valor Final</p>
-                            <p className="text-lg font-bold">
-                              {formatCurrency(item.valor - (item.desconto || 0))}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      <Button
-                        variant="outline"
-                        onClick={() => adicionarItem(fornecedor.id, fase.id)}
-                        className="w-full gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Adicionar Item
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                <Button
-                  variant="outline"
-                  onClick={() => adicionarFase(fornecedor.id)}
-                  className="w-full gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Adicionar Fase
-                </Button>
+              <CardContent className="pt-6">
+                <SupplierOptionsManager
+                  fornecedor={fornecedor}
+                  onUpdate={atualizarFornecedorCompleto}
+                />
               </CardContent>
             </Card>
           ))}
         </div>
 
         {/* Adicionar Fornecedor */}
-        <Card className="mt-6">
-          <CardContent className="pt-6">
-            <Button
-              variant="outline"
-              onClick={adicionarFornecedor}
-              className="w-full gap-2"
-              size="lg"
-            >
-              <Plus className="h-5 w-5" />
-              Adicionar Fornecedor
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Footer com total */}
-        <Card className="mt-6 sticky bottom-4 shadow-lg bg-gradient-to-r from-primary to-primary/90 text-white">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-90">Valor Total do Orçamento</p>
-                <p className="text-3xl font-bold">{formatCurrency(calcularTotalGeral())}</p>
-              </div>
-              <Button onClick={handleSave} disabled={saving} size="lg" variant="secondary">
-                <Save className="h-5 w-5 mr-2" />
-                {saving ? "Salvando..." : "Salvar Alterações"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <Button
+          onClick={adicionarFornecedor}
+          className="w-full"
+          size="lg"
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          Adicionar Fornecedor
+        </Button>
       </div>
     </AppLayout>
   );
