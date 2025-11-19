@@ -180,8 +180,8 @@ export default function BudgetPdf() {
   // Detectar se é orçamento com estrutura de fornecedores → fases
   const isFornecedoresFases = payload.estrutura === 'fornecedores_fases' && payload.fornecedores && Array.isArray(payload.fornecedores);
 
-  // Detectar se é orçamento livre (customizado)
-  const isLivreBudget = payload.type === 'livre' && payload.itens && Array.isArray(payload.itens);
+  // Detectar se é orçamento livre (customizado) - nova estrutura com fornecedores
+  const isLivreBudget = (payload.tipo === 'livre' || payload.type === 'livre') && payload.fornecedores && Array.isArray(payload.fornecedores);
 
   // Removidos cálculos de totais conforme solicitado
 
@@ -1002,98 +1002,219 @@ export default function BudgetPdf() {
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-sky-600" />
                   <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#0C4A6E" }}>
-                    Itens do Orçamento
+                    Orçamento Livre
                   </h2>
                 </div>
-                {payload.tipo_servico && (
-                  <p style={{ fontSize: "12px", color: "#64748B", marginTop: "8px" }}>
-                    Serviço: {payload.tipo_servico}
+                {payload.cliente && (
+                  <p style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+                    Cliente: {payload.cliente}
+                  </p>
+                )}
+                {payload.projeto && (
+                  <p style={{ fontSize: "12px", color: "#64748B", marginTop: "2px" }}>
+                    Projeto: {payload.projeto}
                   </p>
                 )}
               </div>
 
-              {/* Lista de Itens */}
-              <div
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Cabeçalho da tabela */}
+              {/* Fornecedores */}
+              {payload.fornecedores.map((fornecedor: Fornecedor, fornIdx: number) => (
                 <div
+                  key={fornecedor.id}
+                  className="supplier-card"
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 100px 120px 120px",
-                    gap: "12px",
-                    padding: "12px 16px",
-                    backgroundColor: "#F8FAFC",
-                    borderBottom: "2px solid #E2E8F0",
-                    fontSize: "11px",
-                    fontWeight: "bold",
-                    color: "#64748B",
+                    backgroundColor: "#FFFFFF",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    marginBottom: "16px",
                   }}
                 >
-                  <div>DESCRIÇÃO</div>
-                  <div style={{ textAlign: "center" }}>QTD</div>
-                  <div style={{ textAlign: "right" }}>VALOR UNIT.</div>
-                  <div style={{ textAlign: "right" }}>VALOR TOTAL</div>
-                </div>
-
-                {/* Linhas de itens */}
-                {payload.itens.map((item: any, idx: number) => (
+                  {/* Header do Fornecedor */}
                   <div
-                    key={idx}
-                    className="item-row"
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 100px 120px 120px",
-                      gap: "12px",
-                      padding: "12px 16px",
-                      borderBottom: idx < payload.itens.length - 1 ? "1px solid #F1F5F9" : "none",
-                      fontSize: "12px",
+                      padding: "16px 20px",
+                      backgroundColor: "#F8FAFC",
+                      borderBottom: "2px solid #E2E8F0",
                     }}
                   >
-                    <div>
-                      <p style={{ fontWeight: "600", color: "#1E293B", marginBottom: "4px" }}>
-                        {item.descricao || "-"}
+                    <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#1E293B", marginBottom: "4px" }}>
+                      {fornecedor.nome}
+                    </h3>
+                    {fornecedor.contato && (
+                      <p style={{ fontSize: "11px", color: "#64748B" }}>
+                        Contato: {fornecedor.contato}
                       </p>
-                    </div>
-                    <div style={{ textAlign: "center", color: "#64748B" }}>
-                      {item.quantidade || 1}
-                    </div>
-                    <div style={{ textAlign: "right", color: "#64748B" }}>
-                      {money(item.valor_unitario || 0)}
-                    </div>
-                    <div style={{ textAlign: "right", fontWeight: "bold", color: "#1E293B" }}>
-                      {money(item.valor_total || 0)}
-                    </div>
+                    )}
+                    {fornecedor.cnpj && (
+                      <p style={{ fontSize: "11px", color: "#64748B" }}>
+                        CNPJ: {fornecedor.cnpj}
+                      </p>
+                    )}
                   </div>
-                ))}
 
-                {/* Total Geral */}
-                {payload.total_geral && (
+                  {/* Opções do Fornecedor */}
+                  {fornecedor.opcoes.map((opcao: FornecedorOpcao) => (
+                    <div key={opcao.id} style={{ padding: "16px 20px" }}>
+                      <h4 style={{ fontSize: "14px", fontWeight: "bold", color: "#0369A1", marginBottom: "12px" }}>
+                        {opcao.nome}
+                      </h4>
+
+                      {/* Fases da Opção */}
+                      {opcao.fases.map((fase: FornecedorFase) => (
+                        <div key={fase.id} className="fase-section">
+                          <p style={{ fontSize: "13px", fontWeight: "600", color: "#475569", marginBottom: "8px" }}>
+                            {fase.nome}
+                          </p>
+
+                          {/* Itens da Fase */}
+                          <div style={{ marginLeft: "12px" }}>
+                            {fase.itens.map((item: FornecedorItem) => {
+                              const valorFinal = item.valor * (1 - (item.desconto || 0) / 100);
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="item-row"
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
+                                    padding: "8px 0",
+                                    borderBottom: "1px solid #F1F5F9",
+                                  }}
+                                >
+                                  <div style={{ flex: 1, paddingRight: "16px" }}>
+                                    <p style={{ fontSize: "12px", color: "#1E293B", fontWeight: "500" }}>
+                                      {item.nome}
+                                    </p>
+                                    {item.observacao && (
+                                      <p style={{ fontSize: "10px", color: "#64748B", marginTop: "2px" }}>
+                                        {item.observacao}
+                                      </p>
+                                    )}
+                                    {item.prazo && (
+                                      <p style={{ fontSize: "10px", color: "#64748B", marginTop: "2px" }}>
+                                        Prazo: {item.prazo}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                    <p style={{ fontSize: "12px", fontWeight: "bold", color: "#1E293B" }}>
+                                      {money(valorFinal)}
+                                    </p>
+                                    {item.desconto && item.desconto > 0 && (
+                                      <p style={{ fontSize: "10px", color: "#64748B" }}>
+                                        ({item.desconto}% desc)
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Subtotal da Fase */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              padding: "8px 0",
+                              marginTop: "4px",
+                              borderTop: "1px solid #E2E8F0",
+                            }}
+                          >
+                            <span style={{ fontSize: "12px", fontWeight: "600", color: "#475569" }}>
+                              Subtotal da Fase: {money(
+                                fase.itens.reduce((sum, item) => 
+                                  sum + (item.valor * (1 - (item.desconto || 0) / 100)), 0
+                                )
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Total da Opção */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          padding: "12px 0",
+                          marginTop: "8px",
+                          borderTop: "2px solid #E2E8F0",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", fontWeight: "bold", color: "#0369A1" }}>
+                          Total da {opcao.nome}: {money(
+                            opcao.fases.reduce((total, fase) =>
+                              total + fase.itens.reduce((sum, item) => 
+                                sum + (item.valor * (1 - (item.desconto || 0) / 100)), 0
+                              ), 0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Total do Fornecedor */}
                   <div
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 100px 120px 120px",
-                      gap: "12px",
-                      padding: "16px",
-                      backgroundColor: "#F0FDF4",
-                      borderTop: "2px solid #16A34A",
-                      fontSize: "14px",
-                      fontWeight: "bold",
+                      padding: "16px 20px",
+                      backgroundColor: "#F8FAFC",
+                      borderTop: "2px solid #0369A1",
                     }}
                   >
-                    <div style={{ gridColumn: "1 / 4", textAlign: "right", color: "#1E293B" }}>
-                      TOTAL GERAL:
-                    </div>
-                    <div style={{ textAlign: "right", color: "#16A34A" }}>
-                      {money(payload.total_geral)}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "15px", fontWeight: "bold", color: "#1E293B" }}>
+                        Total do Fornecedor
+                      </span>
+                      <span style={{ fontSize: "16px", fontWeight: "bold", color: "#0369A1" }}>
+                        {money(
+                          fornecedor.opcoes.reduce((total, opcao) =>
+                            total + opcao.fases.reduce((fTotal, fase) =>
+                              fTotal + fase.itens.reduce((iTotal, item) =>
+                                iTotal + (item.valor * (1 - (item.desconto || 0) / 100)), 0
+                              ), 0
+                            ), 0
+                          )
+                        )}
+                      </span>
                     </div>
                   </div>
-                )}
+                </div>
+              ))}
+
+              {/* Total Geral do Orçamento */}
+              <div className="total-section" style={{ marginTop: "24px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px",
+                    backgroundColor: "#FEF3C7",
+                    border: "2px solid #F59E0B",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                    TOTAL GERAL
+                  </span>
+                  <span style={{ fontSize: "22px", fontWeight: "bold", color: "#92400E" }}>
+                    {money(
+                      (payload.fornecedores || []).reduce((total: number, fornecedor: Fornecedor) =>
+                        total + fornecedor.opcoes.reduce((oTotal, opcao) =>
+                          oTotal + opcao.fases.reduce((fTotal, fase) =>
+                            fTotal + fase.itens.reduce((iTotal, item) =>
+                              iTotal + (item.valor * (1 - (item.desconto || 0) / 100)), 0
+                            ), 0
+                          ), 0
+                        ), 0
+                      )
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
           )}
