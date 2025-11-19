@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, Save, Plus, ArrowUpDown, FileText, Eye } from "lucide-react";
 import { SupplierOptionsManager } from "@/components/budget/SupplierOptionsManager";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -16,6 +16,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+interface CampoPersonalizado {
+  id: string;
+  nome: string;
+  valor: string;
+}
 
 interface FornecedorItem {
   id: string;
@@ -44,6 +58,7 @@ interface Fornecedor {
   contato: string;
   cnpj?: string;
   opcoes: FornecedorOpcao[];
+  camposPersonalizados?: CampoPersonalizado[];
 }
 
 export default function OrcamentoLivre() {
@@ -58,6 +73,9 @@ export default function OrcamentoLivre() {
   const [somarTodasOpcoes, setSomarTodasOpcoes] = useState(false);
   const [mostrarValores, setMostrarValores] = useState(true);
   const [ordenacao, setOrdenacao] = useState<"original" | "barato" | "caro">("original");
+  
+  // Preview
+  const [showPreview, setShowPreview] = useState(false);
   
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([
     {
@@ -399,6 +417,71 @@ export default function OrcamentoLivre() {
                   <p className="text-3xl font-bold">{formatCurrency(calcularTotal())}</p>
                 </div>
                 <div className="flex gap-2">
+                  <Dialog open={showPreview} onOpenChange={setShowPreview}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <Eye className="h-4 w-4" />
+                        Preview PDF
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Preview do Orçamento</DialogTitle>
+                        <DialogDescription>
+                          Visualização prévia do orçamento livre
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 p-4 border rounded-lg bg-white text-black">
+                        <div className="text-center border-b pb-4">
+                          <h2 className="text-2xl font-bold">ORÇAMENTO LIVRE</h2>
+                          <p className="text-sm text-gray-600 mt-2">Cliente: {cliente || "Não informado"}</p>
+                          <p className="text-sm text-gray-600">Projeto: {produto || "Não informado"}</p>
+                        </div>
+
+                        {getFornecedoresOrdenados().map((fornecedor, index) => (
+                          <div key={fornecedor.id} className="border rounded p-4">
+                            <h3 className="font-bold text-lg mb-2">
+                              Fornecedor {index + 1}: {fornecedor.nome}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-2">Contato: {fornecedor.contato}</p>
+                            {mostrarValores && (
+                              <p className="text-lg font-semibold text-blue-600 mb-3">
+                                Total: {formatCurrency(fornecedor.valorTotal)}
+                              </p>
+                            )}
+                            
+                            {fornecedor.opcoes.map((opcao) => (
+                              <div key={opcao.id} className="mb-4">
+                                <h4 className="font-semibold text-md mb-2 bg-gray-100 p-2 rounded">
+                                  {opcao.nome}
+                                </h4>
+                                {opcao.fases.map((fase) => (
+                                  <div key={fase.id} className="ml-4 mb-2">
+                                    <p className="font-medium text-sm mb-1">{fase.nome}</p>
+                                    <ul className="list-disc list-inside text-sm space-y-1">
+                                      {fase.itens.map((item) => (
+                                        <li key={item.id} className="text-gray-700">
+                                          {item.nome}
+                                          {mostrarValores && ` - ${formatCurrency(item.valor * (1 - (item.desconto || 0) / 100))}`}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+
+                        <div className="border-t pt-4 text-right">
+                          <p className="text-xl font-bold">
+                            Total Geral: {formatCurrency(calcularTotal())}
+                          </p>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
                   <Button
                     variant="outline"
                     onClick={() => navigate("/orcamentos/novo")}
