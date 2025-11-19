@@ -158,7 +158,6 @@ export default function BudgetPreview() {
   // Suporte a múltiplas campanhas
   const campanhas = data.campanhas || [{ nome: "Campanha Única", categorias: [] }];
   const combinarModo = data.combinarModo || "separado";
-  const honorarioPerc = data.honorarioPerc || 15;
   
   // Detectar se é orçamento de imagem
   const isImageBudget = data.assets && Array.isArray(data.assets);
@@ -191,21 +190,6 @@ export default function BudgetPreview() {
   };
 
   const totalGeralCampanhas = campanhas.reduce((sum: number, camp: any) => sum + calcularTotalCampanha(camp), 0);
-
-  // Modo "somar": honorário aplicado no consolidado
-  // Modo "separado": honorário aplicado por campanha
-  let totalComHonorario = 0;
-  if (combinarModo === "somar") {
-    const honorarioValor = totalGeralCampanhas * (honorarioPerc / 100);
-    totalComHonorario = totalGeralCampanhas + honorarioValor;
-  } else {
-    // "separado"
-    totalComHonorario = campanhas.reduce((sum: number, camp: any) => {
-      const subtotal = calcularTotalCampanha(camp);
-      const honorario = subtotal * (honorarioPerc / 100);
-      return sum + subtotal + honorario;
-    }, 0);
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -369,8 +353,6 @@ export default function BudgetPreview() {
         {!isImageBudget && campanhas.map((campanha: any, campIdx: number) => {
           const categoriasVisiveis = (campanha.categorias || []).filter((c: any) => c.visivel !== false);
           const subtotalCampanha = calcularTotalCampanha(campanha);
-          const honorarioCampanha = subtotalCampanha * (honorarioPerc / 100);
-          const totalCampanha = subtotalCampanha + honorarioCampanha;
 
           return (
             <Card key={campIdx} className="mb-6 border-2 border-primary/20">
@@ -378,7 +360,7 @@ export default function BudgetPreview() {
                 <CardTitle className="flex items-center justify-between">
                   <span>{campanha.nome}</span>
                   {combinarModo === "separado" && campanhas.length > 1 && (
-                    <span className="text-lg font-bold">{BRL(totalCampanha)}</span>
+                    <span className="text-lg font-bold">{BRL(subtotalCampanha)}</span>
                   )}
                 </CardTitle>
               </CardHeader>
@@ -471,17 +453,9 @@ export default function BudgetPreview() {
                 {/* Subtotais da campanha */}
                 {combinarModo === "separado" && campanhas.length > 1 && (
                   <div className="mt-6 space-y-2 border-t pt-4">
-                    <div className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
-                      <span className="font-medium">Subtotal {campanha.nome}</span>
-                      <span className="font-bold">{BRL(subtotalCampanha)}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-secondary/30 rounded-lg">
-                      <span className="font-medium">Honorário ({honorarioPerc}%)</span>
-                      <span className="font-bold">{BRL(honorarioCampanha)}</span>
-                    </div>
                     <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
                       <span className="font-bold text-lg">Total {campanha.nome}</span>
-                      <span className="font-bold text-2xl text-primary">{BRL(totalCampanha)}</span>
+                      <span className="font-bold text-2xl text-primary">{BRL(subtotalCampanha)}</span>
                     </div>
                   </div>
                 )}
@@ -512,15 +486,11 @@ export default function BudgetPreview() {
                       <span className="font-medium">Subtotal Consolidado</span>
                       <span className="font-bold">{BRL(totalGeralCampanhas)}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-secondary/40 rounded-lg">
-                      <span className="font-medium">Honorário ({honorarioPerc}%)</span>
-                      <span className="font-bold">{BRL(totalGeralCampanhas * (honorarioPerc / 100))}</span>
-                    </div>
                   </>
                 )}
                 <div className="flex justify-between items-center p-4 bg-primary/10 rounded-lg border-2 border-primary">
                   <span className="font-bold text-lg">Total Geral</span>
-                  <span className="font-bold text-2xl text-primary">{BRL(totalComHonorario)}</span>
+                  <span className="font-bold text-2xl text-primary">{BRL(totalGeralCampanhas)}</span>
                 </div>
               </div>
             </CardContent>
