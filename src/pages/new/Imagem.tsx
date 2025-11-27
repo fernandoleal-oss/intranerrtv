@@ -31,6 +31,7 @@ export default function NovaImagem() {
   // Check if we're editing an existing budget
   const editData = location.state?.editData as ImageData | undefined
   const existingBudgetId = location.state?.budgetId as string | undefined
+  const currentVersao = location.state?.versao as number | undefined
   
   const [budgetId, setBudgetId] = useState<string | null>(existingBudgetId || null)
   const [isSaving, setIsSaving] = useState(false)
@@ -169,11 +170,18 @@ export default function NovaImagem() {
               Voltar
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-white">
-                {isEditing ? 'Editar Orçamento - Imagem' : 'Orçamento de Imagem'}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold text-white">
+                  {isEditing ? 'Editar Orçamento - Imagem' : 'Orçamento de Imagem'}
+                </h1>
+                {isEditing && currentVersao && (
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-white/20 text-white">
+                    v{currentVersao}
+                  </span>
+                )}
+              </div>
               <p className="text-white/70">
-                {isEditing ? 'Modifique os dados e salve as alterações' : 'Preencha os dados do orçamento de imagem'}
+                {isEditing ? `Modifique os dados e salve como versão ${(currentVersao || 0) + 1}` : 'Preencha os dados do orçamento de imagem'}
               </p>
             </div>
           </div>
@@ -188,7 +196,7 @@ export default function NovaImagem() {
           <ImageQuickForm 
             onSave={handleSave} 
             initialData={initialFormData}
-            submitLabel={isEditing ? "Salvar e Gerar PDF" : "Criar Orçamento"}
+            submitLabel={isEditing ? `Salvar v${(currentVersao || 0) + 1}` : "Criar Orçamento"}
           />
         </motion.div>
       </div>

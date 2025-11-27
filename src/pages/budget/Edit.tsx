@@ -100,7 +100,8 @@ export default function BudgetEdit() {
           navigate("/orcamentos/novo/filme", {
             state: {
               editData: payload,
-              budgetId: row.budgets!.id
+              budgetId: row.budgets!.id,
+              versao: row.versao
             },
             replace: true
           });
@@ -112,7 +113,8 @@ export default function BudgetEdit() {
           navigate("/orcamentos/novo/audio", {
             state: {
               editData: payload,
-              budgetId: row.budgets!.id
+              budgetId: row.budgets!.id,
+              versao: row.versao
             },
             replace: true
           });
@@ -124,7 +126,8 @@ export default function BudgetEdit() {
           navigate("/orcamentos/novo/imagem", {
             state: {
               editData: payload,
-              budgetId: row.budgets!.id
+              budgetId: row.budgets!.id,
+              versao: row.versao
             },
             replace: true
           });
@@ -136,19 +139,21 @@ export default function BudgetEdit() {
           navigate("/orcamentos/novo/cc", {
             state: {
               editData: payload,
-              budgetId: row.budgets!.id
+              budgetId: row.budgets!.id,
+              versao: row.versao
             },
             replace: true
           });
           return;
         }
 
-        if (budgetType === "livre" || payload?.type === "livre") {
+        if (budgetType === "livre" || payload?.type === "livre" || payload?.tipo === "livre") {
           console.log("📝 Redirecionando para edição livre...");
           navigate("/orcamentos/novo/livre", {
             state: {
               editData: payload,
-              budgetId: row.budgets!.id
+              budgetId: row.budgets!.id,
+              versao: row.versao
             },
             replace: true
           });

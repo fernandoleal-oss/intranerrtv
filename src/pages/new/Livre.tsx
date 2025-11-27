@@ -92,6 +92,7 @@ export default function OrcamentoLivre() {
   // Check if we're editing an existing budget
   const editData = location.state?.editData as LivreData | undefined;
   const existingBudgetId = location.state?.budgetId as string | undefined;
+  const currentVersao = location.state?.versao as number | undefined;
   
   const [saving, setSaving] = useState(false);
   const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId);
@@ -473,12 +474,19 @@ export default function OrcamentoLivre() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">
-                {isEditing ? "Editar Orçamento Livre" : "Novo Orçamento Livre"}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">
+                  {isEditing ? "Editar Orçamento Livre" : "Novo Orçamento Livre"}
+                </h1>
+                {isEditing && currentVersao && (
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-primary/10 text-primary">
+                    v{currentVersao}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {isEditing 
-                  ? "Modifique os dados e salve as alterações" 
+                  ? `Modifique os dados e salve como versão ${(currentVersao || 0) + 1}` 
                   : "Crie um orçamento personalizado com múltiplas opções por fornecedor"}
               </p>
             </div>
@@ -868,7 +876,11 @@ export default function OrcamentoLivre() {
                   </Button>
                   <Button onClick={handleSave} disabled={saving} className="gap-2">
                     <Save className="h-4 w-4" />
-                    {saving ? "Salvando..." : isEditing ? "Salvar e Gerar PDF" : "Salvar Orçamento"}
+                    {saving 
+                      ? "Salvando..." 
+                      : isEditing 
+                        ? `Salvar v${(currentVersao || 0) + 1}` 
+                        : "Salvar Orçamento"}
                   </Button>
                 </div>
               </div>
