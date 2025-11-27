@@ -90,8 +90,72 @@ export default function BudgetEdit() {
         if (!row) throw new Error("Orçamento não encontrado");
 
         const payload = row.payload as any;
+        const budgetType = row.budgets?.type;
         console.log("📋 Payload:", payload);
+        console.log("📋 Tipo do orçamento:", budgetType);
 
+        // Redirecionar para o formulário específico baseado no tipo
+        if (budgetType === "filme" || payload?.type === "filme") {
+          console.log("🎬 Redirecionando para edição de filme...");
+          navigate("/orcamentos/novo/filme", {
+            state: {
+              editData: payload,
+              budgetId: row.budgets!.id
+            },
+            replace: true
+          });
+          return;
+        }
+
+        if (budgetType === "audio" || payload?.type === "audio") {
+          console.log("🎵 Redirecionando para edição de áudio...");
+          navigate("/orcamentos/novo/audio", {
+            state: {
+              editData: payload,
+              budgetId: row.budgets!.id
+            },
+            replace: true
+          });
+          return;
+        }
+
+        if (budgetType === "imagem" || payload?.type === "imagem") {
+          console.log("📸 Redirecionando para edição de imagem...");
+          navigate("/orcamentos/novo/imagem", {
+            state: {
+              editData: payload,
+              budgetId: row.budgets!.id
+            },
+            replace: true
+          });
+          return;
+        }
+
+        if (budgetType === "cc" || payload?.type === "cc") {
+          console.log("💳 Redirecionando para edição de CC...");
+          navigate("/orcamentos/novo/cc", {
+            state: {
+              editData: payload,
+              budgetId: row.budgets!.id
+            },
+            replace: true
+          });
+          return;
+        }
+
+        if (budgetType === "livre" || payload?.type === "livre") {
+          console.log("📝 Redirecionando para edição livre...");
+          navigate("/orcamentos/novo/livre", {
+            state: {
+              editData: payload,
+              budgetId: row.budgets!.id
+            },
+            replace: true
+          });
+          return;
+        }
+
+        // Fallback: carregar no editor genérico
         setBudgetData({
           id: row.budgets!.id,
           version_id: row.id,
