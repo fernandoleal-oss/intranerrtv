@@ -33,6 +33,7 @@ export default function NovoCC() {
   // Check if we're editing an existing budget
   const editData = location.state?.editData as CCData | undefined
   const existingBudgetId = location.state?.budgetId as string | undefined
+  const currentVersao = location.state?.versao as number | undefined
   
   const [step, setStep] = useState(existingBudgetId ? 2 : 1)
   const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId)
@@ -366,7 +367,7 @@ export default function NovoCC() {
                 className="w-full gap-2"
               >
                 <FileText className="h-4 w-4" />
-                Salvar e Gerar PDF
+                {isEditing ? `Salvar v${(currentVersao || 0) + 1}` : 'Salvar e Gerar PDF'}
               </Button>
               {budgetId && (
                 <Button 
@@ -410,11 +411,18 @@ export default function NovoCC() {
             {step > 1 ? 'Voltar' : 'Início'}
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-white">
-              {isEditing ? 'Editar Orçamento - Closed Caption' : 'Closed Caption'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-white">
+                {isEditing ? 'Editar Orçamento - Closed Caption' : 'Closed Caption'}
+              </h1>
+              {isEditing && currentVersao && (
+                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-white/20 text-white">
+                  v{currentVersao}
+                </span>
+              )}
+            </div>
             <p className="text-white/70">
-              {isEditing ? 'Modifique os dados e salve as alterações' : 'Calcular versões de CC (R$ 900/versão)'}
+              {isEditing ? `Modifique os dados e salve como versão ${(currentVersao || 0) + 1}` : 'Calcular versões de CC (R$ 900/versão)'}
             </p>
           </div>
         </div>

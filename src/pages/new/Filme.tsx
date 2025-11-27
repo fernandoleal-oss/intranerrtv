@@ -72,6 +72,8 @@ export default function FilmeBudget() {
   // Carregar dados de edição se existir
   const editData = location.state?.editData;
   const budgetId = location.state?.budgetId;
+  const currentVersao = location.state?.versao as number | undefined;
+  const isEditing = !!budgetId;
 
   const handleSaveAndGeneratePDF = async () => {
     if (!data.cliente || !data.produto) {
@@ -259,11 +261,18 @@ export default function FilmeBudget() {
               Voltar
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                {budgetId ? "Editar Orçamento - Filme" : "Novo Orçamento - Filme"}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold text-foreground">
+                  {isEditing ? "Editar Orçamento - Filme" : "Novo Orçamento - Filme"}
+                </h1>
+                {isEditing && currentVersao && (
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-primary/10 text-primary">
+                    v{currentVersao}
+                  </span>
+                )}
+              </div>
               <p className="text-muted-foreground">
-                {budgetId ? "Modifique os dados e salve as alterações" : "Preencha os dados e visualize em tempo real"}
+                {isEditing ? `Modifique os dados e salve como versão ${(currentVersao || 0) + 1}` : "Preencha os dados e visualize em tempo real"}
               </p>
             </div>
           </div>
@@ -279,7 +288,7 @@ export default function FilmeBudget() {
             </Button>
             <Button onClick={handleSaveAndGeneratePDF} disabled={saving} className="gap-2">
               <Save className="h-4 w-4" />
-              {saving ? "Salvando..." : "Salvar e Gerar PDF"}
+              {saving ? "Salvando..." : isEditing ? `Salvar v${(currentVersao || 0) + 1}` : "Salvar e Gerar PDF"}
             </Button>
           </div>
         </div>
