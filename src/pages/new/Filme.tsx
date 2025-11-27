@@ -73,6 +73,77 @@ export default function FilmeBudget() {
   const editData = location.state?.editData;
   const budgetId = location.state?.budgetId;
 
+  const handleSaveAndGeneratePDF = async () => {
+    if (!data.cliente || !data.produto) {
+      toast({ title: "Preencha cliente e produto", variant: "destructive" });
+      return;
+    }
+
+    if ((data.quotes_film || []).length === 0) {
+      toast({ title: "Adicione pelo menos uma cotação de filme", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let newBudgetId = budgetId;
+
+      if (!newBudgetId) {
+        // Criar novo orçamento
+        const payloadJson = JSON.parse(JSON.stringify(data));
+        const { data: result, error } = await supabase.rpc("create_budget_full_rpc", {
+          p_type_text: "filme",
+          p_payload: payloadJson,
+          p_total: data.total || 0
+        });
+
+        if (error) throw error;
+        if (!result || result.length === 0) {
+          throw new Error("RPC não retornou dados");
+        }
+        
+        newBudgetId = result[0].id;
+        toast({ title: "Orçamento criado com sucesso!" });
+      } else {
+        // Criar nova versão
+        const { data: versions, error: versionError } = await supabase
+          .from('versions')
+          .select('versao')
+          .eq('budget_id', newBudgetId)
+          .order('versao', { ascending: false })
+          .limit(1);
+
+        if (versionError) throw versionError;
+
+        const nextVersion = (versions?.[0]?.versao || 0) + 1;
+        const payloadJson = JSON.parse(JSON.stringify(data));
+
+        const { error: insertError } = await supabase
+          .from('versions')
+          .insert([{
+            budget_id: newBudgetId,
+            versao: nextVersion,
+            payload: payloadJson,
+            total_geral: data.total || 0
+          }]);
+
+        if (insertError) throw insertError;
+        toast({ title: `Versão ${nextVersion} salva!` });
+      }
+
+      navigate(`/budget/${newBudgetId}/pdf`);
+    } catch (err: any) {
+      console.error("Error saving budget:", err);
+      toast({ 
+        title: "Erro ao salvar", 
+        description: err.message || "Erro desconhecido",
+        variant: "destructive" 
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const [data, setData] = useState<BudgetData>(editData || {
     type: "filme",
     quotes_film: [],
@@ -198,9 +269,13 @@ export default function FilmeBudget() {
               <Eye className="h-4 w-4" />
               {showPreview ? "Ocultar" : "Visualizar"} Resumo
             </Button>
-            <Button onClick={handlePreview} className="gap-2">
+            <Button variant="outline" onClick={handlePreview} className="gap-2">
               <Eye className="h-4 w-4" />
-              Visualizar Preview
+              Preview
+            </Button>
+            <Button onClick={handleSaveAndGeneratePDF} disabled={saving} className="gap-2">
+              <Save className="h-4 w-4" />
+              {saving ? "Salvando..." : "Salvar e Gerar PDF"}
             </Button>
           </div>
         </div>
