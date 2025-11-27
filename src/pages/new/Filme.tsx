@@ -259,8 +259,12 @@ export default function FilmeBudget() {
               Voltar
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Novo Orçamento - Filme</h1>
-              <p className="text-muted-foreground">Preencha os dados e visualize em tempo real</p>
+              <h1 className="text-3xl font-bold text-foreground">
+                {budgetId ? "Editar Orçamento - Filme" : "Novo Orçamento - Filme"}
+              </h1>
+              <p className="text-muted-foreground">
+                {budgetId ? "Modifique os dados e salve as alterações" : "Preencha os dados e visualize em tempo real"}
+              </p>
             </div>
           </div>
 
