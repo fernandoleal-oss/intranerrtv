@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,10 +61,29 @@ interface Fornecedor {
   camposPersonalizados?: CampoPersonalizado[];
 }
 
+interface LivreData {
+  tipo?: string;
+  cliente?: string;
+  projeto?: string;
+  fornecedores?: Fornecedor[];
+  configuracoes?: {
+    somarTodasOpcoes?: boolean;
+    mostrarValores?: boolean;
+    ordenacao?: "original" | "barato" | "caro";
+  };
+}
+
 export default function OrcamentoLivre() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  
+  // Check if we're editing an existing budget
+  const editData = location.state?.editData as LivreData | undefined;
+  const existingBudgetId = location.state?.budgetId as string | undefined;
+  
   const [saving, setSaving] = useState(false);
+  const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId);
 
   const [cliente, setCliente] = useState("");
   const [produto, setProduto] = useState("");
@@ -107,6 +126,26 @@ export default function OrcamentoLivre() {
       ],
     },
   ]);
+
+  // Load edit data on mount
+  useEffect(() => {
+    if (editData) {
+      setCliente(editData.cliente || editData.projeto || "");
+      setProduto(editData.projeto || "");
+      
+      if (editData.configuracoes) {
+        setSomarTodasOpcoes(editData.configuracoes.somarTodasOpcoes || false);
+        setMostrarValores(editData.configuracoes.mostrarValores !== false);
+        setOrdenacao(editData.configuracoes.ordenacao || "original");
+      }
+      
+      if (editData.fornecedores && editData.fornecedores.length > 0) {
+        setFornecedores(editData.fornecedores);
+      }
+    }
+  }, [editData]);
+
+  const isEditing = !!existingBudgetId;
 
   const adicionarFornecedor = () => {
     setFornecedores([
@@ -205,6 +244,7 @@ export default function OrcamentoLivre() {
 
       const payload = {
         tipo: "livre",
+        type: "livre",
         cliente,
         projeto: produto,
         fornecedores,
@@ -215,23 +255,53 @@ export default function OrcamentoLivre() {
         },
       };
 
-      const { data, error } = await supabase.rpc("create_budget_full_rpc", {
-        p_type_text: "livre",
-        p_payload: payload as any,
-        p_total: total_geral,
-      });
+      if (isEditing && budgetId) {
+        // Update existing budget - create new version
+        const { data: versions } = await supabase
+          .from('versions')
+          .select('versao')
+          .eq('budget_id', budgetId)
+          .order('versao', { ascending: false })
+          .limit(1);
 
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Falha ao criar orçamento");
+        const nextVersao = versions && versions.length > 0 ? versions[0].versao + 1 : 1;
 
-      const budgetId = data[0].id;
+        const { error } = await supabase.from('versions').insert({
+          budget_id: budgetId,
+          versao: nextVersao,
+          payload: payload as any,
+          total_geral
+        });
 
-      toast({
-        title: "Sucesso!",
-        description: "Orçamento livre criado com sucesso.",
-      });
+        if (error) throw error;
 
-      navigate(`/orcamentos/editar/${budgetId}`);
+        toast({
+          title: "Sucesso!",
+          description: `Orçamento atualizado. Nova versão ${nextVersao} criada.`,
+        });
+
+        navigate(`/budget/${budgetId}/pdf`);
+      } else {
+        // Create new budget
+        const { data, error } = await supabase.rpc("create_budget_full_rpc", {
+          p_type_text: "livre",
+          p_payload: payload as any,
+          p_total: total_geral,
+        });
+
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Falha ao criar orçamento");
+
+        const newBudgetId = data[0].id;
+        setBudgetId(newBudgetId);
+
+        toast({
+          title: "Sucesso!",
+          description: "Orçamento livre criado com sucesso.",
+        });
+
+        navigate(`/budget/${newBudgetId}/pdf`);
+      }
     } catch (error: any) {
       console.error("Erro ao salvar orçamento:", error);
       toast({
@@ -264,9 +334,13 @@ export default function OrcamentoLivre() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Novo Orçamento Livre</h1>
+              <h1 className="text-2xl font-bold">
+                {isEditing ? "Editar Orçamento Livre" : "Novo Orçamento Livre"}
+              </h1>
               <p className="text-sm text-muted-foreground">
-                Crie um orçamento personalizado com múltiplas opções por fornecedor
+                {isEditing 
+                  ? "Modifique os dados e salve as alterações" 
+                  : "Crie um orçamento personalizado com múltiplas opções por fornecedor"}
               </p>
             </div>
           </div>
@@ -491,7 +565,7 @@ export default function OrcamentoLivre() {
                   </Button>
                   <Button onClick={handleSave} disabled={saving} className="gap-2">
                     <Save className="h-4 w-4" />
-                    {saving ? "Salvando..." : "Salvar Orçamento"}
+                    {saving ? "Salvando..." : isEditing ? "Salvar e Gerar PDF" : "Salvar Orçamento"}
                   </Button>
                 </div>
               </div>

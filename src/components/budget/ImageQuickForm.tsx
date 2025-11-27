@@ -48,9 +48,10 @@ interface FormData {
 interface ImageQuickFormProps {
   onSave: (data: FormData) => void
   initialData?: Partial<FormData>
+  submitLabel?: string
 }
 
-export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
+export function ImageQuickForm({ onSave, initialData, submitLabel = "Usar no orçamento" }: ImageQuickFormProps) {
   const { toast } = useToast()
   const [producer, setProducer] = useState<Producer>(
     initialData?.producer || { name: '', email: '' }
@@ -718,7 +719,7 @@ export function ImageQuickForm({ onSave, initialData }: ImageQuickFormProps) {
                   </p>
                 </div>
                 <Button onClick={handleSubmit} className="w-full" size="lg">
-                  Usar no orçamento
+                  {submitLabel}
                 </Button>
               </div>
             )}

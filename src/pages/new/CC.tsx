@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Stepper } from '@/components/Stepper'
 import { PreviewSidebar } from '@/components/PreviewSidebar'
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { useAutosave } from '@/hooks/useAutosave'
-import { ArrowLeft, Plus, Minus } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, FileText } from 'lucide-react'
 
 const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Revisão', 'Exportar']
 
@@ -27,9 +27,15 @@ interface CCData {
 
 export default function NovoCC() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { toast } = useToast()
-  const [step, setStep] = useState(1)
-  const [budgetId, setBudgetId] = useState<string>()
+  
+  // Check if we're editing an existing budget
+  const editData = location.state?.editData as CCData | undefined
+  const existingBudgetId = location.state?.budgetId as string | undefined
+  
+  const [step, setStep] = useState(existingBudgetId ? 2 : 1)
+  const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId)
   const [data, setData] = useState<CCData>({
     qtd_versoes: 1,
     valor_unitario: 900,
@@ -37,12 +43,28 @@ export default function NovoCC() {
     total: 900
   })
 
+  // Load edit data on mount
+  useEffect(() => {
+    if (editData) {
+      const qtdVersoes = editData.qtd_versoes || editData.cc?.qtd || 1
+      const valorUnitario = editData.valor_unitario || 900
+      const total = qtdVersoes * valorUnitario
+      setData({
+        ...editData,
+        qtd_versoes: qtdVersoes,
+        valor_unitario: valorUnitario,
+        cc: { qtd: qtdVersoes, total },
+        total
+      })
+    }
+  }, [editData])
+
   // Auto-save with debounce hook
   useAutosave([data], () => {
     if (budgetId && Object.keys(data).length > 0) {
       supabase.from('versions').update({ 
         payload: data as any 
-      }).eq('budget_id', budgetId).eq('versao', 1)
+      }).eq('budget_id', budgetId).order('versao', { ascending: false }).limit(1)
     }
   })
 
@@ -59,13 +81,18 @@ export default function NovoCC() {
   }
 
   const handleCreateBudget = async () => {
+    // If we're editing, just move to next step
+    if (budgetId) {
+      setStep(2)
+      return
+    }
+    
     try {
       const { data: budget, error } = await supabase.rpc('create_budget_full_rpc', { 
         p_type_text: 'cc',
         p_payload: {},
         p_total: 0
       }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
-      // Budget created successfully
       
       if (error) throw error
       setBudgetId(budget.id)
@@ -76,10 +103,73 @@ export default function NovoCC() {
     }
   }
 
+  const handleSaveAndGeneratePDF = async () => {
+    if (!data.cliente?.trim() || !data.produto?.trim()) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha cliente e produto.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const payload = JSON.parse(JSON.stringify({
+        ...data,
+        type: 'cc'
+      }))
+
+      if (budgetId) {
+        // Update existing budget
+        const { data: versions } = await supabase
+          .from('versions')
+          .select('versao')
+          .eq('budget_id', budgetId)
+          .order('versao', { ascending: false })
+          .limit(1)
+
+        const nextVersao = versions && versions.length > 0 ? versions[0].versao + 1 : 1
+
+        const { error } = await supabase.from('versions').insert({
+          budget_id: budgetId,
+          versao: nextVersao,
+          payload,
+          total_geral: data.total
+        })
+
+        if (error) throw error
+        navigate(`/budget/${budgetId}/pdf`)
+      } else {
+        // Create new budget
+        const { data: result, error } = await supabase.rpc('create_budget_full_rpc', {
+          p_type_text: 'cc',
+          p_payload: payload,
+          p_total: data.total
+        })
+
+        if (error) throw error
+        if (!result || result.length === 0) throw new Error('Falha ao criar orçamento')
+        
+        navigate(`/budget/${result[0].id}/pdf`)
+      }
+
+      toast({ title: "Sucesso!", description: "Orçamento salvo com sucesso." })
+    } catch (error: any) {
+      console.error('Erro ao salvar:', error)
+      toast({
+        title: "Erro ao salvar",
+        description: error.message || "Ocorreu um erro ao salvar o orçamento.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const adjustQuantity = (delta: number) => {
     const newQtd = Math.max(1, data.qtd_versoes + delta)
     updateData({ qtd_versoes: newQtd })
   }
+
+  const isEditing = !!existingBudgetId
 
   const StepContent = () => {
     switch (step) {
@@ -263,26 +353,31 @@ export default function NovoCC() {
         return (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="text-center space-y-4">
-              <h3 className="text-lg font-semibold text-white">Orçamento de Closed Caption Finalizado!</h3>
+              <h3 className="text-lg font-semibold text-white">
+                {isEditing ? 'Orçamento de Closed Caption Atualizado!' : 'Orçamento de Closed Caption Finalizado!'}
+              </h3>
               <p className="text-white/70">Escolha uma das opções abaixo:</p>
             </div>
             
             <div className="space-y-3">
               <Button 
-                onClick={() => navigate(`/budget/${budgetId}/pdf`)} 
+                onClick={handleSaveAndGeneratePDF} 
                 size="lg" 
-                className="w-full"
+                className="w-full gap-2"
               >
-                Visualizar PDF
+                <FileText className="h-4 w-4" />
+                Salvar e Gerar PDF
               </Button>
-              <Button 
-                onClick={() => navigate(`/budget/${budgetId}`)} 
-                variant="outline"
-                size="lg" 
-                className="w-full"
-              >
-                Visualizar Orçamento
-              </Button>
+              {budgetId && (
+                <Button 
+                  onClick={() => navigate(`/budget/${budgetId}`)} 
+                  variant="outline"
+                  size="lg" 
+                  className="w-full"
+                >
+                  Visualizar Orçamento
+                </Button>
+              )}
               <Button 
                 onClick={() => navigate('/')} 
                 variant="ghost"
@@ -315,8 +410,12 @@ export default function NovoCC() {
             {step > 1 ? 'Voltar' : 'Início'}
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-white">Closed Caption</h1>
-            <p className="text-white/70">Calcular versões de CC (R$ 900/versão)</p>
+            <h1 className="text-2xl font-bold text-white">
+              {isEditing ? 'Editar Orçamento - Closed Caption' : 'Closed Caption'}
+            </h1>
+            <p className="text-white/70">
+              {isEditing ? 'Modifique os dados e salve as alterações' : 'Calcular versões de CC (R$ 900/versão)'}
+            </p>
           </div>
         </div>
 
