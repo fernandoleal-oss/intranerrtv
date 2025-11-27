@@ -103,6 +103,7 @@ export default function OrcamentoLivre() {
   
   const [saving, setSaving] = useState(false);
   const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId);
+  const [isLoadingEditData, setIsLoadingEditData] = useState(!!editData);
 
   const [cliente, setCliente] = useState("");
   const [produto, setProduto] = useState("");
@@ -162,7 +163,9 @@ export default function OrcamentoLivre() {
     const fetchClientHonorario = async () => {
       if (!cliente.trim()) {
         setHonorarioPercent(null);
-        setAplicarHonorario(false);
+        if (!isLoadingEditData) {
+          setAplicarHonorario(false);
+        }
         return;
       }
 
@@ -181,16 +184,20 @@ export default function OrcamentoLivre() {
 
       if (data && data.honorario_percent > 0) {
         setHonorarioPercent(data.honorario_percent);
-        // Auto-enable if client has honorario configured
-        setAplicarHonorario(true);
+        // Auto-enable only if NOT loading edit data (new budget)
+        if (!isLoadingEditData) {
+          setAplicarHonorario(true);
+        }
       } else {
         setHonorarioPercent(null);
-        setAplicarHonorario(false);
+        if (!isLoadingEditData) {
+          setAplicarHonorario(false);
+        }
       }
     };
 
     fetchClientHonorario();
-  }, [cliente]);
+  }, [cliente, isLoadingEditData]);
 
   // Load edit data on mount
   useEffect(() => {
@@ -254,6 +261,9 @@ export default function OrcamentoLivre() {
         });
         setFornecedores(fornecedoresMigrados);
       }
+
+      // Mark edit data as loaded to allow honorario auto-enable for new clients
+      setTimeout(() => setIsLoadingEditData(false), 500);
     }
   }, [editData]);
 
