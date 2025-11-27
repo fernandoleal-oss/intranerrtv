@@ -612,6 +612,30 @@ export default function BudgetPdf() {
                   <p style={{ fontWeight: "bold", color: "#000" }}>{payload.produtor}</p>
                 </div>
               )}
+              {payload.midias && (
+                <div>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Mídias</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.midias}</p>
+                </div>
+              )}
+              {payload.periodo && (
+                <div>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Período</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.periodo}</p>
+                </div>
+              )}
+              {payload.territorio && (
+                <div>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Território</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.territorio}</p>
+                </div>
+              )}
+              {payload.adaptacoes && (
+                <div>
+                  <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>Adaptações</p>
+                  <p style={{ fontWeight: "bold", color: "#000" }}>{payload.adaptacoes}</p>
+                </div>
+              )}
               {payload.entregaveis && (
                 <div style={{ gridColumn: "1 / -1" }}>
                   <p style={{ marginBottom: "2px", fontSize: "10px", fontWeight: 600, color: "#64748B" }}>
@@ -1120,6 +1144,332 @@ export default function BudgetPdf() {
 
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Orçamento de Filme Simples (quotes_film na raiz) */}
+          {!isImageBudget && !isFornecedoresFases && !isLivreBudget && campanhas.length === 0 && Array.isArray(payload.quotes_film) && payload.quotes_film.length > 0 && (
+            <div className="allow-break mb-8">
+              {/* Cabeçalho */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+                  borderLeft: "4px solid #E6191E",
+                  padding: "16px 20px",
+                  marginBottom: "16px",
+                  borderRadius: "0 8px 8px 0",
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <Film className="h-5 w-5 text-gray-600" />
+                  <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#1E293B" }}>
+                    Produtoras de Filme
+                  </h2>
+                </div>
+              </div>
+
+              {/* Lista de Cotações de Filme */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {(() => {
+                  const films: QuoteFilm[] = payload.quotes_film || [];
+                  const filmSel = pickFilm(films);
+                  const globalMinFilm = films.length > 0 ? Math.min(...films.map((f) => lowestQuoteValue(f))) : Infinity;
+
+                  return films.map((f: QuoteFilm, idx: number) => {
+                    const isEscolhido = !!(filmSel && filmSel.id === f.id);
+                    const minFornecedor = lowestQuoteValue(f);
+                    const isMaisBaratoGlobal = Math.abs(minFornecedor - globalMinFilm) < 0.005;
+                    const destaque = isEscolhido || isMaisBaratoGlobal;
+                    const cardBg = destaque ? "#F0FDF4" : "#FFFFFF";
+                    const cardBorder = destaque ? "2px solid #16A34A" : "1px solid #E2E8F0";
+                    const shadow = destaque ? "0 4px 12px rgba(22, 163, 74, 0.15)" : "0 2px 4px rgba(0,0,0,0.05)";
+
+                    return (
+                      <div
+                        key={f.id || idx}
+                        className="supplier-card rounded-lg p-4"
+                        style={{
+                          backgroundColor: cardBg,
+                          border: cardBorder,
+                          boxShadow: shadow,
+                          position: "relative",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {destaque && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: "3px",
+                              background: "linear-gradient(90deg, #16A34A, #22C55E)",
+                            }}
+                          />
+                        )}
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1 pr-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              {isMaisBaratoGlobal && (
+                                <Star className="h-4 w-4 fill-green-600 text-green-600 flex-shrink-0" />
+                              )}
+                              {isEscolhido && <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />}
+                              <p
+                                className={`font-bold ${destaque ? "text-base" : "text-sm"}`}
+                                style={{ color: "#1E293B" }}
+                              >
+                                {f.produtora || "Fornecedor"}
+                              </p>
+                              {destaque && (
+                                <span
+                                  style={{
+                                    fontSize: "10px",
+                                    fontWeight: 700,
+                                    color: "#16A34A",
+                                    background: "#DCFCE7",
+                                    padding: "2px 8px",
+                                    borderRadius: "12px",
+                                    marginLeft: "8px",
+                                  }}
+                                >
+                                  {isEscolhido ? "SELECIONADO" : "MELHOR PREÇO"}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              {f.diretor && (
+                                <p className="text-[11px]" style={{ color: "#475569" }}>
+                                  <span className="font-semibold">Diretor:</span> {f.diretor}
+                                </p>
+                              )}
+                              {f.tratamento && (
+                                <p className="text-[11px]" style={{ color: "#475569" }}>
+                                  <span className="font-semibold">Tratamento:</span> {f.tratamento}
+                                </p>
+                              )}
+                            </div>
+
+                            {f.escopo && (
+                              <div
+                                className="mt-3 p-3 rounded border"
+                                style={{
+                                  backgroundColor: "#F8FAFC",
+                                  border: "1px solid #E2E8F0",
+                                  fontSize: "11px",
+                                  lineHeight: "1.5",
+                                  color: "#475569",
+                                  whiteSpace: "pre-wrap",
+                                }}
+                              >
+                                {f.escopo}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-right flex-shrink-0">
+                            <span
+                              className={`font-bold ${destaque ? "text-lg" : "text-base"}`}
+                              style={{ color: destaque ? "#16A34A" : "#1E293B" }}
+                            >
+                              {money(minFornecedor)}
+                            </span>
+                            {toNum(f.desconto) > 0 && (
+                              <p className="text-[10px] mt-1" style={{ color: "#64748B" }}>
+                                Desconto: {money(toNum(f.desconto))}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Opções */}
+                        {f.tem_opcoes && f.opcoes && f.opcoes.length > 0 && (
+                          <div className="avoid-break" style={{ marginTop: 12 }}>
+                            <p className="text-[11px] font-semibold mb-3" style={{ color: "#475569" }}>
+                              Opções disponíveis:
+                            </p>
+                            <div className="grid-opts">
+                              {f.opcoes.map((opc, oIdx) => {
+                                const valorOpc = toNum(opc.valor) - toNum(opc.desconto);
+                                return (
+                                  <div
+                                    key={opc.id || oIdx}
+                                    style={{
+                                      padding: "10px 12px",
+                                      backgroundColor: "#F8FAFC",
+                                      border: "1px solid #E2E8F0",
+                                      borderRadius: 8,
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                      <div style={{ flex: 1 }}>
+                                        <p style={{ fontWeight: 700, marginBottom: 4, color: "#1E293B" }}>
+                                          {opc.nome || `Opção ${oIdx + 1}`}
+                                        </p>
+                                        {opc.escopo && (
+                                          <p style={{ fontSize: 10, color: "#64748B", lineHeight: "1.4" }}>
+                                            {opc.escopo}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                        <p style={{ fontWeight: 700, color: "#1E293B", fontSize: "12px" }}>
+                                          {money(valorOpc)}
+                                        </p>
+                                        {toNum(opc.desconto) > 0 && (
+                                          <p style={{ fontSize: 9, color: "#64748B" }}>
+                                            Desc: {money(toNum(opc.desconto))}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Produtoras de Áudio */}
+              {payload.inclui_audio && Array.isArray(payload.quotes_audio) && payload.quotes_audio.length > 0 && (
+                <div className="allow-break" style={{ marginTop: "24px" }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Music className="h-4 w-4 text-purple-600" />
+                    <h3 style={{ fontWeight: 700, fontSize: "16px", color: "#1E293B" }}>Produtoras de Áudio</h3>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {(() => {
+                      const audios: QuoteAudio[] = payload.quotes_audio || [];
+                      const audioSel = pickAudio(audios);
+
+                      return audios.map((a: QuoteAudio, idx: number) => {
+                        const isEscolhido = !!(audioSel && audioSel.id === a.id);
+                        const finalA = finalAudioValue(a);
+                        return (
+                          <div
+                            key={a.id || idx}
+                            className="supplier-card rounded-lg p-4"
+                            style={{
+                              backgroundColor: isEscolhido ? "#F8FAFF" : "#FFFFFF",
+                              border: isEscolhido ? "2px solid #4F46E5" : "1px solid #E2E8F0",
+                              boxShadow: isEscolhido
+                                ? "0 4px 12px rgba(79, 70, 229, 0.15)"
+                                : "0 2px 4px rgba(0,0,0,0.05)",
+                              position: "relative",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {isEscolhido && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: "3px",
+                                  background: "linear-gradient(90deg, #4F46E5, #6366F1)",
+                                }}
+                              />
+                            )}
+                            <div className="flex justify-between items-start">
+                              <div className="pr-4 flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {isEscolhido && <CheckCircle className="h-4 w-4 text-blue-600" />}
+                                  <p className="font-bold text-sm" style={{ color: "#1E293B" }}>
+                                    {a.produtora || "Fornecedor de Áudio"}
+                                  </p>
+                                  {isEscolhido && (
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        fontWeight: 700,
+                                        color: "#4F46E5",
+                                        background: "#E0E7FF",
+                                        padding: "2px 8px",
+                                        borderRadius: "12px",
+                                        marginLeft: "8px",
+                                      }}
+                                    >
+                                      SELECIONADO
+                                    </span>
+                                  )}
+                                </div>
+                                {a.descricao && (
+                                  <div
+                                    className="p-2 rounded border mt-2"
+                                    style={{
+                                      backgroundColor: "#F8FAFC",
+                                      border: "1px solid #E2E8F0",
+                                      fontSize: "11px",
+                                      color: "#475569",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {a.descricao}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <span
+                                  className={`font-bold ${isEscolhido ? "text-lg" : "text-base"}`}
+                                  style={{ color: isEscolhido ? "#4F46E5" : "#1E293B" }}
+                                >
+                                  {money(finalA)}
+                                </span>
+                                {toNum(a.desconto) > 0 && (
+                                  <p className="text-[10px] mt-1" style={{ color: "#64748B" }}>
+                                    Desconto: {money(toNum(a.desconto))}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Observações */}
+              {payload.observacoes && (
+                <div
+                  className="avoid-break mt-6 p-4 rounded-lg border"
+                  style={{
+                    backgroundColor: "#FFFBEB",
+                    border: "1px solid #FCD34D",
+                  }}
+                >
+                  <h3 style={{ fontSize: "14px", fontWeight: "bold", marginBottom: "8px", color: "#92400E" }}>
+                    Observações
+                  </h3>
+                  <p style={{ fontSize: "12px", color: "#78350F", whiteSpace: "pre-wrap" }}>
+                    {payload.observacoes}
+                  </p>
+                </div>
+              )}
+
+              {/* Total */}
+              {payload.total > 0 && (
+                <div className="total-section">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                      Total do Orçamento
+                    </span>
+                    <span style={{ fontSize: "20px", fontWeight: "bold", color: "#92400E" }}>
+                      {money(payload.total)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
