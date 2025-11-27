@@ -247,7 +247,16 @@ const App = () => (
                 path="/orcamentos/:id/edit"
                 element={
                   <ProtectedRoute>
-                    <OrcamentoNovo />
+                    <BudgetEdit />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/orcamentos/editar/:id"
+                element={
+                  <ProtectedRoute>
+                    <BudgetEdit />
                   </ProtectedRoute>
                 }
               />
