@@ -292,6 +292,42 @@ const App = () => (
               />
 
               <Route
+                path="/orcamentos/novo/audio"
+                element={
+                  <ProtectedRoute>
+                    <NovoAudio />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/orcamentos/novo/imagem"
+                element={
+                  <ProtectedRoute>
+                    <NovaImagem />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/orcamentos/novo/cc"
+                element={
+                  <ProtectedRoute>
+                    <NovoCC />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/orcamentos/novo/livre"
+                element={
+                  <ProtectedRoute>
+                    <NovoLivre />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/budget/preview"
                 element={
                   <ProtectedRoute>
