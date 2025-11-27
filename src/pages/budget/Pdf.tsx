@@ -1041,6 +1041,74 @@ export default function BudgetPdf() {
                 )}
               </div>
 
+              {/* Campos Personalizados */}
+              {payload.camposPersonalizados && Array.isArray(payload.camposPersonalizados) && payload.camposPersonalizados.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: "#FAFAFA",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "8px",
+                    padding: "16px 20px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B", marginBottom: "12px" }}>
+                    Informações Adicionais
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {payload.camposPersonalizados.map((campo: { id: string; nome: string; valor: string }) => (
+                      <div key={campo.id} style={{ display: "flex", gap: "8px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: "600", color: "#475569", minWidth: "120px" }}>
+                          {campo.nome}:
+                        </span>
+                        <span style={{ fontSize: "12px", color: "#1E293B", whiteSpace: "pre-wrap" }}>
+                          {campo.valor}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Imagens */}
+              {payload.imagens && Array.isArray(payload.imagens) && payload.imagens.length > 0 && (
+                <div
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "8px",
+                    padding: "16px 20px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#1E293B", marginBottom: "12px" }}>
+                    Referências Visuais
+                  </h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px" }}>
+                    {payload.imagens.map((img: { id: string; nome: string; url: string; descricao?: string }) => (
+                      <div key={img.id} style={{ textAlign: "center" }}>
+                        <img
+                          src={img.url}
+                          alt={img.nome}
+                          style={{
+                            width: "100%",
+                            maxHeight: "200px",
+                            objectFit: "contain",
+                            borderRadius: "4px",
+                            border: "1px solid #E2E8F0",
+                          }}
+                        />
+                        {img.descricao && (
+                          <p style={{ fontSize: "10px", color: "#64748B", marginTop: "4px" }}>
+                            {img.descricao}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Fornecedores */}
               {payload.fornecedores.map((fornecedor: Fornecedor, fornIdx: number) => (
                 <div

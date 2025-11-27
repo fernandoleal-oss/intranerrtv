@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus, ArrowUpDown, FileText, Eye } from "lucide-react";
+import { ArrowLeft, Save, Plus, ArrowUpDown, Eye, Trash2, Image, X } from "lucide-react";
 import { SupplierOptionsManager } from "@/components/budget/SupplierOptionsManager";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -29,6 +30,13 @@ interface CampoPersonalizado {
   id: string;
   nome: string;
   valor: string;
+}
+
+interface ImagemOrcamento {
+  id: string;
+  nome: string;
+  url: string;
+  descricao?: string;
 }
 
 interface FornecedorItem {
@@ -66,6 +74,8 @@ interface LivreData {
   cliente?: string;
   projeto?: string;
   fornecedores?: Fornecedor[];
+  camposPersonalizados?: CampoPersonalizado[];
+  imagens?: ImagemOrcamento[];
   configuracoes?: {
     somarTodasOpcoes?: boolean;
     mostrarValores?: boolean;
@@ -77,6 +87,7 @@ export default function OrcamentoLivre() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Check if we're editing an existing budget
   const editData = location.state?.editData as LivreData | undefined;
@@ -87,6 +98,13 @@ export default function OrcamentoLivre() {
 
   const [cliente, setCliente] = useState("");
   const [produto, setProduto] = useState("");
+  
+  // Campos personalizados do projeto
+  const [camposPersonalizados, setCamposPersonalizados] = useState<CampoPersonalizado[]>([]);
+  
+  // Imagens do orçamento
+  const [imagens, setImagens] = useState<ImagemOrcamento[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
   // Configurações de visualização
   const [somarTodasOpcoes, setSomarTodasOpcoes] = useState(false);
@@ -149,6 +167,16 @@ export default function OrcamentoLivre() {
         setOrdenacao(editData.configuracoes.ordenacao || "original");
       }
       
+      // Carregar campos personalizados
+      if (editData.camposPersonalizados && editData.camposPersonalizados.length > 0) {
+        setCamposPersonalizados(editData.camposPersonalizados);
+      }
+      
+      // Carregar imagens
+      if (editData.imagens && editData.imagens.length > 0) {
+        setImagens(editData.imagens);
+      }
+      
       // Carregar fornecedores - garantir que as opções tenham a estrutura correta
       if (editData.fornecedores && editData.fornecedores.length > 0) {
         const fornecedoresMigrados = editData.fornecedores.map((f: any) => {
@@ -208,6 +236,83 @@ export default function OrcamentoLivre() {
     if (fornecedores.length > 1) {
       setFornecedores(fornecedores.filter((f) => f.id !== id));
     }
+  };
+
+  // Funções para campos personalizados
+  const adicionarCampoPersonalizado = () => {
+    setCamposPersonalizados([
+      ...camposPersonalizados,
+      {
+        id: crypto.randomUUID(),
+        nome: "",
+        valor: ""
+      }
+    ]);
+  };
+
+  const atualizarCampoPersonalizado = (id: string, campo: "nome" | "valor", valor: string) => {
+    setCamposPersonalizados(
+      camposPersonalizados.map(c => 
+        c.id === id ? { ...c, [campo]: valor } : c
+      )
+    );
+  };
+
+  const removerCampoPersonalizado = (id: string) => {
+    setCamposPersonalizados(camposPersonalizados.filter(c => c.id !== id));
+  };
+
+  // Funções para imagens
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImage(true);
+    
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Arquivo inválido",
+          description: "Por favor, selecione apenas imagens.",
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      // Convert to base64 for storage in payload
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        setImagens(prev => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            nome: file.name,
+            url: base64,
+            descricao: ""
+          }
+        ]);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    setUploadingImage(false);
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const atualizarImagemDescricao = (id: string, descricao: string) => {
+    setImagens(
+      imagens.map(img => 
+        img.id === id ? { ...img, descricao } : img
+      )
+    );
+  };
+
+  const removerImagem = (id: string) => {
+    setImagens(imagens.filter(img => img.id !== id));
   };
 
   const calcularTotalOpcao = (opcao: FornecedorOpcao) => {
@@ -280,6 +385,8 @@ export default function OrcamentoLivre() {
         cliente,
         projeto: produto,
         fornecedores,
+        camposPersonalizados,
+        imagens,
         configuracoes: {
           somarTodasOpcoes,
           mostrarValores,
@@ -405,6 +512,134 @@ export default function OrcamentoLivre() {
                   placeholder="Nome do produto ou projeto"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Campos Personalizados */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Campos Personalizados</CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={adicionarCampoPersonalizado}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar Campo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {camposPersonalizados.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum campo personalizado. Clique em "Adicionar Campo" para criar.
+                </p>
+              ) : (
+                camposPersonalizados.map((campo) => (
+                  <div key={campo.id} className="flex items-start gap-3">
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        value={campo.nome}
+                        onChange={(e) => atualizarCampoPersonalizado(campo.id, "nome", e.target.value)}
+                        placeholder="Nome do campo"
+                        className="font-medium"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Textarea
+                        value={campo.valor}
+                        onChange={(e) => atualizarCampoPersonalizado(campo.id, "valor", e.target.value)}
+                        placeholder="Valor/Conteúdo"
+                        rows={2}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removerCampoPersonalizado(campo.id)}
+                      className="text-destructive mt-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Imagens */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Image className="h-5 w-5" />
+                  Imagens
+                </CardTitle>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {uploadingImage ? "Carregando..." : "Adicionar Imagem"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {imagens.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma imagem adicionada. Clique em "Adicionar Imagem" para fazer upload.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {imagens.map((img) => (
+                    <div key={img.id} className="relative border rounded-lg overflow-hidden bg-muted/30">
+                      <div className="aspect-video relative">
+                        <img
+                          src={img.url}
+                          alt={img.nome}
+                          className="w-full h-full object-contain"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-7 w-7"
+                          onClick={() => removerImagem(img.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <p className="text-sm font-medium truncate">{img.nome}</p>
+                        <Input
+                          value={img.descricao || ""}
+                          onChange={(e) => atualizarImagemDescricao(img.id, e.target.value)}
+                          placeholder="Descrição da imagem (opcional)"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -543,6 +778,42 @@ export default function OrcamentoLivre() {
                           <p className="text-sm text-gray-600 mt-2">Cliente: {cliente || "Não informado"}</p>
                           <p className="text-sm text-gray-600">Projeto: {produto || "Não informado"}</p>
                         </div>
+
+                        {/* Campos Personalizados no Preview */}
+                        {camposPersonalizados.length > 0 && (
+                          <div className="border rounded p-4 bg-gray-50">
+                            <h3 className="font-bold text-lg mb-3">Informações Adicionais</h3>
+                            <div className="space-y-2">
+                              {camposPersonalizados.map((campo) => (
+                                <div key={campo.id} className="flex">
+                                  <span className="font-medium min-w-[150px]">{campo.nome}:</span>
+                                  <span className="text-gray-700 whitespace-pre-wrap">{campo.valor}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Imagens no Preview */}
+                        {imagens.length > 0 && (
+                          <div className="border rounded p-4">
+                            <h3 className="font-bold text-lg mb-3">Referências Visuais</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                              {imagens.map((img) => (
+                                <div key={img.id} className="text-center">
+                                  <img
+                                    src={img.url}
+                                    alt={img.nome}
+                                    className="w-full max-h-40 object-contain rounded border"
+                                  />
+                                  {img.descricao && (
+                                    <p className="text-xs text-gray-600 mt-1">{img.descricao}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {getFornecedoresOrdenados().map((fornecedor, index) => (
                           <div key={fornecedor.id} className="border rounded p-4">
