@@ -130,17 +130,49 @@ export default function OrcamentoLivre() {
   // Load edit data on mount
   useEffect(() => {
     if (editData) {
-      setCliente(editData.cliente || editData.projeto || "");
-      setProduto(editData.projeto || "");
+      console.log("📋 Carregando dados para edição:", editData);
       
+      // Carregar cliente
+      if (editData.cliente) {
+        setCliente(editData.cliente);
+      }
+      
+      // Carregar projeto/produto
+      if (editData.projeto) {
+        setProduto(editData.projeto);
+      }
+      
+      // Carregar configurações
       if (editData.configuracoes) {
         setSomarTodasOpcoes(editData.configuracoes.somarTodasOpcoes || false);
         setMostrarValores(editData.configuracoes.mostrarValores !== false);
         setOrdenacao(editData.configuracoes.ordenacao || "original");
       }
       
+      // Carregar fornecedores - garantir que as opções tenham a estrutura correta
       if (editData.fornecedores && editData.fornecedores.length > 0) {
-        setFornecedores(editData.fornecedores);
+        const fornecedoresMigrados = editData.fornecedores.map((f: any) => {
+          // Garantir que cada fornecedor tenha a estrutura correta de opções
+          if (f.opcoes && Array.isArray(f.opcoes)) {
+            return {
+              ...f,
+              opcoes: f.opcoes.map((opcao: any) => ({
+                ...opcao,
+                fases: opcao.fases || []
+              }))
+            };
+          }
+          // Se não tem opções, criar estrutura básica
+          return {
+            ...f,
+            opcoes: [{
+              id: crypto.randomUUID(),
+              nome: "Opção 1",
+              fases: f.fases || []
+            }]
+          };
+        });
+        setFornecedores(fornecedoresMigrados);
       }
     }
   }, [editData]);
