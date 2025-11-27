@@ -76,6 +76,13 @@ interface LivreData {
   fornecedores?: Fornecedor[];
   camposPersonalizados?: CampoPersonalizado[];
   imagens?: ImagemOrcamento[];
+  honorario?: {
+    aplicar: boolean;
+    percentual: number;
+    valorBase: number;
+    valorHonorario: number;
+    totalComHonorario: number;
+  };
   configuracoes?: {
     somarTodasOpcoes?: boolean;
     mostrarValores?: boolean;
@@ -99,6 +106,10 @@ export default function OrcamentoLivre() {
 
   const [cliente, setCliente] = useState("");
   const [produto, setProduto] = useState("");
+  
+  // Honorário
+  const [honorarioPercent, setHonorarioPercent] = useState<number | null>(null);
+  const [aplicarHonorario, setAplicarHonorario] = useState(false);
   
   // Campos personalizados do projeto
   const [camposPersonalizados, setCamposPersonalizados] = useState<CampoPersonalizado[]>([]);
@@ -146,6 +157,41 @@ export default function OrcamentoLivre() {
     },
   ]);
 
+  // Fetch client honorario when cliente changes
+  useEffect(() => {
+    const fetchClientHonorario = async () => {
+      if (!cliente.trim()) {
+        setHonorarioPercent(null);
+        setAplicarHonorario(false);
+        return;
+      }
+
+      // Search for client in client_honorarios table (case-insensitive)
+      const { data, error } = await supabase
+        .from('client_honorarios')
+        .select('honorario_percent')
+        .ilike('client_name', cliente.trim())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao buscar honorário:', error);
+        setHonorarioPercent(null);
+        return;
+      }
+
+      if (data && data.honorario_percent > 0) {
+        setHonorarioPercent(data.honorario_percent);
+        // Auto-enable if client has honorario configured
+        setAplicarHonorario(true);
+      } else {
+        setHonorarioPercent(null);
+        setAplicarHonorario(false);
+      }
+    };
+
+    fetchClientHonorario();
+  }, [cliente]);
+
   // Load edit data on mount
   useEffect(() => {
     if (editData) {
@@ -176,6 +222,11 @@ export default function OrcamentoLivre() {
       // Carregar imagens
       if (editData.imagens && editData.imagens.length > 0) {
         setImagens(editData.imagens);
+      }
+
+      // Carregar honorário
+      if (editData.honorario) {
+        setAplicarHonorario(editData.honorario.aplicar);
       }
       
       // Carregar fornecedores - garantir que as opções tenham a estrutura correta
@@ -343,6 +394,27 @@ export default function OrcamentoLivre() {
     }, 0);
   };
 
+  const calcularTotalComHonorario = () => {
+    const valorBase = calcularTotal();
+    if (aplicarHonorario && honorarioPercent) {
+      const valorHonorario = valorBase * (honorarioPercent / 100);
+      return valorBase + valorHonorario;
+    }
+    return valorBase;
+  };
+
+  const getHonorarioData = () => {
+    const valorBase = calcularTotal();
+    const valorHonorario = honorarioPercent ? valorBase * (honorarioPercent / 100) : 0;
+    return {
+      aplicar: aplicarHonorario && !!honorarioPercent,
+      percentual: honorarioPercent || 0,
+      valorBase,
+      valorHonorario,
+      totalComHonorario: valorBase + (aplicarHonorario ? valorHonorario : 0),
+    };
+  };
+
   const getFornecedoresOrdenados = () => {
     const fornecedoresComValor = fornecedores.map((f) => ({
       ...f,
@@ -378,7 +450,8 @@ export default function OrcamentoLivre() {
 
     setSaving(true);
     try {
-      const total_geral = calcularTotal();
+      const honorarioData = getHonorarioData();
+      const total_geral = honorarioData.totalComHonorario;
 
       const payload = {
         tipo: "livre",
@@ -388,6 +461,7 @@ export default function OrcamentoLivre() {
         fornecedores,
         camposPersonalizados,
         imagens,
+        honorario: honorarioData.aplicar ? honorarioData : undefined,
         configuracoes: {
           somarTodasOpcoes,
           mostrarValores,
@@ -509,6 +583,25 @@ export default function OrcamentoLivre() {
                   onChange={(e) => setCliente(e.target.value)}
                   placeholder="Nome do cliente"
                 />
+                {honorarioPercent && (
+                  <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-amber-800">
+                        Honorário de {honorarioPercent}% configurado para este cliente
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="aplicar-honorario" className="text-sm text-amber-700">
+                        Aplicar
+                      </Label>
+                      <Switch
+                        id="aplicar-honorario"
+                        checked={aplicarHonorario}
+                        onCheckedChange={setAplicarHonorario}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -762,8 +855,23 @@ export default function OrcamentoLivre() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Geral</p>
-                  <p className="text-3xl font-bold">{formatCurrency(calcularTotal())}</p>
+                  {aplicarHonorario && honorarioPercent ? (
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Subtotal</p>
+                      <p className="text-xl font-semibold">{formatCurrency(calcularTotal())}</p>
+                      <div className="flex items-center gap-2 text-amber-600">
+                        <p className="text-sm">Honorário ({honorarioPercent}%)</p>
+                        <p className="text-sm font-semibold">+{formatCurrency(calcularTotal() * (honorarioPercent / 100))}</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground pt-2 border-t">Total com Honorário</p>
+                      <p className="text-3xl font-bold">{formatCurrency(calcularTotalComHonorario())}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">Total Geral</p>
+                      <p className="text-3xl font-bold">{formatCurrency(calcularTotal())}</p>
+                    </>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Dialog open={showPreview} onOpenChange={setShowPreview}>
@@ -858,9 +966,19 @@ export default function OrcamentoLivre() {
                           </div>
                         ))}
 
-                        <div className="border-t pt-4 text-right">
+                        <div className="border-t pt-4 text-right space-y-2">
+                          {aplicarHonorario && honorarioPercent && (
+                            <>
+                              <p className="text-sm text-gray-600">
+                                Subtotal: {formatCurrency(calcularTotal())}
+                              </p>
+                              <p className="text-sm text-amber-600">
+                                Honorário ({honorarioPercent}%): +{formatCurrency(calcularTotal() * (honorarioPercent / 100))}
+                              </p>
+                            </>
+                          )}
                           <p className="text-xl font-bold">
-                            Total Geral: {formatCurrency(calcularTotal())}
+                            Total Geral: {formatCurrency(calcularTotalComHonorario())}
                           </p>
                         </div>
                       </div>
