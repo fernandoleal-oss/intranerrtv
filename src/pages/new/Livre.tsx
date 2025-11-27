@@ -82,6 +82,7 @@ interface LivreData {
     valorBase: number;
     valorHonorario: number;
     totalComHonorario: number;
+    exibirDetalhes: boolean; // true = mostra subtotal + honorário, false = mostra só total final
   };
   configuracoes?: {
     somarTodasOpcoes?: boolean;
@@ -111,6 +112,7 @@ export default function OrcamentoLivre() {
   // Honorário
   const [honorarioPercent, setHonorarioPercent] = useState<number | null>(null);
   const [aplicarHonorario, setAplicarHonorario] = useState(false);
+  const [exibirDetalhesHonorario, setExibirDetalhesHonorario] = useState(true);
   
   // Campos personalizados do projeto
   const [camposPersonalizados, setCamposPersonalizados] = useState<CampoPersonalizado[]>([]);
@@ -234,6 +236,7 @@ export default function OrcamentoLivre() {
       // Carregar honorário
       if (editData.honorario) {
         setAplicarHonorario(editData.honorario.aplicar);
+        setExibirDetalhesHonorario(editData.honorario.exibirDetalhes !== false);
       }
       
       // Carregar fornecedores - garantir que as opções tenham a estrutura correta
@@ -422,6 +425,7 @@ export default function OrcamentoLivre() {
       valorBase,
       valorHonorario,
       totalComHonorario: valorBase + (aplicarHonorario ? valorHonorario : 0),
+      exibirDetalhes: exibirDetalhesHonorario,
     };
   };
 
@@ -594,22 +598,48 @@ export default function OrcamentoLivre() {
                   placeholder="Nome do cliente"
                 />
                 {honorarioPercent && (
-                  <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg mt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-amber-800">
-                        Honorário de {honorarioPercent}% configurado para este cliente
-                      </span>
+                  <div className="space-y-3 mt-2">
+                    <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-amber-800">
+                          Honorário de {honorarioPercent}% configurado para este cliente
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="aplicar-honorario" className="text-sm text-amber-700">
+                          Aplicar
+                        </Label>
+                        <Switch
+                          id="aplicar-honorario"
+                          checked={aplicarHonorario}
+                          onCheckedChange={setAplicarHonorario}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="aplicar-honorario" className="text-sm text-amber-700">
-                        Aplicar
-                      </Label>
-                      <Switch
-                        id="aplicar-honorario"
-                        checked={aplicarHonorario}
-                        onCheckedChange={setAplicarHonorario}
-                      />
-                    </div>
+                    {aplicarHonorario && (
+                      <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="space-y-0.5">
+                          <span className="text-sm font-medium text-blue-800">
+                            Exibir detalhes do honorário no PDF
+                          </span>
+                          <p className="text-xs text-blue-600">
+                            {exibirDetalhesHonorario 
+                              ? "Mostra subtotal + honorário separadamente" 
+                              : "Mostra apenas o valor total final"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="exibir-detalhes" className="text-sm text-blue-700">
+                            Detalhar
+                          </Label>
+                          <Switch
+                            id="exibir-detalhes"
+                            checked={exibirDetalhesHonorario}
+                            onCheckedChange={setExibirDetalhesHonorario}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -866,16 +896,23 @@ export default function OrcamentoLivre() {
               <div className="flex items-center justify-between">
                 <div>
                   {aplicarHonorario && honorarioPercent ? (
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Subtotal</p>
-                      <p className="text-xl font-semibold">{formatCurrency(calcularTotal())}</p>
-                      <div className="flex items-center gap-2 text-amber-600">
-                        <p className="text-sm">Honorário ({honorarioPercent}%)</p>
-                        <p className="text-sm font-semibold">+{formatCurrency(calcularTotal() * (honorarioPercent / 100))}</p>
+                    exibirDetalhesHonorario ? (
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Subtotal</p>
+                        <p className="text-xl font-semibold">{formatCurrency(calcularTotal())}</p>
+                        <div className="flex items-center gap-2 text-amber-600">
+                          <p className="text-sm">Honorário ({honorarioPercent}%)</p>
+                          <p className="text-sm font-semibold">+{formatCurrency(calcularTotal() * (honorarioPercent / 100))}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground pt-2 border-t">Total com Honorário</p>
+                        <p className="text-3xl font-bold">{formatCurrency(calcularTotalComHonorario())}</p>
                       </div>
-                      <p className="text-sm text-muted-foreground pt-2 border-t">Total com Honorário</p>
-                      <p className="text-3xl font-bold">{formatCurrency(calcularTotalComHonorario())}</p>
-                    </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">Total Geral</p>
+                        <p className="text-3xl font-bold">{formatCurrency(calcularTotalComHonorario())}</p>
+                      </>
+                    )
                   ) : (
                     <>
                       <p className="text-sm text-muted-foreground">Total Geral</p>
@@ -977,7 +1014,7 @@ export default function OrcamentoLivre() {
                         ))}
 
                         <div className="border-t pt-4 text-right space-y-2">
-                          {aplicarHonorario && honorarioPercent && (
+                          {aplicarHonorario && honorarioPercent && exibirDetalhesHonorario && (
                             <>
                               <p className="text-sm text-gray-600">
                                 Subtotal: {formatCurrency(calcularTotal())}
