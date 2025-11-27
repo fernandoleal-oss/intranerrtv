@@ -1212,6 +1212,42 @@ export default function BudgetPdf() {
 
                 </div>
               ))}
+
+              {/* Honorário Section */}
+              {payload.honorario && payload.honorario.aplicar && (
+                <div
+                  style={{
+                    backgroundColor: "#FFFBEB",
+                    border: "2px solid #F59E0B",
+                    borderRadius: "8px",
+                    padding: "16px 20px",
+                    marginTop: "16px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <span style={{ fontSize: "14px", color: "#92400E" }}>Subtotal</span>
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#92400E" }}>
+                      {money(payload.honorario.valorBase)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <span style={{ fontSize: "14px", color: "#92400E" }}>
+                      Honorário ({payload.honorario.percentual}%)
+                    </span>
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#92400E" }}>
+                      +{money(payload.honorario.valorHonorario)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "2px solid #F59E0B", paddingTop: "12px" }}>
+                    <span style={{ fontSize: "18px", fontWeight: "bold", color: "#92400E" }}>
+                      Total com Honorário
+                    </span>
+                    <span style={{ fontSize: "20px", fontWeight: "bold", color: "#92400E" }}>
+                      {money(payload.honorario.totalComHonorario)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
