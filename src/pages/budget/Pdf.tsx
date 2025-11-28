@@ -683,8 +683,8 @@ export default function BudgetPdf() {
                   {(payload.fornecedores || []).map((fornecedor: Fornecedor, fornecedorIndex: number) => {
                     // Calcular total de cada opção
                     const calcularTotalOpcao = (opcao: FornecedorOpcao) => {
-                      return opcao.fases.reduce((total, fase) => {
-                        return total + fase.itens.reduce((sum, item) => sum + (item.valor - (item.desconto || 0)), 0);
+                      return (opcao?.fases || []).reduce((total, fase) => {
+                        return total + (fase?.itens || []).reduce((sum, item) => sum + (item.valor - (item.desconto || 0)), 0);
                       }, 0);
                     };
 
@@ -732,7 +732,7 @@ export default function BudgetPdf() {
                                 <th style={{ padding: "12px", textAlign: "left", fontWeight: "bold", color: "#475569", width: "25%" }}>
                                   Fase / Item
                                 </th>
-                                {fornecedor.opcoes.map((opcao) => (
+                                {(fornecedor.opcoes || []).map((opcao) => (
                                   <th
                                     key={opcao.id}
                                     style={{
@@ -750,7 +750,7 @@ export default function BudgetPdf() {
                             </thead>
                             <tbody>
                               {/* Agrupar fases de todas as opções */}
-                              {fornecedor.opcoes[0]?.fases.map((_, faseIndex) => {
+                              {(fornecedor.opcoes?.[0]?.fases || []).map((_, faseIndex) => {
                                 const fasePrimeiraOpcao = fornecedor.opcoes[0].fases[faseIndex];
                                 
                                 return (
@@ -771,7 +771,7 @@ export default function BudgetPdf() {
                                       </td>
                                     </tr>
                                     {/* Linhas com itens */}
-                                    {fasePrimeiraOpcao.itens.map((_, itemIndex) => (
+                                    {(fasePrimeiraOpcao?.itens || []).map((_, itemIndex) => (
                                       <tr
                                         key={itemIndex}
                                         style={{
@@ -796,7 +796,7 @@ export default function BudgetPdf() {
                                             )}
                                           </div>
                                         </td>
-                                        {fornecedor.opcoes.map((opcao) => {
+                                        {(fornecedor.opcoes || []).map((opcao) => {
                                           const item = opcao.fases[faseIndex]?.itens[itemIndex];
                                           const valorFinal = item ? item.valor - (item.desconto || 0) : 0;
                                           
@@ -832,7 +832,7 @@ export default function BudgetPdf() {
                                 <td style={{ padding: "14px 12px", fontSize: "14px", color: "#1E293B" }}>
                                   TOTAL POR OPÇÃO
                                 </td>
-                                {fornecedor.opcoes.map((opcao) => (
+                                {(fornecedor.opcoes || []).map((opcao) => (
                                   <td
                                     key={opcao.id}
                                     style={{
@@ -1146,14 +1146,14 @@ export default function BudgetPdf() {
                   </div>
 
                   {/* Opções do Fornecedor */}
-                  {fornecedor.opcoes.map((opcao: FornecedorOpcao) => (
+                  {(fornecedor.opcoes || []).map((opcao: FornecedorOpcao) => (
                     <div key={opcao.id} style={{ padding: "16px 20px" }}>
                       <h4 style={{ fontSize: "14px", fontWeight: "bold", color: "#0369A1", marginBottom: "12px" }}>
                         {opcao.nome}
                       </h4>
 
                       {/* Fases da Opção */}
-                      {opcao.fases.map((fase: FornecedorFase) => (
+                      {(opcao.fases || []).map((fase: FornecedorFase) => (
                         <div key={fase.id} className="fase-section">
                           <p style={{ fontSize: "13px", fontWeight: "600", color: "#475569", marginBottom: "8px" }}>
                             {fase.nome}
@@ -1161,7 +1161,7 @@ export default function BudgetPdf() {
 
                           {/* Itens da Fase */}
                           <div style={{ marginLeft: "12px" }}>
-                            {fase.itens.map((item: FornecedorItem) => {
+                            {(fase.itens || []).map((item: FornecedorItem) => {
                               const valorFinal = item.valor * (1 - (item.desconto || 0) / 100);
                               return (
                                 <div
