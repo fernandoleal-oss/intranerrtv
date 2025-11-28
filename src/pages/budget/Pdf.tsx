@@ -867,10 +867,10 @@ export default function BudgetPdf() {
                       {money(
                         (payload.fornecedores || []).reduce(
                           (total: number, fornecedor: Fornecedor) =>
-                            total + fornecedor.opcoes.reduce((opcTotal: number, opcao: FornecedorOpcao) =>
-                              opcTotal + opcao.fases.reduce(
+                            total + (fornecedor.opcoes || []).reduce((opcTotal: number, opcao: FornecedorOpcao) =>
+                              opcTotal + (opcao.fases || []).reduce(
                                 (faseTotal: number, fase: FornecedorFase) =>
-                                  faseTotal + fase.itens.reduce((sum: number, item: FornecedorItem) => sum + (item.valor - (item.desconto || 0)), 0),
+                                  faseTotal + (fase.itens || []).reduce((sum: number, item: FornecedorItem) => sum + (item.valor - (item.desconto || 0)), 0),
                                 0
                               ), 0),
                           0
