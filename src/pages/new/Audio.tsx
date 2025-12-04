@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save, Plus, Eye, Trash2 } from "lucide-react";
-import { SupplierOptionsManager } from "@/components/budget/SupplierOptionsManager";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -24,24 +24,38 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
 import {
-  Fornecedor,
-  FornecedorOpcao,
-  FornecedorFase,
-  FornecedorItem,
-} from "@/components/budget/SupplierOptionsManager";
+  AudioPackageManager,
+  AudioFornecedor,
+  AudioPacote,
+} from "@/components/budget/AudioPackageManager";
 
 interface AudioData {
-  tipo?: string;
+  estrutura?: string;
+  // Identificação
+  np?: string;
+  agencia?: string;
   cliente?: string;
-  produto?: string;
-  tipo_audio?: string;
+  data?: string;
+  campanha?: string;
+  ac?: string;
+  // Solicitação
   duracao?: string;
-  meio_uso?: string;
+  duracaoCustom?: string;
+  meioUso?: string;
+  meioUsoCustom?: string;
   praca?: string;
+  pracaCustom?: string;
   periodo?: string;
-  fornecedores?: Fornecedor[];
+  // Fornecedores
+  fornecedores?: AudioFornecedor[];
+  // Condições
+  formaPagamento?: string;
+  validadeProposta?: string;
+  prazoProducao?: string;
+  // Termo
+  termoAceite?: string;
+  // Honorário
   honorario?: {
     aplicar: boolean;
     percentual: number;
@@ -52,61 +66,75 @@ interface AudioData {
   };
 }
 
+const TERMO_PADRAO = `GENTILEZA ENVIAR O **DE ACORDO** PARA INICIARMOS OS SERVIÇOS. O PRAZO DE ENTREGA DO ÁUDIO FINAL É NEGOCIÁVEL, CONTANDO A PARTIR DO RECEBIMENTO DA APROVAÇÃO.
+
+ESTE DE ACORDO IMPLICA EM UM **CONTRATO DE COMPROMISSO** ENTRE AS PARTES, COM AS OBRIGAÇÕES E DEVERES DE ENTREGA E DE PAGAMENTO EXPLÍCITOS NESTE ORÇAMENTO.`;
+
 export default function NovoAudio() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  
-  // Check if we're editing an existing budget
+
   const editData = location.state?.editData as AudioData | undefined;
   const existingBudgetId = location.state?.budgetId as string | undefined;
   const currentVersao = location.state?.versao as number | undefined;
-  
+
   const [saving, setSaving] = useState(false);
   const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId);
-  const [isLoadingEditData, setIsLoadingEditData] = useState(!!editData);
+  const [showPreview, setShowPreview] = useState(false);
 
+  // Identificação
+  const [np, setNp] = useState("");
+  const [agencia, setAgencia] = useState("We");
   const [cliente, setCliente] = useState("");
-  const [produto, setProduto] = useState("");
-  const [tipoAudio, setTipoAudio] = useState("");
+  const [data, setData] = useState(
+    new Date().toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    })
+  );
+  const [campanha, setCampanha] = useState("");
+  const [ac, setAc] = useState("");
+
+  // Solicitação
   const [duracao, setDuracao] = useState("");
+  const [duracaoCustom, setDuracaoCustom] = useState("");
   const [meioUso, setMeioUso] = useState("");
+  const [meioUsoCustom, setMeioUsoCustom] = useState("");
   const [praca, setPraca] = useState("");
-  
+  const [pracaCustom, setPracaCustom] = useState("");
+  const [periodo, setPeriodo] = useState("");
+
+  // Condições
+  const [formaPagamento, setFormaPagamento] = useState("à combinar");
+  const [validadeProposta, setValidadeProposta] = useState("10 dias");
+  const [prazoProducao, setPrazoProducao] = useState("2 dias");
+
+  // Termo
+  const [termoAceite, setTermoAceite] = useState(TERMO_PADRAO);
+
   // Honorário
   const [honorarioPercent, setHonorarioPercent] = useState<number | null>(null);
   const [aplicarHonorario, setAplicarHonorario] = useState(false);
   const [exibirDetalhesHonorario, setExibirDetalhesHonorario] = useState(true);
-  
-  // Preview
-  const [showPreview, setShowPreview] = useState(false);
-  
-  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([
+
+  // Fornecedores
+  const [fornecedores, setFornecedores] = useState<AudioFornecedor[]>([
     {
       id: crypto.randomUUID(),
       nome: "Produtora 1",
-      contato: "",
       cnpj: "",
-      opcoes: [
+      contato: "",
+      pacotes: [
         {
           id: crypto.randomUUID(),
-          nome: "Opção 1",
-          fases: [
-            {
-              id: crypto.randomUUID(),
-              nome: "Serviços",
-              itens: [
-                {
-                  id: crypto.randomUUID(),
-                  nome: "Locução / Jingle / Trilha",
-                  valor: 0,
-                  prazo: "",
-                  observacao: "",
-                  desconto: 0,
-                },
-              ],
-            },
-          ],
+          nome: "Pacote 1",
+          servicos: [],
+          servicosCustom: [],
+          valorTotal: 0,
+          valoresDecupados: "",
+          observacao: "",
         },
       ],
     },
@@ -117,66 +145,79 @@ export default function NovoAudio() {
   // Load edit data
   useEffect(() => {
     if (editData) {
-      setCliente(editData.cliente || "");
-      setProduto(editData.produto || "");
-      setTipoAudio(editData.tipo_audio || "");
-      setDuracao(editData.duracao || "");
-      setMeioUso(editData.meio_uso || "");
-      setPraca(editData.praca || "");
-      
+      if (editData.np) setNp(editData.np);
+      if (editData.agencia) setAgencia(editData.agencia);
+      if (editData.cliente) setCliente(editData.cliente);
+      if (editData.data) setData(editData.data);
+      if (editData.campanha) setCampanha(editData.campanha);
+      if (editData.ac) setAc(editData.ac);
+
+      if (editData.duracao) setDuracao(editData.duracao);
+      if (editData.duracaoCustom) setDuracaoCustom(editData.duracaoCustom);
+      if (editData.meioUso) setMeioUso(editData.meioUso);
+      if (editData.meioUsoCustom) setMeioUsoCustom(editData.meioUsoCustom);
+      if (editData.praca) setPraca(editData.praca);
+      if (editData.pracaCustom) setPracaCustom(editData.pracaCustom);
+      if (editData.periodo) setPeriodo(editData.periodo);
+
+      if (editData.formaPagamento) setFormaPagamento(editData.formaPagamento);
+      if (editData.validadeProposta) setValidadeProposta(editData.validadeProposta);
+      if (editData.prazoProducao) setPrazoProducao(editData.prazoProducao);
+
+      if (editData.termoAceite) setTermoAceite(editData.termoAceite);
+
       if (editData.fornecedores && editData.fornecedores.length > 0) {
         setFornecedores(editData.fornecedores);
       }
-      
+
       if (editData.honorario) {
         setAplicarHonorario(editData.honorario.aplicar || false);
         setHonorarioPercent(editData.honorario.percentual || null);
         setExibirDetalhesHonorario(editData.honorario.exibirDetalhes ?? true);
       }
-      
-      setIsLoadingEditData(false);
     }
   }, [editData]);
 
-  // Load client honorario when client changes
+  // Load client honorario
   useEffect(() => {
     const loadClientHonorario = async () => {
       if (!cliente.trim()) {
         setHonorarioPercent(null);
         return;
       }
-      
+
       const { data } = await supabase
-        .from('client_honorarios')
-        .select('honorario_percent')
-        .ilike('client_name', cliente.trim())
+        .from("client_honorarios")
+        .select("honorario_percent")
+        .ilike("client_name", cliente.trim())
         .maybeSingle();
-      
+
       if (data) {
         setHonorarioPercent(Number(data.honorario_percent));
       } else {
         setHonorarioPercent(null);
       }
     };
-    
+
     loadClientHonorario();
   }, [cliente]);
 
-  // Calculate totals
-  const calcularTotalFornecedor = (fornecedor: Fornecedor): number => {
-    return (fornecedor.opcoes || []).reduce((total, opcao) => {
-      return total + (opcao.fases || []).reduce((faseTotal, fase) => {
-        return faseTotal + (fase.itens || []).reduce((itemTotal, item) => {
-          return itemTotal + (item.valor || 0) - (item.desconto || 0);
-        }, 0);
-      }, 0);
-    }, 0);
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  // Pacotes NÃO são somados - cada fornecedor pode ter múltiplos pacotes independentes
+  const calcularTotalFornecedor = (fornecedor: AudioFornecedor): number => {
+    // Retorna apenas o valor do primeiro pacote para resumo, 
+    // mas no PDF mostra todos os pacotes separadamente
+    return fornecedor.pacotes.reduce((sum, p) => sum + p.valorTotal, 0);
   };
 
   const calcularTotalGeral = (): number => {
-    return fornecedores.reduce((total, fornecedor) => {
-      return total + calcularTotalFornecedor(fornecedor);
-    }, 0);
+    return fornecedores.reduce((total, f) => total + calcularTotalFornecedor(f), 0);
   };
 
   const getHonorarioData = () => {
@@ -184,7 +225,7 @@ export default function NovoAudio() {
     const percent = honorarioPercent || 0;
     const valorHonorario = aplicarHonorario ? (subtotal * percent) / 100 : 0;
     const totalComHonorario = subtotal + valorHonorario;
-    
+
     return {
       aplicar: aplicarHonorario,
       percentual: percent,
@@ -195,39 +236,21 @@ export default function NovoAudio() {
     };
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  };
-
   const addFornecedor = () => {
-    const newFornecedor: Fornecedor = {
+    const newFornecedor: AudioFornecedor = {
       id: crypto.randomUUID(),
       nome: `Produtora ${fornecedores.length + 1}`,
-      contato: "",
       cnpj: "",
-      opcoes: [
+      contato: "",
+      pacotes: [
         {
           id: crypto.randomUUID(),
-          nome: "Opção 1",
-          fases: [
-            {
-              id: crypto.randomUUID(),
-              nome: "Serviços",
-              itens: [
-                {
-                  id: crypto.randomUUID(),
-                  nome: "Locução / Jingle / Trilha",
-                  valor: 0,
-                  prazo: "",
-                  observacao: "",
-                  desconto: 0,
-                },
-              ],
-            },
-          ],
+          nome: "Pacote 1",
+          servicos: [],
+          servicosCustom: [],
+          valorTotal: 0,
+          valoresDecupados: "",
+          observacao: "",
         },
       ],
     };
@@ -240,17 +263,32 @@ export default function NovoAudio() {
     }
   };
 
-  const updateFornecedor = (id: string, updates: Partial<Fornecedor>) => {
+  const updateFornecedor = (id: string, updates: Partial<AudioFornecedor>) => {
     setFornecedores(
       fornecedores.map((f) => (f.id === id ? { ...f, ...updates } : f))
     );
   };
 
+  const getDuracaoDisplay = () => {
+    if (duracao === "customizada") return duracaoCustom;
+    return duracao;
+  };
+
+  const getMeioDisplay = () => {
+    if (meioUso === "customizado") return meioUsoCustom;
+    return meioUso;
+  };
+
+  const getPracaDisplay = () => {
+    if (praca === "customizada") return pracaCustom;
+    return praca;
+  };
+
   const handleSave = async () => {
-    if (!cliente.trim() || !produto.trim()) {
+    if (!cliente.trim() || !campanha.trim()) {
       toast({
         title: "Campos obrigatórios",
-        description: "Por favor, preencha cliente e produto.",
+        description: "Por favor, preencha cliente e campanha.",
         variant: "destructive",
       });
       return;
@@ -262,14 +300,25 @@ export default function NovoAudio() {
       const honorarioData = getHonorarioData();
       const payload = {
         type: "audio",
-        estrutura: "fornecedores_fases",
+        estrutura: "audio_carta",
+        np,
+        agencia,
         cliente,
-        produto,
-        tipo_audio: tipoAudio,
-        duracao,
-        meio_uso: meioUso,
-        praca,
+        data,
+        campanha,
+        ac,
+        duracao: getDuracaoDisplay(),
+        duracaoCustom,
+        meioUso: getMeioDisplay(),
+        meioUsoCustom,
+        praca: getPracaDisplay(),
+        pracaCustom,
+        periodo,
         fornecedores,
+        formaPagamento,
+        validadeProposta,
+        prazoProducao,
+        termoAceite,
         honorario: honorarioData,
       };
 
@@ -278,7 +327,6 @@ export default function NovoAudio() {
         : honorarioData.valorBase;
 
       if (budgetId) {
-        // Update existing budget with new version
         const { data: versions } = await supabase
           .from("versions")
           .select("versao")
@@ -305,7 +353,6 @@ export default function NovoAudio() {
 
         navigate(`/budget/${budgetId}/pdf`);
       } else {
-        // Create new budget
         const { data: result, error } = await supabase.rpc(
           "create_budget_full_rpc",
           {
@@ -359,7 +406,7 @@ export default function NovoAudio() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-white">
-                  {isEditing ? "Editar Orçamento - Áudio" : "Orçamento de Áudio"}
+                  {isEditing ? "Editar Orçamento - Áudio" : "Carta Orçamento de Áudio"}
                 </h1>
                 {isEditing && currentVersao && (
                   <span className="px-2 py-1 text-xs font-semibold rounded-full bg-white/20 text-white">
@@ -369,8 +416,8 @@ export default function NovoAudio() {
               </div>
               <p className="text-white/70 text-sm">
                 {isEditing
-                  ? `Modifique os dados e salve como nova versão`
-                  : "Compare cotações de múltiplas produtoras"}
+                  ? "Modifique os dados e salve como nova versão"
+                  : "Formato carta orçamento com múltiplos pacotes"}
               </p>
             </div>
           </div>
@@ -389,50 +436,71 @@ export default function NovoAudio() {
                     Visualize como o orçamento será apresentado
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 p-4 bg-white rounded-lg text-black">
+                <div className="space-y-4 p-6 bg-white rounded-lg text-black">
                   <div className="border-b pb-4">
-                    <h2 className="text-xl font-bold">
-                      {cliente || "Cliente"} - {produto || "Produto"}
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      Tipo: {tipoAudio} | Duração: {duracao} | Meio: {meioUso} | Praça: {praca}
+                    <h2 className="text-xl font-bold">ORÇAMENTO</h2>
+                    <p className="text-sm text-gray-600 mt-2">
+                      NP {np || "---"} | {agencia} | {cliente || "Cliente"} | {data}
                     </p>
+                    <p className="text-sm mt-1">Campanha: {campanha || "---"}</p>
+                    {ac && <p className="text-sm">A/C: {ac}</p>}
                   </div>
+
+                  <div className="border-b pb-4">
+                    <h3 className="font-bold mb-2">Solicitação</h3>
+                    <p className="text-sm">
+                      {cliente} | {campanha}
+                    </p>
+                    <p className="text-sm">Duração: {getDuracaoDisplay() || "---"}</p>
+                    <p className="text-sm">Meio: {getMeioDisplay() || "---"}</p>
+                    <p className="text-sm">Praça: {getPracaDisplay() || "---"}</p>
+                    <p className="text-sm">Período: {periodo || "---"}</p>
+                  </div>
+
                   {fornecedores.map((fornecedor) => (
-                    <div key={fornecedor.id} className="border rounded-lg p-4">
+                    <div key={fornecedor.id} className="border rounded-lg p-4 mb-4">
                       <h3 className="font-bold text-lg">{fornecedor.nome}</h3>
-                      <p className="text-sm text-gray-600">{fornecedor.contato}</p>
-                      <div className="mt-2">
-                        <p className="font-semibold">
-                          Total: {formatCurrency(calcularTotalFornecedor(fornecedor))}
-                        </p>
-                      </div>
+                      {fornecedor.cnpj && (
+                        <p className="text-sm text-gray-600">CNPJ: {fornecedor.cnpj}</p>
+                      )}
+                      {fornecedor.contato && (
+                        <p className="text-sm text-gray-600">Contato: {fornecedor.contato}</p>
+                      )}
+
+                      {fornecedor.pacotes.map((pacote) => (
+                        <div key={pacote.id} className="mt-4 p-3 bg-gray-50 rounded">
+                          <h4 className="font-semibold">{pacote.nome}</h4>
+                          {pacote.servicos.length > 0 && (
+                            <ul className="list-disc list-inside text-sm mt-2">
+                              {[...pacote.servicos, ...pacote.servicosCustom].map(
+                                (s, i) => (
+                                  <li key={i}>{s}</li>
+                                )
+                              )}
+                            </ul>
+                          )}
+                          <p className="font-bold text-lg mt-2">
+                            {formatCurrency(pacote.valorTotal)}
+                          </p>
+                          {pacote.valoresDecupados && (
+                            <p className="text-sm text-gray-600">
+                              {pacote.valoresDecupados}
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   ))}
+
+                  <div className="border-t pt-4 text-sm space-y-1">
+                    <p>Forma de Pagamento: {formaPagamento}</p>
+                    <p>Validade da proposta: {validadeProposta}</p>
+                    <p>Prazo mínimo para produção: {prazoProducao}</p>
+                  </div>
+
                   <div className="border-t pt-4">
-                    {aplicarHonorario && exibirDetalhesHonorario ? (
-                      <>
-                        <p className="text-right">
-                          Subtotal: {formatCurrency(honorarioData.valorBase)}
-                        </p>
-                        <p className="text-right">
-                          Honorário ({honorarioData.percentual}%):{" "}
-                          {formatCurrency(honorarioData.valorHonorario)}
-                        </p>
-                        <p className="text-right font-bold text-lg">
-                          Total: {formatCurrency(honorarioData.totalComHonorario)}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-right font-bold text-lg">
-                        Total:{" "}
-                        {formatCurrency(
-                          aplicarHonorario
-                            ? honorarioData.totalComHonorario
-                            : totalGeral
-                        )}
-                      </p>
-                    )}
+                    <h3 className="font-bold mb-2">DE ACORDO</h3>
+                    <p className="text-sm whitespace-pre-line">{termoAceite}</p>
                   </div>
                 </div>
               </DialogContent>
@@ -451,12 +519,41 @@ export default function NovoAudio() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Client & Product Info */}
+            {/* Identificação */}
             <Card className="bg-white/5 border-white/10">
               <CardHeader>
                 <CardTitle className="text-white">Identificação</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-white/80">NP (Número Proposta)</Label>
+                    <Input
+                      value={np}
+                      onChange={(e) => setNp(e.target.value)}
+                      placeholder="Ex: 7801"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Agência</Label>
+                    <Input
+                      value={agencia}
+                      onChange={(e) => setAgencia(e.target.value)}
+                      placeholder="Nome da agência"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Data</Label>
+                    <Input
+                      value={data}
+                      onChange={(e) => setData(e.target.value)}
+                      placeholder="DD/MM/AAAA"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-white/80">Cliente *</Label>
@@ -468,30 +565,34 @@ export default function NovoAudio() {
                     />
                   </div>
                   <div>
-                    <Label className="text-white/80">Produto *</Label>
+                    <Label className="text-white/80">Campanha/Projeto *</Label>
                     <Input
-                      value={produto}
-                      onChange={(e) => setProduto(e.target.value)}
-                      placeholder="Nome do produto"
+                      value={campanha}
+                      onChange={(e) => setCampanha(e.target.value)}
+                      placeholder="Nome da campanha"
                       className="bg-white/5 border-white/20 text-white"
                     />
                   </div>
                 </div>
+                <div>
+                  <Label className="text-white/80">A/C (Atenção a)</Label>
+                  <Input
+                    value={ac}
+                    onChange={(e) => setAc(e.target.value)}
+                    placeholder="Nome do responsável"
+                    className="bg-white/5 border-white/20 text-white"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Solicitação */}
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Solicitação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-white/80">Tipo de Áudio</Label>
-                    <Select value={tipoAudio} onValueChange={setTipoAudio}>
-                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="locucao">Locução</SelectItem>
-                        <SelectItem value="jingle">Jingle</SelectItem>
-                        <SelectItem value="trilha">Trilha Sonora</SelectItem>
-                        <SelectItem value="sound_design">Sound Design</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div>
                     <Label className="text-white/80">Duração</Label>
                     <Select value={duracao} onValueChange={setDuracao}>
@@ -499,16 +600,25 @@ export default function NovoAudio() {
                         <SelectValue placeholder="Selecione a duração" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="15s">15 segundos</SelectItem>
-                        <SelectItem value="30s">30 segundos</SelectItem>
-                        <SelectItem value="45s">45 segundos</SelectItem>
-                        <SelectItem value="60s">60 segundos</SelectItem>
+                        <SelectItem value="1 x 15&quot;">1 x 15"</SelectItem>
+                        <SelectItem value="1 x 30&quot;">1 x 30"</SelectItem>
+                        <SelectItem value="1 x 45&quot;">1 x 45"</SelectItem>
+                        <SelectItem value="1 x 60&quot;">1 x 60"</SelectItem>
+                        <SelectItem value="1 x 90&quot;">1 x 90"</SelectItem>
+                        <SelectItem value="1 x 120&quot;">1 x 120"</SelectItem>
+                        <SelectItem value="1 x 180&quot;">1 x 180"</SelectItem>
                         <SelectItem value="customizada">Customizada</SelectItem>
                       </SelectContent>
                     </Select>
+                    {duracao === "customizada" && (
+                      <Input
+                        value={duracaoCustom}
+                        onChange={(e) => setDuracaoCustom(e.target.value)}
+                        placeholder='Ex: 2 x 30" + 1 x 15"'
+                        className="bg-white/5 border-white/20 text-white mt-2"
+                      />
+                    )}
                   </div>
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-white/80">Meio de Uso</Label>
                     <Select value={meioUso} onValueChange={setMeioUso}>
@@ -516,13 +626,25 @@ export default function NovoAudio() {
                         <SelectValue placeholder="Selecione o meio" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="radio">Rádio</SelectItem>
-                        <SelectItem value="tv">TV</SelectItem>
-                        <SelectItem value="digital">Digital</SelectItem>
-                        <SelectItem value="todos">Todos os meios</SelectItem>
+                        <SelectItem value="Rádio">Rádio</SelectItem>
+                        <SelectItem value="TV">TV</SelectItem>
+                        <SelectItem value="Digital">Digital</SelectItem>
+                        <SelectItem value="Interno">Interno</SelectItem>
+                        <SelectItem value="Todos">Todos os meios</SelectItem>
+                        <SelectItem value="customizado">Customizado</SelectItem>
                       </SelectContent>
                     </Select>
+                    {meioUso === "customizado" && (
+                      <Input
+                        value={meioUsoCustom}
+                        onChange={(e) => setMeioUsoCustom(e.target.value)}
+                        placeholder="Especifique o meio"
+                        className="bg-white/5 border-white/20 text-white mt-2"
+                      />
+                    )}
                   </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-white/80">Praça</Label>
                     <Select value={praca} onValueChange={setPraca}>
@@ -530,11 +652,30 @@ export default function NovoAudio() {
                         <SelectValue placeholder="Selecione a praça" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="nacional">Nacional</SelectItem>
-                        <SelectItem value="sao_paulo">São Paulo</SelectItem>
-                        <SelectItem value="regional">Regional</SelectItem>
+                        <SelectItem value="Nacional">Nacional</SelectItem>
+                        <SelectItem value="São Paulo">São Paulo</SelectItem>
+                        <SelectItem value="Regional">Regional</SelectItem>
+                        <SelectItem value="Interno">Interno</SelectItem>
+                        <SelectItem value="customizada">Customizada</SelectItem>
                       </SelectContent>
                     </Select>
+                    {praca === "customizada" && (
+                      <Input
+                        value={pracaCustom}
+                        onChange={(e) => setPracaCustom(e.target.value)}
+                        placeholder="Especifique a praça"
+                        className="bg-white/5 border-white/20 text-white mt-2"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Período</Label>
+                    <Input
+                      value={periodo}
+                      onChange={(e) => setPeriodo(e.target.value)}
+                      placeholder="Ex: Interno, 6 meses, 1 ano"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -585,17 +726,19 @@ export default function NovoAudio() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">Produtoras</h2>
-                <Button onClick={addFornecedor} variant="outline" size="sm">
+                <Button
+                  onClick={addFornecedor}
+                  variant="outline"
+                  size="sm"
+                  className="border-white/20 text-white hover:bg-white/10"
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Adicionar Produtora
                 </Button>
               </div>
 
               {fornecedores.map((fornecedor, index) => (
-                <Card
-                  key={fornecedor.id}
-                  className="bg-white/5 border-white/10"
-                >
+                <Card key={fornecedor.id} className="bg-white/5 border-white/10">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 grid md:grid-cols-3 gap-4">
@@ -613,6 +756,19 @@ export default function NovoAudio() {
                           />
                         </div>
                         <div>
+                          <Label className="text-white/80">CNPJ</Label>
+                          <Input
+                            value={fornecedor.cnpj}
+                            onChange={(e) =>
+                              updateFornecedor(fornecedor.id, {
+                                cnpj: e.target.value,
+                              })
+                            }
+                            placeholder="00.000.000/0000-00"
+                            className="bg-white/5 border-white/20 text-white"
+                          />
+                        </div>
+                        <div>
                           <Label className="text-white/80">Contato</Label>
                           <Input
                             value={fornecedor.contato}
@@ -621,20 +777,7 @@ export default function NovoAudio() {
                                 contato: e.target.value,
                               })
                             }
-                            placeholder="Nome do contato"
-                            className="bg-white/5 border-white/20 text-white"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white/80">CNPJ</Label>
-                          <Input
-                            value={fornecedor.cnpj || ""}
-                            onChange={(e) =>
-                              updateFornecedor(fornecedor.id, {
-                                cnpj: e.target.value,
-                              })
-                            }
-                            placeholder="00.000.000/0000-00"
+                            placeholder="@contato"
                             className="bg-white/5 border-white/20 text-white"
                           />
                         </div>
@@ -652,21 +795,74 @@ export default function NovoAudio() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <SupplierOptionsManager
+                    <AudioPackageManager
                       fornecedor={fornecedor}
                       onUpdate={(updated) =>
                         updateFornecedor(fornecedor.id, updated)
                       }
                     />
-                    <div className="mt-4 pt-4 border-t border-white/10 flex justify-end">
-                      <span className="text-lg font-bold text-white">
-                        Total Produtora: {formatCurrency(calcularTotalFornecedor(fornecedor))}
-                      </span>
-                    </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+
+            {/* Condições Gerais */}
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Condições Gerais</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-white/80">Forma de Pagamento</Label>
+                    <Input
+                      value={formaPagamento}
+                      onChange={(e) => setFormaPagamento(e.target.value)}
+                      placeholder="Ex: à combinar"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Validade da Proposta</Label>
+                    <Input
+                      value={validadeProposta}
+                      onChange={(e) => setValidadeProposta(e.target.value)}
+                      placeholder="Ex: 10 dias"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Prazo Mínimo Produção</Label>
+                    <Input
+                      value={prazoProducao}
+                      onChange={(e) => setPrazoProducao(e.target.value)}
+                      placeholder="Ex: 2 dias"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Termo de Aceite */}
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">
+                  Termo de Aceite (DE ACORDO)
+                </CardTitle>
+                <p className="text-sm text-white/50">
+                  Use **texto** para negrito e *texto* para itálico
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={termoAceite}
+                  onChange={(e) => setTermoAceite(e.target.value)}
+                  placeholder="Texto do termo de aceite..."
+                  className="bg-white/5 border-white/20 text-white min-h-[150px]"
+                />
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}
@@ -684,9 +880,9 @@ export default function NovoAudio() {
                     </span>
                   </div>
                   <div className="flex justify-between text-white/70">
-                    <span>Produto:</span>
-                    <span className="font-medium text-white">
-                      {produto || "-"}
+                    <span>Campanha:</span>
+                    <span className="font-medium text-white truncate max-w-[150px]">
+                      {campanha || "-"}
                     </span>
                   </div>
                   <div className="flex justify-between text-white/70">
@@ -697,15 +893,21 @@ export default function NovoAudio() {
                   </div>
                 </div>
 
-                <div className="border-t border-white/10 pt-4 space-y-2">
+                <div className="border-t border-white/10 pt-4 space-y-3">
                   {fornecedores.map((f) => (
-                    <div key={f.id} className="flex justify-between text-sm">
-                      <span className="text-white/60 truncate max-w-[60%]">
-                        {f.nome}:
-                      </span>
-                      <span className="text-white font-medium">
-                        {formatCurrency(calcularTotalFornecedor(f))}
-                      </span>
+                    <div key={f.id} className="space-y-1">
+                      <p className="text-white/60 text-sm font-medium">{f.nome}</p>
+                      {f.pacotes.map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex justify-between text-sm pl-2"
+                        >
+                          <span className="text-white/50">{p.nome}:</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(p.valorTotal)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>

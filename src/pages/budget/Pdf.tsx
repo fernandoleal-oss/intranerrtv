@@ -183,7 +183,61 @@ export default function BudgetPdf() {
   // Detectar se é orçamento livre (customizado) - nova estrutura com fornecedores
   const isLivreBudget = (payload.tipo === 'livre' || payload.type === 'livre') && payload.fornecedores && Array.isArray(payload.fornecedores);
 
+  // Detectar se é orçamento de áudio carta
+  const isAudioCarta = payload.estrutura === 'audio_carta' && payload.fornecedores && Array.isArray(payload.fornecedores);
+
   // Removidos cálculos de totais conforme solicitado
+
+  // Função para parsear formatação de texto (negrito e itálico)
+  const parseFormattedText = (text: string) => {
+    if (!text) return null;
+    
+    // Dividir por quebras de linha
+    const lines = text.split('\n');
+    
+    return lines.map((line, lineIdx) => {
+      // Parsear **negrito** e *itálico*
+      const parts: React.ReactNode[] = [];
+      let remaining = line;
+      let key = 0;
+      
+      while (remaining.length > 0) {
+        // Procurar por **negrito**
+        const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+        // Procurar por *itálico*
+        const italicMatch = remaining.match(/(?<!\*)\*([^*]+)\*(?!\*)/);
+        
+        if (boldMatch && (!italicMatch || boldMatch.index! <= italicMatch.index!)) {
+          // Adicionar texto antes do negrito
+          if (boldMatch.index! > 0) {
+            parts.push(<span key={key++}>{remaining.substring(0, boldMatch.index)}</span>);
+          }
+          // Adicionar texto em negrito
+          parts.push(<strong key={key++}>{boldMatch[1]}</strong>);
+          remaining = remaining.substring(boldMatch.index! + boldMatch[0].length);
+        } else if (italicMatch) {
+          // Adicionar texto antes do itálico
+          if (italicMatch.index! > 0) {
+            parts.push(<span key={key++}>{remaining.substring(0, italicMatch.index)}</span>);
+          }
+          // Adicionar texto em itálico
+          parts.push(<em key={key++}>{italicMatch[1]}</em>);
+          remaining = remaining.substring(italicMatch.index! + italicMatch[0].length);
+        } else {
+          // Sem mais formatação, adicionar o resto
+          parts.push(<span key={key++}>{remaining}</span>);
+          break;
+        }
+      }
+      
+      return (
+        <React.Fragment key={lineIdx}>
+          {parts}
+          {lineIdx < lines.length - 1 && <br />}
+        </React.Fragment>
+      );
+    });
+  };
 
   /** ====== Carrega orçamento ====== */
   useEffect(() => {
@@ -1006,6 +1060,296 @@ export default function BudgetPdf() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Orçamento de Áudio - Formato Carta */}
+          {isAudioCarta && (
+            <div className="allow-break mb-8">
+              {/* Cabeçalho Principal */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)",
+                  borderLeft: "4px solid #7C3AED",
+                  padding: "20px 24px",
+                  marginBottom: "20px",
+                  borderRadius: "0 8px 8px 0",
+                  border: "1px solid #C4B5FD",
+                }}
+              >
+                <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "#5B21B6", marginBottom: "12px" }}>
+                  ORÇAMENTO
+                </h1>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", fontSize: "13px" }}>
+                  {payload.np && (
+                    <p style={{ color: "#6D28D9" }}>
+                      <strong>NP:</strong> {payload.np}
+                    </p>
+                  )}
+                  {payload.agencia && (
+                    <p style={{ color: "#6D28D9" }}>
+                      <strong>Agência:</strong> {payload.agencia}
+                    </p>
+                  )}
+                  {payload.cliente && (
+                    <p style={{ color: "#6D28D9" }}>
+                      <strong>Cliente:</strong> {payload.cliente}
+                    </p>
+                  )}
+                  {payload.data && (
+                    <p style={{ color: "#6D28D9" }}>
+                      <strong>Data:</strong> {payload.data}
+                    </p>
+                  )}
+                </div>
+                {payload.campanha && (
+                  <p style={{ color: "#6D28D9", marginTop: "8px", fontSize: "14px" }}>
+                    <strong>Campanha:</strong> {payload.campanha}
+                  </p>
+                )}
+                {payload.ac && (
+                  <p style={{ color: "#6D28D9", marginTop: "4px", fontSize: "13px" }}>
+                    <strong>A/C:</strong> {payload.ac}
+                  </p>
+                )}
+              </div>
+
+              {/* Solicitação */}
+              <div
+                style={{
+                  backgroundColor: "#FAFAFA",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "8px",
+                  padding: "16px 20px",
+                  marginBottom: "20px",
+                }}
+              >
+                <h2 style={{ fontSize: "16px", fontWeight: "bold", color: "#1E293B", marginBottom: "12px" }}>
+                  Solicitação
+                </h2>
+                <p style={{ fontSize: "14px", color: "#475569", fontWeight: "600", marginBottom: "8px" }}>
+                  {payload.cliente} | {payload.campanha}
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px", fontSize: "13px", color: "#64748B" }}>
+                  {payload.duracao && <p><strong>Duração:</strong> {payload.duracao}</p>}
+                  {payload.meioUso && <p><strong>Meio:</strong> {payload.meioUso}</p>}
+                  {payload.praca && <p><strong>Praça:</strong> {payload.praca}</p>}
+                  {payload.periodo && <p><strong>Período:</strong> {payload.periodo}</p>}
+                </div>
+              </div>
+
+              {/* Fornecedores e Pacotes */}
+              {(payload.fornecedores || []).map((fornecedor: any, fornecedorIndex: number) => (
+                <div
+                  key={fornecedor.id || fornecedorIndex}
+                  className="supplier-card"
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    marginBottom: "20px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  {/* Header do Fornecedor */}
+                  <div
+                    style={{
+                      background: "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)",
+                      borderLeft: "4px solid #0369A1",
+                      padding: "12px 16px",
+                      marginBottom: "16px",
+                      borderRadius: "0 6px 6px 0",
+                    }}
+                  >
+                    <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#0C4A6E" }}>
+                      {fornecedor.nome || `Produtora ${fornecedorIndex + 1}`}
+                    </h3>
+                    {fornecedor.cnpj && (
+                      <p style={{ fontSize: "12px", color: "#475569", marginTop: "4px" }}>
+                        CNPJ: {fornecedor.cnpj}
+                      </p>
+                    )}
+                    {fornecedor.contato && (
+                      <p style={{ fontSize: "12px", color: "#475569" }}>
+                        {fornecedor.contato}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Pacotes - cada pacote é exibido separadamente, NÃO são somados */}
+                  {(fornecedor.pacotes || []).map((pacote: any, pacoteIndex: number) => (
+                    <div
+                      key={pacote.id || pacoteIndex}
+                      style={{
+                        backgroundColor: "#F8FAFC",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: "8px",
+                        padding: "16px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                        <h4 style={{ fontSize: "15px", fontWeight: "bold", color: "#1E293B" }}>
+                          {pacote.nome || `Pacote ${pacoteIndex + 1}`}
+                        </h4>
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ fontSize: "10px", color: "#64748B" }}>Valor total</p>
+                          <p style={{ fontSize: "18px", fontWeight: "bold", color: "#0369A1" }}>
+                            {money(pacote.valorTotal || 0)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Serviços em bullet points */}
+                      {((pacote.servicos && pacote.servicos.length > 0) || (pacote.servicosCustom && pacote.servicosCustom.length > 0)) && (
+                        <div style={{ marginBottom: "12px" }}>
+                          <p style={{ fontSize: "12px", fontWeight: "600", color: "#475569", marginBottom: "8px" }}>
+                            SERVIÇOS
+                          </p>
+                          <ul style={{ listStyle: "disc", paddingLeft: "20px", margin: 0 }}>
+                            {[...(pacote.servicos || []), ...(pacote.servicosCustom || [])].map((servico: string, sIdx: number) => (
+                              <li key={sIdx} style={{ fontSize: "13px", color: "#1E293B", marginBottom: "4px" }}>
+                                {servico}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Valores Decupados */}
+                      {pacote.valoresDecupados && (
+                        <div
+                          style={{
+                            backgroundColor: "#FEF3C7",
+                            border: "1px solid #FCD34D",
+                            borderRadius: "6px",
+                            padding: "10px 12px",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          <p style={{ fontSize: "11px", color: "#92400E", fontWeight: "600", marginBottom: "4px" }}>
+                            Valores decupados:
+                          </p>
+                          <p style={{ fontSize: "12px", color: "#78350F" }}>
+                            {pacote.valoresDecupados}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Observação do Pacote */}
+                      {pacote.observacao && (
+                        <div
+                          style={{
+                            backgroundColor: "#F1F5F9",
+                            borderRadius: "6px",
+                            padding: "10px 12px",
+                          }}
+                        >
+                          <p style={{ fontSize: "11px", color: "#64748B", fontWeight: "600", marginBottom: "4px" }}>
+                            Observações:
+                          </p>
+                          <p style={{ fontSize: "12px", color: "#475569", whiteSpace: "pre-wrap" }}>
+                            {pacote.observacao}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Condições Gerais */}
+              <div
+                style={{
+                  backgroundColor: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "8px",
+                  padding: "16px 20px",
+                  marginBottom: "20px",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#475569" }}>
+                  {payload.formaPagamento && (
+                    <p><strong>Forma de Pagamento:</strong> {payload.formaPagamento}</p>
+                  )}
+                  {payload.validadeProposta && (
+                    <p><strong>Validade da proposta:</strong> {payload.validadeProposta}</p>
+                  )}
+                  {payload.prazoProducao && (
+                    <p><strong>Prazo mínimo para produção:</strong> {payload.prazoProducao}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Termo de Aceite */}
+              {payload.termoAceite && (
+                <div
+                  style={{
+                    backgroundColor: "#FFFBEB",
+                    border: "2px solid #F59E0B",
+                    borderRadius: "8px",
+                    padding: "20px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#92400E", marginBottom: "12px" }}>
+                    DE ACORDO
+                  </h3>
+                  <div style={{ fontSize: "13px", color: "#78350F", lineHeight: "1.6" }}>
+                    {parseFormattedText(payload.termoAceite)}
+                  </div>
+                </div>
+              )}
+
+              {/* Honorário Section */}
+              {payload.honorario && payload.honorario.aplicar && (
+                <div
+                  style={{
+                    backgroundColor: "#F0FDF4",
+                    border: "2px solid #16A34A",
+                    borderRadius: "8px",
+                    padding: "16px 20px",
+                    marginTop: "16px",
+                  }}
+                >
+                  {payload.honorario.exibirDetalhes !== false ? (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                        <span style={{ fontSize: "14px", color: "#166534" }}>Subtotal</span>
+                        <span style={{ fontSize: "14px", fontWeight: "600", color: "#166534" }}>
+                          {money(payload.honorario.valorBase)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                        <span style={{ fontSize: "14px", color: "#166534" }}>
+                          Honorário ({payload.honorario.percentual}%)
+                        </span>
+                        <span style={{ fontSize: "14px", fontWeight: "600", color: "#166534" }}>
+                          +{money(payload.honorario.valorHonorario)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "2px solid #16A34A", paddingTop: "12px" }}>
+                        <span style={{ fontSize: "18px", fontWeight: "bold", color: "#166534" }}>
+                          Total com Honorário
+                        </span>
+                        <span style={{ fontSize: "20px", fontWeight: "bold", color: "#166534" }}>
+                          {money(payload.honorario.totalComHonorario)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "18px", fontWeight: "bold", color: "#166534" }}>
+                        Total Geral
+                      </span>
+                      <span style={{ fontSize: "20px", fontWeight: "bold", color: "#166534" }}>
+                        {money(payload.honorario.totalComHonorario)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
