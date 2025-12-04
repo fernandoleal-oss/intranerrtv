@@ -1,553 +1,755 @@
-import { useEffect, useState, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Stepper } from '@/components/Stepper'
-import { PreviewSidebar } from '@/components/PreviewSidebar'
-import { FormInput } from '@/components/FormInput'
-import { FormSelect } from '@/components/FormSelect'
-import { supabase } from '@/integrations/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useToast } from '@/hooks/use-toast'
-import { useAutosave } from '@/hooks/useAutosave'
-import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react'
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Save, Plus, Eye, Trash2 } from "lucide-react";
+import { SupplierOptionsManager } from "@/components/budget/SupplierOptionsManager";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
-const steps = ['Identificação', 'Cliente & Produto', 'Detalhes', 'Cotações', 'Revisão', 'Exportar']
-
-interface AudioQuote {
-  produtora: string
-  descritivo: string
-  valor: number
-  opcoes: string
-  desconto: number
-}
+import {
+  Fornecedor,
+  FornecedorOpcao,
+  FornecedorFase,
+  FornecedorItem,
+} from "@/components/budget/SupplierOptionsManager";
 
 interface AudioData {
-  produtor?: string
-  email?: string
-  cliente?: string
-  produto?: string
-  tipo_audio?: string
-  duracao?: string
-  meio_uso?: string
-  praca?: string
-  periodo?: string
-  quotes_audio: AudioQuote[]
-  audio: { subtotal: number }
-  total: number
+  tipo?: string;
+  cliente?: string;
+  produto?: string;
+  tipo_audio?: string;
+  duracao?: string;
+  meio_uso?: string;
+  praca?: string;
+  periodo?: string;
+  fornecedores?: Fornecedor[];
+  honorario?: {
+    aplicar: boolean;
+    percentual: number;
+    valorBase: number;
+    valorHonorario: number;
+    totalComHonorario: number;
+    exibirDetalhes: boolean;
+  };
 }
 
 export default function NovoAudio() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { toast } = useToast()
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
   
   // Check if we're editing an existing budget
-  const editData = location.state?.editData as AudioData | undefined
-  const existingBudgetId = location.state?.budgetId as string | undefined
-  const currentVersao = location.state?.versao as number | undefined
+  const editData = location.state?.editData as AudioData | undefined;
+  const existingBudgetId = location.state?.budgetId as string | undefined;
+  const currentVersao = location.state?.versao as number | undefined;
   
-  const [step, setStep] = useState(existingBudgetId ? 2 : 1)
-  const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId)
-  const [data, setData] = useState<AudioData>({
-    quotes_audio: [],
-    audio: { subtotal: 0 },
-    total: 0
-  })
+  const [saving, setSaving] = useState(false);
+  const [budgetId, setBudgetId] = useState<string | undefined>(existingBudgetId);
+  const [isLoadingEditData, setIsLoadingEditData] = useState(!!editData);
 
-  // Load edit data on mount
+  const [cliente, setCliente] = useState("");
+  const [produto, setProduto] = useState("");
+  const [tipoAudio, setTipoAudio] = useState("");
+  const [duracao, setDuracao] = useState("");
+  const [meioUso, setMeioUso] = useState("");
+  const [praca, setPraca] = useState("");
+  
+  // Honorário
+  const [honorarioPercent, setHonorarioPercent] = useState<number | null>(null);
+  const [aplicarHonorario, setAplicarHonorario] = useState(false);
+  const [exibirDetalhesHonorario, setExibirDetalhesHonorario] = useState(true);
+  
+  // Preview
+  const [showPreview, setShowPreview] = useState(false);
+  
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([
+    {
+      id: crypto.randomUUID(),
+      nome: "Produtora 1",
+      contato: "",
+      cnpj: "",
+      opcoes: [
+        {
+          id: crypto.randomUUID(),
+          nome: "Opção 1",
+          fases: [
+            {
+              id: crypto.randomUUID(),
+              nome: "Serviços",
+              itens: [
+                {
+                  id: crypto.randomUUID(),
+                  nome: "Locução / Jingle / Trilha",
+                  valor: 0,
+                  prazo: "",
+                  observacao: "",
+                  desconto: 0,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ]);
+
+  const isEditing = !!existingBudgetId;
+
+  // Load edit data
   useEffect(() => {
     if (editData) {
-      const audioSubtotal = (editData.quotes_audio || []).reduce((sum, q) => sum + (q.valor - q.desconto), 0)
-      setData({
-        ...editData,
-        quotes_audio: editData.quotes_audio || [],
-        audio: { subtotal: audioSubtotal },
-        total: audioSubtotal
-      })
-    }
-  }, [editData])
-
-  // Auto-save with debounce hook
-  useAutosave([data], () => {
-    if (budgetId && Object.keys(data).length > 0) {
-      supabase.from('versions').update({ 
-        payload: data as any 
-      }).eq('budget_id', budgetId).order('versao', { ascending: false }).limit(1)
-    }
-  })
-
-  const updateData = useCallback((updates: Partial<AudioData>) => {
-    setData(prev => {
-      const newData = { ...prev, ...updates }
-      const audioSubtotal = (newData.quotes_audio || []).reduce((sum, q) => sum + (q.valor - q.desconto), 0)
-      return {
-        ...newData,
-        audio: { subtotal: audioSubtotal },
-        total: audioSubtotal
+      setCliente(editData.cliente || "");
+      setProduto(editData.produto || "");
+      setTipoAudio(editData.tipo_audio || "");
+      setDuracao(editData.duracao || "");
+      setMeioUso(editData.meio_uso || "");
+      setPraca(editData.praca || "");
+      
+      if (editData.fornecedores && editData.fornecedores.length > 0) {
+        setFornecedores(editData.fornecedores);
       }
-    })
-  }, [])
-
-  const handleCreateBudget = async () => {
-    // If we're editing, just move to next step
-    if (budgetId) {
-      setStep(2)
-      return
+      
+      if (editData.honorario) {
+        setAplicarHonorario(editData.honorario.aplicar || false);
+        setHonorarioPercent(editData.honorario.percentual || null);
+        setExibirDetalhesHonorario(editData.honorario.exibirDetalhes ?? true);
+      }
+      
+      setIsLoadingEditData(false);
     }
+  }, [editData]);
+
+  // Load client honorario when client changes
+  useEffect(() => {
+    const loadClientHonorario = async () => {
+      if (!cliente.trim()) {
+        setHonorarioPercent(null);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('client_honorarios')
+        .select('honorario_percent')
+        .ilike('client_name', cliente.trim())
+        .maybeSingle();
+      
+      if (data) {
+        setHonorarioPercent(Number(data.honorario_percent));
+      } else {
+        setHonorarioPercent(null);
+      }
+    };
     
-    try {
-      const { data: budget, error } = await supabase.rpc('create_budget_full_rpc', { 
-        p_type_text: 'audio',
-        p_payload: {},
-        p_total: 0
-      }) as { data: { id: string; display_id: string; version_id: string } | null; error: any }
-      if (error) throw error
-      setBudgetId(budget.id)
-      setStep(2)
-      toast({ title: 'Orçamento criado', description: `ID: ${budget.display_id}` })
-    } catch (error) {
-      toast({ title: 'Erro', description: 'Não foi possível criar o orçamento', variant: 'destructive' })
-    }
-  }
+    loadClientHonorario();
+  }, [cliente]);
 
-  const handleSaveAndGeneratePDF = async () => {
-    if (!data.cliente?.trim() || !data.produto?.trim()) {
+  // Calculate totals
+  const calcularTotalFornecedor = (fornecedor: Fornecedor): number => {
+    return (fornecedor.opcoes || []).reduce((total, opcao) => {
+      return total + (opcao.fases || []).reduce((faseTotal, fase) => {
+        return faseTotal + (fase.itens || []).reduce((itemTotal, item) => {
+          return itemTotal + (item.valor || 0) - (item.desconto || 0);
+        }, 0);
+      }, 0);
+    }, 0);
+  };
+
+  const calcularTotalGeral = (): number => {
+    return fornecedores.reduce((total, fornecedor) => {
+      return total + calcularTotalFornecedor(fornecedor);
+    }, 0);
+  };
+
+  const getHonorarioData = () => {
+    const subtotal = calcularTotalGeral();
+    const percent = honorarioPercent || 0;
+    const valorHonorario = aplicarHonorario ? (subtotal * percent) / 100 : 0;
+    const totalComHonorario = subtotal + valorHonorario;
+    
+    return {
+      aplicar: aplicarHonorario,
+      percentual: percent,
+      valorBase: subtotal,
+      valorHonorario,
+      totalComHonorario,
+      exibirDetalhes: exibirDetalhesHonorario,
+    };
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
+
+  const addFornecedor = () => {
+    const newFornecedor: Fornecedor = {
+      id: crypto.randomUUID(),
+      nome: `Produtora ${fornecedores.length + 1}`,
+      contato: "",
+      cnpj: "",
+      opcoes: [
+        {
+          id: crypto.randomUUID(),
+          nome: "Opção 1",
+          fases: [
+            {
+              id: crypto.randomUUID(),
+              nome: "Serviços",
+              itens: [
+                {
+                  id: crypto.randomUUID(),
+                  nome: "Locução / Jingle / Trilha",
+                  valor: 0,
+                  prazo: "",
+                  observacao: "",
+                  desconto: 0,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    setFornecedores([...fornecedores, newFornecedor]);
+  };
+
+  const removeFornecedor = (id: string) => {
+    if (fornecedores.length > 1) {
+      setFornecedores(fornecedores.filter((f) => f.id !== id));
+    }
+  };
+
+  const updateFornecedor = (id: string, updates: Partial<Fornecedor>) => {
+    setFornecedores(
+      fornecedores.map((f) => (f.id === id ? { ...f, ...updates } : f))
+    );
+  };
+
+  const handleSave = async () => {
+    if (!cliente.trim() || !produto.trim()) {
       toast({
         title: "Campos obrigatórios",
         description: "Por favor, preencha cliente e produto.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
+    setSaving(true);
+
     try {
-      const payload = JSON.parse(JSON.stringify({
-        ...data,
-        type: 'audio'
-      }))
+      const honorarioData = getHonorarioData();
+      const payload = {
+        type: "audio",
+        estrutura: "fornecedores_fases",
+        cliente,
+        produto,
+        tipo_audio: tipoAudio,
+        duracao,
+        meio_uso: meioUso,
+        praca,
+        fornecedores,
+        honorario: honorarioData,
+      };
+
+      const totalGeral = honorarioData.aplicar
+        ? honorarioData.totalComHonorario
+        : honorarioData.valorBase;
 
       if (budgetId) {
-        // Update existing budget
+        // Update existing budget with new version
         const { data: versions } = await supabase
-          .from('versions')
-          .select('versao')
-          .eq('budget_id', budgetId)
-          .order('versao', { ascending: false })
-          .limit(1)
+          .from("versions")
+          .select("versao")
+          .eq("budget_id", budgetId)
+          .order("versao", { ascending: false })
+          .limit(1);
 
-        const nextVersao = versions && versions.length > 0 ? versions[0].versao + 1 : 1
+        const nextVersao =
+          versions && versions.length > 0 ? versions[0].versao + 1 : 1;
 
-        const { error } = await supabase.from('versions').insert({
+        const { error } = await supabase.from("versions").insert({
           budget_id: budgetId,
           versao: nextVersao,
-          payload,
-          total_geral: data.total
-        })
+          payload: payload as any,
+          total_geral: totalGeral,
+        });
 
-        if (error) throw error
-        navigate(`/budget/${budgetId}/pdf`)
+        if (error) throw error;
+
+        toast({
+          title: "Orçamento atualizado!",
+          description: `Versão ${nextVersao} salva com sucesso.`,
+        });
+
+        navigate(`/budget/${budgetId}/pdf`);
       } else {
         // Create new budget
-        const { data: result, error } = await supabase.rpc('create_budget_full_rpc', {
-          p_type_text: 'audio',
-          p_payload: payload,
-          p_total: data.total
-        })
+        const { data: result, error } = await supabase.rpc(
+          "create_budget_full_rpc",
+          {
+            p_type_text: "audio",
+            p_payload: payload as any,
+            p_total: totalGeral,
+          }
+        );
 
-        if (error) throw error
-        if (!result || result.length === 0) throw new Error('Falha ao criar orçamento')
-        
-        navigate(`/budget/${result[0].id}/pdf`)
+        if (error) throw error;
+        if (!result || result.length === 0)
+          throw new Error("Falha ao criar orçamento");
+
+        toast({
+          title: "Orçamento criado!",
+          description: `ID: ${result[0].display_id}`,
+        });
+
+        navigate(`/budget/${result[0].id}/pdf`);
       }
-
-      toast({ title: "Sucesso!", description: "Orçamento salvo com sucesso." })
     } catch (error: any) {
-      console.error('Erro ao salvar:', error)
+      console.error("Erro ao salvar:", error);
       toast({
         title: "Erro ao salvar",
         description: error.message || "Ocorreu um erro ao salvar o orçamento.",
         variant: "destructive",
-      })
+      });
+    } finally {
+      setSaving(false);
     }
-  }
+  };
 
-  const addAudioQuote = () => {
-    const newQuote: AudioQuote = {
-      produtora: `Produtora ${data.quotes_audio.length + 1}`,
-      descritivo: '',
-      valor: 0,
-      opcoes: '',
-      desconto: 0
-    }
-    updateData({ quotes_audio: [...data.quotes_audio, newQuote] })
-  }
+  const totalGeral = calcularTotalGeral();
+  const honorarioData = getHonorarioData();
 
-  const updateAudioQuote = useCallback((index: number, updates: Partial<AudioQuote>) => {
-    setData(prev => {
-      const quotes = [...prev.quotes_audio]
-      quotes[index] = { ...quotes[index], ...updates }
-      const audioSubtotal = quotes.reduce((sum, q) => sum + (q.valor - q.desconto), 0)
-      return {
-        ...prev,
-        quotes_audio: quotes,
-        audio: { subtotal: audioSubtotal },
-        total: audioSubtotal
-      }
-    })
-  }, [])
-
-  const removeAudioQuote = (index: number) => {
-    const quotes = data.quotes_audio.filter((_, i) => i !== index)
-    updateData({ quotes_audio: quotes })
-  }
-
-  const isEditing = !!existingBudgetId
-
-  const StepContent = () => {
-    switch (step) {
-      case 1:
-        return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="produtor" className="dark-label">Nome do Produtor</Label>
-                <Input
-                  id="produtor"
-                  key="audio-produtor-input"
-                  value={data.produtor || ''}
-                  onChange={(e) => updateData({ produtor: e.target.value })}
-                  className="dark-input"
-                  placeholder="Nome completo do produtor"
-                />
-              </div>
-              <div>
-                <Label htmlFor="email" className="dark-label">E-mail</Label>
-                <Input
-                  id="email"
-                  key="audio-email-input"
-                  type="email"
-                  value={data.email || ''}
-                  onChange={(e) => updateData({ email: e.target.value })}
-                  className="dark-input"
-                  placeholder="email@exemplo.com"
-                />
-              </div>
-            </div>
-            <Button onClick={handleCreateBudget} size="lg" className="w-full">
-              Continuar
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="container mx-auto px-4 py-6 max-w-6xl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => navigate("/")}
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar
             </Button>
-          </motion.div>
-        )
-
-      case 2:
-        return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="cliente" className="dark-label">Cliente</Label>
-                <Input
-                  id="cliente"
-                  key="audio-cliente-input"
-                  value={data.cliente || ''}
-                  onChange={(e) => updateData({ cliente: e.target.value })}
-                  className="dark-input"
-                  placeholder="Nome do cliente"
-                />
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-white">
+                  {isEditing ? "Editar Orçamento - Áudio" : "Orçamento de Áudio"}
+                </h1>
+                {isEditing && currentVersao && (
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-white/20 text-white">
+                    v{currentVersao}
+                  </span>
+                )}
               </div>
-              <div>
-                <Label htmlFor="produto" className="dark-label">Produto</Label>
-                <Input
-                  id="produto"
-                  key="audio-produto-input"
-                  value={data.produto || ''}
-                  onChange={(e) => updateData({ produto: e.target.value })}
-                  className="dark-input"
-                  placeholder="Nome do produto"
-                />
-              </div>
+              <p className="text-white/70 text-sm">
+                {isEditing
+                  ? `Modifique os dados e salve como nova versão`
+                  : "Compare cotações de múltiplas produtoras"}
+              </p>
             </div>
-            <Button onClick={() => setStep(3)} size="lg" className="w-full">
-              Salvar e Continuar
+          </div>
+          <div className="flex gap-2">
+            <Dialog open={showPreview} onOpenChange={setShowPreview}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Prévia
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                <DialogHeader>
+                  <DialogTitle>Prévia do Orçamento</DialogTitle>
+                  <DialogDescription>
+                    Visualize como o orçamento será apresentado
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 p-4 bg-white rounded-lg text-black">
+                  <div className="border-b pb-4">
+                    <h2 className="text-xl font-bold">
+                      {cliente || "Cliente"} - {produto || "Produto"}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      Tipo: {tipoAudio} | Duração: {duracao} | Meio: {meioUso} | Praça: {praca}
+                    </p>
+                  </div>
+                  {fornecedores.map((fornecedor) => (
+                    <div key={fornecedor.id} className="border rounded-lg p-4">
+                      <h3 className="font-bold text-lg">{fornecedor.nome}</h3>
+                      <p className="text-sm text-gray-600">{fornecedor.contato}</p>
+                      <div className="mt-2">
+                        <p className="font-semibold">
+                          Total: {formatCurrency(calcularTotalFornecedor(fornecedor))}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t pt-4">
+                    {aplicarHonorario && exibirDetalhesHonorario ? (
+                      <>
+                        <p className="text-right">
+                          Subtotal: {formatCurrency(honorarioData.valorBase)}
+                        </p>
+                        <p className="text-right">
+                          Honorário ({honorarioData.percentual}%):{" "}
+                          {formatCurrency(honorarioData.valorHonorario)}
+                        </p>
+                        <p className="text-right font-bold text-lg">
+                          Total: {formatCurrency(honorarioData.totalComHonorario)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-right font-bold text-lg">
+                        Total:{" "}
+                        {formatCurrency(
+                          aplicarHonorario
+                            ? honorarioData.totalComHonorario
+                            : totalGeral
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4 mr-2" />
+              {saving
+                ? "Salvando..."
+                : isEditing
+                ? `Salvar v${(currentVersao || 0) + 1}`
+                : "Salvar e Gerar PDF"}
             </Button>
-          </motion.div>
-        )
+          </div>
+        </div>
 
-      case 3:
-        return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="tipo_audio" className="dark-label">Tipo de Áudio</Label>
-                <Select value={data.tipo_audio} onValueChange={(value) => updateData({ tipo_audio: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="locucao">Locução</SelectItem>
-                    <SelectItem value="jingle">Jingle</SelectItem>
-                    <SelectItem value="trilha">Trilha Sonora</SelectItem>
-                    <SelectItem value="sound_design">Sound Design</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="duracao" className="dark-label">Duração</Label>
-                <Select value={data.duracao} onValueChange={(value) => updateData({ duracao: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione a duração" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15s">15 segundos</SelectItem>
-                    <SelectItem value="30s">30 segundos</SelectItem>
-                    <SelectItem value="45s">45 segundos</SelectItem>
-                    <SelectItem value="60s">60 segundos</SelectItem>
-                    <SelectItem value="customizada">Customizada</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="meio_uso" className="dark-label">Meio de Uso</Label>
-                <Select value={data.meio_uso} onValueChange={(value) => updateData({ meio_uso: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione o meio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="radio">Rádio</SelectItem>
-                    <SelectItem value="tv">TV</SelectItem>
-                    <SelectItem value="digital">Digital</SelectItem>
-                    <SelectItem value="todos">Todos os meios</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="praca" className="dark-label">Praça</Label>
-                <Select value={data.praca} onValueChange={(value) => updateData({ praca: value })}>
-                  <SelectTrigger className="dark-input">
-                    <SelectValue placeholder="Selecione a praça" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nacional">Nacional</SelectItem>
-                    <SelectItem value="sao_paulo">São Paulo</SelectItem>
-                    <SelectItem value="regional">Regional</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button onClick={() => setStep(4)} size="lg" className="w-full">
-              Salvar e Continuar
-            </Button>
-          </motion.div>
-        )
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Client & Product Info */}
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white">Identificação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-white/80">Cliente *</Label>
+                    <Input
+                      value={cliente}
+                      onChange={(e) => setCliente(e.target.value)}
+                      placeholder="Nome do cliente"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Produto *</Label>
+                    <Input
+                      value={produto}
+                      onChange={(e) => setProduto(e.target.value)}
+                      placeholder="Nome do produto"
+                      className="bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-white/80">Tipo de Áudio</Label>
+                    <Select value={tipoAudio} onValueChange={setTipoAudio}>
+                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="locucao">Locução</SelectItem>
+                        <SelectItem value="jingle">Jingle</SelectItem>
+                        <SelectItem value="trilha">Trilha Sonora</SelectItem>
+                        <SelectItem value="sound_design">Sound Design</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Duração</Label>
+                    <Select value={duracao} onValueChange={setDuracao}>
+                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Selecione a duração" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15s">15 segundos</SelectItem>
+                        <SelectItem value="30s">30 segundos</SelectItem>
+                        <SelectItem value="45s">45 segundos</SelectItem>
+                        <SelectItem value="60s">60 segundos</SelectItem>
+                        <SelectItem value="customizada">Customizada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-white/80">Meio de Uso</Label>
+                    <Select value={meioUso} onValueChange={setMeioUso}>
+                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Selecione o meio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="radio">Rádio</SelectItem>
+                        <SelectItem value="tv">TV</SelectItem>
+                        <SelectItem value="digital">Digital</SelectItem>
+                        <SelectItem value="todos">Todos os meios</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-white/80">Praça</Label>
+                    <Select value={praca} onValueChange={setPraca}>
+                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Selecione a praça" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nacional">Nacional</SelectItem>
+                        <SelectItem value="sao_paulo">São Paulo</SelectItem>
+                        <SelectItem value="regional">Regional</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-      case 4:
-        return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            {/* Honorário */}
+            {honorarioPercent !== null && honorarioPercent > 0 && (
+              <Card className="bg-white/5 border-white/10">
+                <CardHeader>
+                  <CardTitle className="text-white">Honorário</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-white/80">
+                        Aplicar honorário de {honorarioPercent}%
+                      </Label>
+                      <p className="text-sm text-white/50">
+                        Cliente cadastrado com honorário
+                      </p>
+                    </div>
+                    <Switch
+                      checked={aplicarHonorario}
+                      onCheckedChange={setAplicarHonorario}
+                    />
+                  </div>
+                  {aplicarHonorario && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-white/80">
+                          Exibir detalhes do honorário
+                        </Label>
+                        <p className="text-sm text-white/50">
+                          Mostrar subtotal + honorário ou apenas total final
+                        </p>
+                      </div>
+                      <Switch
+                        checked={exibirDetalhesHonorario}
+                        onCheckedChange={setExibirDetalhesHonorario}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Fornecedores */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">Cotações de Áudio</h3>
-                <Button onClick={addAudioQuote} variant="outline" size="sm">
+                <h2 className="text-xl font-bold text-white">Produtoras</h2>
+                <Button onClick={addFornecedor} variant="outline" size="sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Adicionar Produtora
                 </Button>
               </div>
-              
-              {data.quotes_audio.map((quote, index) => (
-                <div key={index} className="p-4 border border-white/20 rounded-lg bg-white/5 space-y-3">
-                  <div className="grid md:grid-cols-2 gap-3">
-                     <div>
-                        <Label className="dark-label">Produtora</Label>
-                         <Input
-                           key={`audio-produtora-${index}`}
-                           value={quote.produtora}
-                           onChange={(e) => updateAudioQuote(index, { produtora: e.target.value })}
-                           className="dark-input"
-                           placeholder="Digite o nome da produtora"
-                         />
-                     </div>
-                     <div>
-                        <Label className="dark-label">Valor (R$)</Label>
-                         <Input
-                           key={`audio-valor-${index}`}
-                           type="number"
-                           min="0"
-                           step="0.01"
-                           value={quote.valor}
-                           onChange={(e) => updateAudioQuote(index, { valor: Number(e.target.value) })}
-                           className="dark-input"
-                           placeholder="0,00"
-                         />
-                     </div>
-                  </div>
-                   <div>
-                      <Label className="dark-label">Descritivo do Serviço</Label>
-                       <Input
-                         key={`audio-descritivo-${index}`}
-                         value={quote.descritivo}
-                         onChange={(e) => updateAudioQuote(index, { descritivo: e.target.value })}
-                         className="dark-input"
-                         placeholder="Ex.: Locução masculina, trilha sonora original..."
-                       />
-                   </div>
-                   <div>
-                      <Label className="dark-label">Opções/Observações</Label>
-                       <Input
-                         key={`audio-opcoes-${index}`}
-                         value={quote.opcoes}
-                         onChange={(e) => updateAudioQuote(index, { opcoes: e.target.value })}
-                         className="dark-input"
-                         placeholder="Ex.: 3 opções de locutores, revisões incluídas..."
-                       />
-                   </div>
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={() => removeAudioQuote(index)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+
+              {fornecedores.map((fornecedor, index) => (
+                <Card
+                  key={fornecedor.id}
+                  className="bg-white/5 border-white/10"
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 grid md:grid-cols-3 gap-4">
+                        <div>
+                          <Label className="text-white/80">Nome da Produtora</Label>
+                          <Input
+                            value={fornecedor.nome}
+                            onChange={(e) =>
+                              updateFornecedor(fornecedor.id, {
+                                nome: e.target.value,
+                              })
+                            }
+                            placeholder="Nome da produtora"
+                            className="bg-white/5 border-white/20 text-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-white/80">Contato</Label>
+                          <Input
+                            value={fornecedor.contato}
+                            onChange={(e) =>
+                              updateFornecedor(fornecedor.id, {
+                                contato: e.target.value,
+                              })
+                            }
+                            placeholder="Nome do contato"
+                            className="bg-white/5 border-white/20 text-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-white/80">CNPJ</Label>
+                          <Input
+                            value={fornecedor.cnpj || ""}
+                            onChange={(e) =>
+                              updateFornecedor(fornecedor.id, {
+                                cnpj: e.target.value,
+                              })
+                            }
+                            placeholder="00.000.000/0000-00"
+                            className="bg-white/5 border-white/20 text-white"
+                          />
+                        </div>
+                      </div>
+                      {fornecedores.length > 1 && (
+                        <Button
+                          onClick={() => removeFornecedor(fornecedor.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 ml-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <SupplierOptionsManager
+                      fornecedor={fornecedor}
+                      onUpdate={(updated) =>
+                        updateFornecedor(fornecedor.id, updated)
+                      }
+                    />
+                    <div className="mt-4 pt-4 border-t border-white/10 flex justify-end">
+                      <span className="text-lg font-bold text-white">
+                        Total Produtora: {formatCurrency(calcularTotalFornecedor(fornecedor))}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
-            
-            <Button onClick={() => setStep(5)} size="lg" className="w-full">
-              Revisar Orçamento
-            </Button>
-          </motion.div>
-        )
-
-      case 5:
-        return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="p-6 border border-white/20 rounded-lg bg-white/5 space-y-4">
-              <h3 className="text-lg font-semibold text-white">Resumo do Orçamento</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-white/70">Cliente:</span>
-                  <span className="font-medium text-white">{data.cliente}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-white/70">Produto:</span>
-                  <span className="font-medium text-white">{data.produto}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-white/70">Tipo de áudio:</span>
-                  <span className="font-medium text-white">{data.tipo_audio}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-white/70">Cotações:</span>
-                  <span className="font-medium text-white">{data.quotes_audio.length}</span>
-                </div>
-              </div>
-            </div>
-            
-            <Button onClick={() => setStep(6)} size="lg" className="w-full">
-              Ir para Exportar
-            </Button>
-          </motion.div>
-        )
-
-      case 6:
-        return (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="text-center space-y-4">
-              <h3 className="text-lg font-semibold text-white">
-                {isEditing ? 'Orçamento de Áudio Atualizado!' : 'Orçamento de Áudio Finalizado!'}
-              </h3>
-              <p className="text-white/70">Escolha uma das opções abaixo:</p>
-            </div>
-            
-            <div className="space-y-3">
-              <Button 
-                onClick={handleSaveAndGeneratePDF} 
-                size="lg" 
-                className="w-full gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                {isEditing ? `Salvar v${(currentVersao || 0) + 1}` : 'Salvar e Gerar PDF'}
-              </Button>
-              {budgetId && (
-                <Button 
-                  onClick={() => navigate(`/budget/${budgetId}`)} 
-                  variant="outline"
-                  size="lg" 
-                  className="w-full"
-                >
-                  Visualizar Orçamento
-                </Button>
-              )}
-              <Button 
-                onClick={() => navigate('/')} 
-                variant="ghost"
-                size="lg" 
-                className="w-full"
-              >
-                Voltar ao Início
-              </Button>
-            </div>
-          </motion.div>
-        )
-
-      default:
-        return null
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <div className="container mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button
-            onClick={() => step > 1 ? setStep(step - 1) : navigate('/')}
-            variant="ghost"
-            size="sm"
-            className="text-white hover:bg-white/10"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {step > 1 ? 'Voltar' : 'Início'}
-          </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-white">
-                {isEditing ? 'Editar Orçamento - Áudio' : 'Produção de Áudio'}
-              </h1>
-              {isEditing && currentVersao && (
-                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-white/20 text-white">
-                  v{currentVersao}
-                </span>
-              )}
-            </div>
-            <p className="text-white/70">
-              {isEditing ? `Modifique os dados e salve como versão ${(currentVersao || 0) + 1}` : 'Criar orçamento de áudio com opções da produtora'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-8">
-          {/* Main Content */}
-          <div className="flex-1 space-y-8">
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6">
-              <Stepper step={step} steps={steps} />
-            </div>
-            
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6">
-              <StepContent />
-            </div>
           </div>
 
-          {/* Preview Sidebar */}
-          <PreviewSidebar data={{ 
-            audio: { subtotal: data.total }, 
-            total: data.total 
-          }} />
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <Card className="bg-white/5 border-white/10 sticky top-6">
+              <CardHeader>
+                <CardTitle className="text-white">Resumo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-white/70">
+                    <span>Cliente:</span>
+                    <span className="font-medium text-white">
+                      {cliente || "-"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-white/70">
+                    <span>Produto:</span>
+                    <span className="font-medium text-white">
+                      {produto || "-"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-white/70">
+                    <span>Produtoras:</span>
+                    <span className="font-medium text-white">
+                      {fornecedores.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10 pt-4 space-y-2">
+                  {fornecedores.map((f) => (
+                    <div key={f.id} className="flex justify-between text-sm">
+                      <span className="text-white/60 truncate max-w-[60%]">
+                        {f.nome}:
+                      </span>
+                      <span className="text-white font-medium">
+                        {formatCurrency(calcularTotalFornecedor(f))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-white/10 pt-4 space-y-2">
+                  {aplicarHonorario && exibirDetalhesHonorario ? (
+                    <>
+                      <div className="flex justify-between text-white/70">
+                        <span>Subtotal:</span>
+                        <span className="font-medium text-white">
+                          {formatCurrency(honorarioData.valorBase)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-white/70">
+                        <span>Honorário ({honorarioData.percentual}%):</span>
+                        <span className="font-medium text-white">
+                          {formatCurrency(honorarioData.valorHonorario)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold text-white">
+                        <span>Total:</span>
+                        <span>
+                          {formatCurrency(honorarioData.totalComHonorario)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-lg font-bold text-white">
+                      <span>Total Geral:</span>
+                      <span>
+                        {formatCurrency(
+                          aplicarHonorario
+                            ? honorarioData.totalComHonorario
+                            : totalGeral
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
-  )
+  );
 }

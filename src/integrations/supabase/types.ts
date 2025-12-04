@@ -888,6 +888,45 @@ export type Database = {
           },
         ]
       }
+      whatsapp_transactions: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          date: string | null
+          description: string | null
+          id: string
+          meta: Json | null
+          status: string | null
+          type: string | null
+          user_phone: string | null
+        }
+        Insert: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          id?: string
+          meta?: Json | null
+          status?: string | null
+          type?: string | null
+          user_phone?: string | null
+        }
+        Update: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          id?: string
+          meta?: Json | null
+          status?: string | null
+          type?: string | null
+          user_phone?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
