@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users, Plus, FileJson, FileSpreadsheet, FileType } from "lucide-react";
@@ -11,7 +11,7 @@ import jsPDF from "jspdf";
 import logoWE from "@/assets/LOGO-WE-2.png";
 import { addMiaguiToOrcamento } from "@/utils/addMiaguiToBudget";
 import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
-import { exportToJSON, exportToExcel, exportToWord } from "@/utils/exportBudget";
+import { exportToJSON, exportToExcel, exportToWord, exportToHTML } from "@/utils/exportBudget";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -168,6 +168,7 @@ const pickAudio = (quotes: QuoteAudio[] = []) => {
 export default function BudgetPdf() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -176,6 +177,7 @@ export default function BudgetPdf() {
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list');
   const [fornecedorDisplayMode, setFornecedorDisplayMode] = useState<"somado" | "separado" | "nenhum">("separado");
   const [showDisplayDialog, setShowDisplayDialog] = useState(false);
+  const [htmlExported, setHtmlExported] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const payload = data?.payload ?? {};
@@ -331,6 +333,19 @@ export default function BudgetPdf() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [id, navigate]);
+
+  // Auto-exportar HTML quando parâmetro export=html estiver presente
+  useEffect(() => {
+    if (searchParams.get('export') === 'html' && data && contentRef.current && !htmlExported) {
+      // Aguardar renderização completa
+      const timer = setTimeout(() => {
+        exportToHTML(contentRef.current, data);
+        setHtmlExported(true);
+        toast({ title: "HTML exportado com sucesso" });
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, data, htmlExported]);
 
   /** ====== Adicionar MIAGUI ao orçamento ====== */
   const handleAddMiagui = async () => {
@@ -605,6 +620,16 @@ export default function BudgetPdf() {
                 <DropdownMenuItem onClick={handleGeneratePdf} disabled={generating} className="gap-2">
                   <FileText className="h-4 w-4" />
                   {generating ? "Gerando..." : "PDF"}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    exportToHTML(contentRef.current, data!);
+                    toast({ title: "HTML exportado com sucesso" });
+                  }} 
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  HTML (editável)
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={async () => {

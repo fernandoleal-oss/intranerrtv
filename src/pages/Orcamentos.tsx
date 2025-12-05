@@ -1352,6 +1352,10 @@ export default function Orcamentos() {
                                 <FileText className="h-4 w-4" />
                                 PDF
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/budget/${budget.id}/pdf?export=html`)} className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                HTML (editável)
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleExport(budget.id, budget.display_id, budget.type, 'word')} className="gap-2">
                                 <FileType className="h-4 w-4" />
                                 Word (.docx)
