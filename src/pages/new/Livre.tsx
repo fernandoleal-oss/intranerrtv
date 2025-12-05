@@ -536,23 +536,41 @@ export default function OrcamentoLivre() {
       } else {
         console.log("🆕 Modo criação - criando novo orçamento");
         
-        const { data, error } = await supabase.rpc("create_budget_full_rpc", {
-          p_type_text: "livre",
-          p_payload: payload as any,
-          p_total: total_geral,
-        });
+        // Tentar criar via insert direto para evitar timeout do RPC
+        const { data: budgetData, error: budgetError } = await supabase
+          .from("budgets")
+          .insert({
+            type: "livre",
+            status: "rascunho",
+          })
+          .select("id, display_id")
+          .single();
 
-        if (error) {
-          console.error("❌ Erro RPC:", error);
-          throw error;
-        }
-        
-        if (!data || data.length === 0) {
-          console.error("❌ RPC retornou dados vazios");
-          throw new Error("Falha ao criar orçamento - nenhum dado retornado");
+        if (budgetError) {
+          console.error("❌ Erro ao criar budget:", budgetError);
+          throw budgetError;
         }
 
-        const newBudgetId = data[0].id;
+        console.log("📝 Budget criado:", budgetData.id);
+
+        // Criar versão inicial
+        const { error: versionError } = await supabase
+          .from("versions")
+          .insert({
+            budget_id: budgetData.id,
+            versao: 1,
+            payload: payload as any,
+            total_geral,
+          });
+
+        if (versionError) {
+          console.error("❌ Erro ao criar versão:", versionError);
+          // Tentar deletar o budget criado
+          await supabase.from("budgets").delete().eq("id", budgetData.id);
+          throw versionError;
+        }
+
+        const newBudgetId = budgetData.id;
         console.log("✅ Orçamento criado com ID:", newBudgetId);
         setBudgetId(newBudgetId);
 
