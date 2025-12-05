@@ -16,6 +16,112 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 
+// Exportar HTML - mantém layout idêntico ao PDF
+export const exportToHTML = (contentElement: HTMLElement | null, budget: { display_id?: string }, filename?: string) => {
+  if (!contentElement) {
+    console.error('Elemento de conteúdo não encontrado');
+    return;
+  }
+
+  // Capturar todos os estilos computados
+  const styles = Array.from(document.styleSheets)
+    .map(sheet => {
+      try {
+        return Array.from(sheet.cssRules)
+          .map(rule => rule.cssText)
+          .join('\n');
+      } catch (e) {
+        return '';
+      }
+    })
+    .join('\n');
+
+  // Clone o elemento para não modificar o original
+  const clone = contentElement.cloneNode(true) as HTMLElement;
+  
+  // Remover elementos com classe no-print
+  clone.querySelectorAll('.no-print').forEach(el => el.remove());
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orçamento ${budget.display_id || ''}</title>
+  <style>
+    /* Reset básico */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: #000000;
+      line-height: 1.5;
+    }
+    
+    /* Estilos do documento */
+    .print-content {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 20mm;
+      margin: 0 auto;
+      background: #FFFFFF;
+    }
+    
+    /* Tabelas */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+    }
+    
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+      border: 1px solid #e5e7eb;
+    }
+    
+    th {
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+    
+    /* Tipografia */
+    h1, h2, h3, h4, h5, h6 {
+      margin-bottom: 0.5em;
+      font-weight: 600;
+    }
+    
+    /* Estilos inline preservados */
+    ${styles}
+    
+    /* Ajustes para impressão/edição */
+    @media print {
+      body { background: white; }
+      .print-content { 
+        width: 100%; 
+        padding: 0;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  ${clone.outerHTML}
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || `${budget.display_id || 'orcamento'}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 interface ExportBudgetData {
   id: string;
   display_id: string;

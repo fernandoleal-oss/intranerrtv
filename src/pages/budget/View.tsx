@@ -193,6 +193,13 @@ export default function BudgetView() {
                   PDF
                 </DropdownMenuItem>
                 <DropdownMenuItem 
+                  onClick={() => navigate(`/budget/${id}/pdf?export=html`)} 
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  HTML (editável)
+                </DropdownMenuItem>
+                <DropdownMenuItem 
                   onClick={async () => {
                     await exportToWord(data!);
                     toast({ title: "Word exportado com sucesso" });
