@@ -53,477 +53,295 @@ export const exportToJSON = (budget: ExportBudgetData, filename?: string) => {
   URL.revokeObjectURL(url);
 };
 
-// Exportar Word (DOCX)
+// Exportar Word (DOCX) - Layout limpo e editável
 export const exportToWord = async (budget: ExportBudgetData, filename?: string) => {
   const payload = budget.payload || {};
-  const docElements: (Paragraph | Table)[] = [];
   
-  // Título principal
-  docElements.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: "ORÇAMENTO",
-          bold: true,
-          size: 48,
-          color: "1a1a1a",
-        }),
-      ],
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-    })
-  );
-
-  // ID do orçamento
-  docElements.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: budget.display_id || budget.id,
-          bold: true,
-          size: 28,
-          color: "666666",
-        }),
-      ],
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 400 },
-    })
-  );
-
-  // Linha separadora
-  docElements.push(new Paragraph({ spacing: { after: 200 } }));
-
-  // Seção de Identificação
-  docElements.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: "IDENTIFICAÇÃO",
-          bold: true,
-          size: 28,
-          color: "333333",
-        }),
-      ],
-      heading: HeadingLevel.HEADING_1,
-      spacing: { before: 300, after: 200 },
-    })
-  );
-
-  // Tabela de identificação
-  const infoRows: TableRow[] = [];
-  
-  const addInfoRow = (label: string, value: string) => {
-    infoRows.push(
-      new TableRow({
-        children: [
-          new TableCell({
-            children: [new Paragraph({ 
-              children: [new TextRun({ text: label, bold: true, size: 22 })],
-            })],
-            width: { size: 30, type: WidthType.PERCENTAGE },
-            shading: { fill: "f5f5f5", type: ShadingType.CLEAR },
-          }),
-          new TableCell({
-            children: [new Paragraph({ 
-              children: [new TextRun({ text: value || "-", size: 22 })],
-            })],
-            width: { size: 70, type: WidthType.PERCENTAGE },
-          }),
-        ],
-      })
-    );
+  // Configurações de estilo
+  const COLORS = {
+    primary: "1e40af",    // Azul escuro
+    secondary: "475569",  // Cinza
+    accent: "059669",     // Verde
+    light: "f1f5f9",      // Cinza claro
+    text: "1e293b",       // Texto principal
   };
 
-  addInfoRow("Cliente", payload.cliente || payload.agencia || "-");
-  addInfoRow("Produto/Projeto", payload.produto || payload.projeto || "-");
-  addInfoRow("Tipo", budget.type?.toUpperCase() || "-");
-  addInfoRow("Status", budget.status || "-");
-  addInfoRow("Data", new Date().toLocaleDateString('pt-BR'));
-  
-  if (payload.job) addInfoRow("Job", payload.job);
-  if (payload.campanha) addInfoRow("Campanha", payload.campanha);
-  if (payload.produtor) addInfoRow("Produtor", payload.produtor);
+  const createHeading = (text: string, level: typeof HeadingLevel[keyof typeof HeadingLevel] = HeadingLevel.HEADING_1) => {
+    return new Paragraph({
+      children: [new TextRun({ text, bold: true, size: level === HeadingLevel.TITLE ? 40 : 28, color: COLORS.primary })],
+      heading: level,
+      spacing: { before: 300, after: 150 },
+    });
+  };
 
-  docElements.push(
+  const createSimpleRow = (label: string, value: string, isAlternate = false) => {
+    return new TableRow({
+      children: [
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 22, color: COLORS.secondary })] })],
+          width: { size: 35, type: WidthType.PERCENTAGE },
+          shading: isAlternate ? { fill: COLORS.light, type: ShadingType.CLEAR } : undefined,
+        }),
+        new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: value || "–", size: 22, color: COLORS.text })] })],
+          width: { size: 65, type: WidthType.PERCENTAGE },
+          shading: isAlternate ? { fill: COLORS.light, type: ShadingType.CLEAR } : undefined,
+        }),
+      ],
+    });
+  };
+
+  const docChildren: (Paragraph | Table)[] = [];
+
+  // === CABEÇALHO ===
+  docChildren.push(
     new Paragraph({
-      children: [],
-    })
+      children: [new TextRun({ text: "ORÇAMENTO", bold: true, size: 48, color: COLORS.primary })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: budget.display_id || "", size: 24, color: COLORS.secondary })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 300 },
+    }),
+    new Paragraph({ children: [], spacing: { after: 200 } }) // Espaço
   );
 
-  const infoTable = new Table({
-    rows: infoRows,
-    width: { size: 100, type: WidthType.PERCENTAGE },
-  });
+  // === IDENTIFICAÇÃO ===
+  docChildren.push(createHeading("Identificação"));
 
-  // Fornecedores (orçamentos livre/audio)
+  const infoRows: TableRow[] = [];
+  let rowIndex = 0;
+  
+  if (payload.cliente || payload.agencia) infoRows.push(createSimpleRow("Cliente", payload.cliente || payload.agencia, rowIndex++ % 2 === 0));
+  if (payload.produto || payload.projeto) infoRows.push(createSimpleRow("Produto/Projeto", payload.produto || payload.projeto, rowIndex++ % 2 === 0));
+  if (payload.job) infoRows.push(createSimpleRow("Job", payload.job, rowIndex++ % 2 === 0));
+  if (payload.campanha) infoRows.push(createSimpleRow("Campanha", payload.campanha, rowIndex++ % 2 === 0));
+  if (payload.produtor) infoRows.push(createSimpleRow("Produtor", payload.produtor, rowIndex++ % 2 === 0));
+  infoRows.push(createSimpleRow("Tipo", budget.type?.toUpperCase() || "–", rowIndex++ % 2 === 0));
+  infoRows.push(createSimpleRow("Data", new Date().toLocaleDateString('pt-BR'), rowIndex++ % 2 === 0));
+
+  if (infoRows.length > 0) {
+    docChildren.push(new Table({ rows: infoRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+  }
+
+  docChildren.push(new Paragraph({ children: [], spacing: { after: 300 } }));
+
+  // === FORNECEDORES ===
   if (payload.fornecedores?.length > 0) {
-    const fornecedorParagraphs: (Paragraph | Table)[] = [];
-    
-    fornecedorParagraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "FORNECEDORES",
-            bold: true,
-            size: 28,
-            color: "333333",
-          }),
-        ],
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 400, after: 200 },
-      })
-    );
+    docChildren.push(createHeading("Fornecedores"));
 
-    payload.fornecedores.forEach((fornecedor: any, fIndex: number) => {
+    let totalGeral = 0;
+
+    payload.fornecedores.forEach((fornecedor: any, fIdx: number) => {
       // Nome do fornecedor
-      fornecedorParagraphs.push(
+      docChildren.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: `${fIndex + 1}. ${fornecedor.nome || "Fornecedor"}`,
-              bold: true,
-              size: 24,
-              color: "2563eb",
-            }),
-          ],
-          spacing: { before: 300, after: 100 },
+          children: [new TextRun({ text: `${fIdx + 1}. ${fornecedor.nome || "Fornecedor"}`, bold: true, size: 26, color: COLORS.primary })],
+          spacing: { before: 250, after: 100 },
         })
       );
 
       if (fornecedor.contato) {
-        fornecedorParagraphs.push(
+        docChildren.push(
           new Paragraph({
-            children: [
-              new TextRun({ text: "Contato: ", bold: true, size: 20 }),
-              new TextRun({ text: fornecedor.contato, size: 20 }),
-            ],
+            children: [new TextRun({ text: `Contato: ${fornecedor.contato}`, size: 20, italics: true, color: COLORS.secondary })],
             spacing: { after: 100 },
           })
         );
       }
 
-      // Opções do fornecedor
-      const opcoes = fornecedor.opcoes || [{ nome: "Única", fases: fornecedor.fases || [] }];
-      
-      opcoes.forEach((opcao: any, oIndex: number) => {
+      const opcoes = fornecedor.opcoes || [{ nome: "Padrão", fases: fornecedor.fases || [] }];
+
+      opcoes.forEach((opcao: any, oIdx: number) => {
         if (opcoes.length > 1) {
-          fornecedorParagraphs.push(
+          docChildren.push(
             new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Opção: ${opcao.nome || `Opção ${oIndex + 1}`}`,
-                  bold: true,
-                  size: 22,
-                  italics: true,
-                }),
-              ],
-              spacing: { before: 200, after: 100 },
+              children: [new TextRun({ text: `► ${opcao.nome || `Opção ${oIdx + 1}`}`, bold: true, size: 22, color: COLORS.secondary })],
+              spacing: { before: 150, after: 80 },
             })
           );
         }
 
-        // Tabela de itens
-        const itemRows: TableRow[] = [
+        // Tabela de itens simples
+        const tableRows: TableRow[] = [
           new TableRow({
             children: [
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "Fase", bold: true, size: 20, color: "ffffff" })] })],
-                shading: { fill: "2563eb", type: ShadingType.CLEAR },
-              }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "Item", bold: true, size: 20, color: "ffffff" })] })],
-                shading: { fill: "2563eb", type: ShadingType.CLEAR },
-              }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "Valor", bold: true, size: 20, color: "ffffff" })] , alignment: AlignmentType.RIGHT })],
-                shading: { fill: "2563eb", type: ShadingType.CLEAR },
-              }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "Prazo", bold: true, size: 20, color: "ffffff" })] })],
-                shading: { fill: "2563eb", type: ShadingType.CLEAR },
-              }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Item", bold: true, size: 20 })] })], width: { size: 50, type: WidthType.PERCENTAGE }, shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Valor", bold: true, size: 20 })] , alignment: AlignmentType.RIGHT })], width: { size: 25, type: WidthType.PERCENTAGE }, shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Prazo", bold: true, size: 20 })] })], width: { size: 25, type: WidthType.PERCENTAGE }, shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
             ],
           }),
         ];
 
         let totalOpcao = 0;
+        let itemCount = 0;
 
         (opcao.fases || []).forEach((fase: any) => {
-          (fase.itens || []).forEach((item: any, itemIndex: number) => {
-            const valorFinal = (item.valor || 0) * (1 - (item.desconto || 0) / 100);
-            totalOpcao += valorFinal;
-
-            itemRows.push(
+          // Linha de fase como subtítulo
+          if (fase.nome) {
+            tableRows.push(
               new TableRow({
                 children: [
                   new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: itemIndex === 0 ? fase.nome || "-" : "", size: 20 })] })],
-                    shading: { fill: itemIndex % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
+                    children: [new Paragraph({ children: [new TextRun({ text: fase.nome.toUpperCase(), bold: true, size: 18, color: COLORS.secondary })] })],
+                    columnSpan: 3,
                   }),
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: item.nome || item.descricao || "-", size: 20 })] })],
-                    shading: { fill: itemIndex % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(valorFinal), size: 20 })] , alignment: AlignmentType.RIGHT })],
-                    shading: { fill: itemIndex % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ children: [new TextRun({ text: item.prazo || "-", size: 20 })] })],
-                    shading: { fill: itemIndex % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-                  }),
+                ],
+              })
+            );
+          }
+
+          (fase.itens || []).forEach((item: any) => {
+            const valorFinal = (item.valor || 0) * (1 - (item.desconto || 0) / 100);
+            totalOpcao += valorFinal;
+            itemCount++;
+
+            tableRows.push(
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.nome || item.descricao || "–", size: 20 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(valorFinal), size: 20 })] , alignment: AlignmentType.RIGHT })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.prazo || "–", size: 20 })] })] }),
                 ],
               })
             );
           });
         });
 
-        // Linha de total
-        itemRows.push(
+        // Linha de total da opção
+        tableRows.push(
           new TableRow({
             children: [
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "", size: 20 })] })],
-                columnSpan: 2,
-                shading: { fill: "e5e7eb", type: ShadingType.CLEAR },
-              }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(totalOpcao), bold: true, size: 22 })] , alignment: AlignmentType.RIGHT })],
-                shading: { fill: "e5e7eb", type: ShadingType.CLEAR },
-              }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true, size: 20 })] })],
-                shading: { fill: "e5e7eb", type: ShadingType.CLEAR },
-              }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Total", bold: true, size: 22 })] })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(totalOpcao), bold: true, size: 22, color: COLORS.accent })] , alignment: AlignmentType.RIGHT })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+              new TableCell({ children: [new Paragraph({ children: [] })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
             ],
           })
         );
 
-        fornecedorParagraphs.push(
-          new Table({
-            rows: itemRows,
-            width: { size: 100, type: WidthType.PERCENTAGE },
-          })
-        );
+        totalGeral += totalOpcao;
 
-        fornecedorParagraphs.push(new Paragraph({ spacing: { after: 200 } }));
-      });
-    });
-
-    // Calcular total geral
-    let totalGeral = 0;
-    payload.fornecedores.forEach((f: any) => {
-      const opcoes = f.opcoes || [{ fases: f.fases || [] }];
-      opcoes.forEach((opcao: any) => {
-        (opcao.fases || []).forEach((fase: any) => {
-          (fase.itens || []).forEach((item: any) => {
-            totalGeral += (item.valor || 0) * (1 - (item.desconto || 0) / 100);
-          });
-        });
+        if (itemCount > 0) {
+          docChildren.push(new Table({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+          docChildren.push(new Paragraph({ children: [], spacing: { after: 150 } }));
+        }
       });
     });
 
     // Honorário
     if (payload.honorario?.aplicar) {
-      const valorHonorario = totalGeral * (payload.honorario.percentual / 100);
+      const subtotal = totalGeral;
+      const valorHonorario = subtotal * (payload.honorario.percentual / 100);
       
-      fornecedorParagraphs.push(
+      docChildren.push(
         new Paragraph({
           children: [
-            new TextRun({ text: "Subtotal: ", bold: true, size: 22 }),
-            new TextRun({ text: formatCurrency(totalGeral), size: 22 }),
+            new TextRun({ text: `Subtotal: ${formatCurrency(subtotal)}`, size: 22, color: COLORS.text }),
           ],
           alignment: AlignmentType.RIGHT,
-          spacing: { before: 200 },
-        })
-      );
-
-      fornecedorParagraphs.push(
+          spacing: { before: 100 },
+        }),
         new Paragraph({
           children: [
-            new TextRun({ text: `Honorário (${payload.honorario.percentual}%): `, bold: true, size: 22 }),
-            new TextRun({ text: formatCurrency(valorHonorario), size: 22 }),
+            new TextRun({ text: `Honorário (${payload.honorario.percentual}%): ${formatCurrency(valorHonorario)}`, size: 22, color: COLORS.text }),
           ],
           alignment: AlignmentType.RIGHT,
         })
       );
-
-      totalGeral += valorHonorario;
+      
+      totalGeral = subtotal + valorHonorario;
     }
 
-    // Total geral destacado
-    fornecedorParagraphs.push(
+    // Total geral
+    docChildren.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: `TOTAL GERAL: ${formatCurrency(totalGeral)}`,
-            bold: true,
-            size: 28,
-            color: "16a34a",
-          }),
-        ],
+        children: [new TextRun({ text: `TOTAL: ${formatCurrency(totalGeral)}`, bold: true, size: 32, color: COLORS.accent })],
         alignment: AlignmentType.RIGHT,
-        spacing: { before: 200, after: 200 },
+        spacing: { before: 200, after: 300 },
       })
     );
-
-    // Add all paragraphs to docElements
-    docElements.push(...fornecedorParagraphs);
   }
 
-  // Assets (orçamento de imagem)
+  // === ASSETS (Imagem) ===
   if (payload.assets?.length > 0) {
-    docElements.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "ASSETS",
-            bold: true,
-            size: 28,
-            color: "333333",
-          }),
-        ],
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 400, after: 200 },
-      })
-    );
+    docChildren.push(createHeading("Assets"));
 
     const assetRows: TableRow[] = [
       new TableRow({
         children: [
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "Título", bold: true, size: 20, color: "ffffff" })] })],
-            shading: { fill: "2563eb", type: ShadingType.CLEAR },
-          }),
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "Tipo", bold: true, size: 20, color: "ffffff" })] })],
-            shading: { fill: "2563eb", type: ShadingType.CLEAR },
-          }),
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "Licença", bold: true, size: 20, color: "ffffff" })] })],
-            shading: { fill: "2563eb", type: ShadingType.CLEAR },
-          }),
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "Valor", bold: true, size: 20, color: "ffffff" })] , alignment: AlignmentType.RIGHT })],
-            shading: { fill: "2563eb", type: ShadingType.CLEAR },
-          }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Asset", bold: true, size: 20 })] })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Tipo", bold: true, size: 20 })] })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Valor", bold: true, size: 20 })] , alignment: AlignmentType.RIGHT })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
         ],
       }),
     ];
 
     let totalAssets = 0;
-
-    payload.assets.forEach((asset: any, index: number) => {
+    payload.assets.forEach((asset: any) => {
       totalAssets += asset.price || 0;
       assetRows.push(
         new TableRow({
           children: [
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: asset.title || "-", size: 20 })] })],
-              shading: { fill: index % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-            }),
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: asset.type || "-", size: 20 })] })],
-              shading: { fill: index % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-            }),
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: asset.chosenLicense || "-", size: 20 })] })],
-              shading: { fill: index % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-            }),
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(asset.price || 0), size: 20 })] , alignment: AlignmentType.RIGHT })],
-              shading: { fill: index % 2 === 0 ? "f9fafb" : "ffffff", type: ShadingType.CLEAR },
-            }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: asset.title || "–", size: 20 })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: asset.type || "–", size: 20 })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(asset.price || 0), size: 20 })] , alignment: AlignmentType.RIGHT })] }),
           ],
         })
       );
     });
 
-    // Total
     assetRows.push(
       new TableRow({
         children: [
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true, size: 20 })] })],
-            columnSpan: 3,
-            shading: { fill: "e5e7eb", type: ShadingType.CLEAR },
-          }),
-          new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(totalAssets), bold: true, size: 22 })] , alignment: AlignmentType.RIGHT })],
-            shading: { fill: "e5e7eb", type: ShadingType.CLEAR },
-          }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Total", bold: true, size: 22 })] })], columnSpan: 2, shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatCurrency(totalAssets), bold: true, size: 22, color: COLORS.accent })] , alignment: AlignmentType.RIGHT })], shading: { fill: COLORS.light, type: ShadingType.CLEAR } }),
         ],
       })
     );
 
-    docElements.push(
-      new Table({
-        rows: assetRows,
-        width: { size: 100, type: WidthType.PERCENTAGE },
-      })
-    );
+    docChildren.push(new Table({ rows: assetRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+    docChildren.push(new Paragraph({ children: [], spacing: { after: 200 } }));
   }
 
-  // Observações
+  // === OBSERVAÇÕES ===
   if (payload.observacoes) {
-    docElements.push(
+    docChildren.push(createHeading("Observações"));
+    docChildren.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: "OBSERVAÇÕES",
-            bold: true,
-            size: 28,
-            color: "333333",
-          }),
-        ],
-        heading: HeadingLevel.HEADING_1,
-        spacing: { before: 400, after: 200 },
-      })
-    );
-
-    docElements.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: payload.observacoes,
-            size: 22,
-          }),
-        ],
+        children: [new TextRun({ text: payload.observacoes, size: 22, color: COLORS.text })],
         spacing: { after: 200 },
       })
     );
   }
 
-  // Rodapé
-  docElements.push(
+  // === RODAPÉ ===
+  docChildren.push(
     new Paragraph({
-      children: [
-        new TextRun({
-          text: `Documento gerado em ${new Date().toLocaleString('pt-BR')}`,
-          size: 18,
-          color: "999999",
-          italics: true,
-        }),
-      ],
+      children: [new TextRun({ text: "–––––––––––––––––––––––––––––––––––––", size: 16, color: COLORS.light })],
       alignment: AlignmentType.CENTER,
-      spacing: { before: 600 },
+      spacing: { before: 400 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `Gerado em ${new Date().toLocaleString('pt-BR')}`, size: 18, italics: true, color: COLORS.secondary })],
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 100 },
     })
   );
 
   // Criar documento
   const doc = new Document({
     sections: [{
-      properties: {},
-      children: [
-        ...docElements.slice(0, 5), // Título e subtítulo
-        infoTable,
-        ...docElements.slice(5),
-      ],
+      properties: {
+        page: {
+          margin: { top: convertInchesToTwip(0.8), bottom: convertInchesToTwip(0.8), left: convertInchesToTwip(0.8), right: convertInchesToTwip(0.8) },
+        },
+      },
+      children: docChildren,
     }],
   });
 
-  // Gerar e baixar
   const blob = await Packer.toBlob(doc);
   saveAs(blob, filename || `${budget.display_id || 'orcamento'}.docx`);
 };
