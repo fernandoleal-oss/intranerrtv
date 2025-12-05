@@ -22,6 +22,8 @@ import {
   Sparkles,
   Calculator,
   Check,
+  FileJson,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +55,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ItemSelector } from "@/components/budget/ItemSelector";
 import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
+import { exportToJSON, exportToExcel } from "@/utils/exportBudget";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -774,6 +777,44 @@ export default function Orcamentos() {
     }
   };
 
+  const handleExport = async (budgetId: string, displayId: string, type: string, format: 'json' | 'excel') => {
+    try {
+      // Buscar payload completo
+      const { data: version, error } = await supabase
+        .from("versions")
+        .select("payload")
+        .eq("budget_id", budgetId)
+        .order("versao", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) throw error;
+
+      const budgetData = {
+        id: budgetId,
+        display_id: displayId,
+        type,
+        status: budgets.find(b => b.id === budgetId)?.status || 'Rascunho',
+        payload: version?.payload || {}
+      };
+
+      if (format === 'json') {
+        exportToJSON(budgetData);
+      } else {
+        exportToExcel(budgetData);
+      }
+
+      toast({ title: `${format === 'json' ? 'JSON' : 'Excel'} exportado com sucesso` });
+    } catch (error) {
+      console.error('Erro ao exportar:', error);
+      toast({ 
+        title: "Erro ao exportar", 
+        description: "Não foi possível exportar o orçamento",
+        variant: "destructive" 
+      });
+    }
+  };
+
   const filtered = budgets.filter((b) => {
     const matchType = selectedType === "todos" || b.type === selectedType;
     const matchStatus = selectedStatus === "todos" || b.status === selectedStatus;
@@ -1279,15 +1320,32 @@ export default function Orcamentos() {
                             <Edit className="h-4 w-4" />
                             Editar
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => navigate(`/budget/${budget.id}/pdf`)}
-                            className="gap-1 border-green-200 text-green-700 hover:bg-green-50"
-                            title="Gerar PDF"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                                title="Baixar"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/budget/${budget.id}/pdf`)} className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExport(budget.id, budget.display_id, budget.type, 'excel')} className="gap-2">
+                                <FileSpreadsheet className="h-4 w-4" />
+                                Excel (.xlsx)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExport(budget.id, budget.display_id, budget.type, 'json')} className="gap-2">
+                                <FileJson className="h-4 w-4" />
+                                JSON
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <Button
                             size="sm"
                             variant="outline"

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users, Plus } from "lucide-react";
+import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users, Plus, FileJson, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
@@ -11,6 +11,13 @@ import jsPDF from "jspdf";
 import logoWE from "@/assets/LOGO-WE-2.png";
 import { addMiaguiToOrcamento } from "@/utils/addMiaguiToBudget";
 import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
+import { exportToJSON, exportToExcel } from "@/utils/exportBudget";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /** ====== Tipagens ====== */
 interface FilmOption {
@@ -587,10 +594,40 @@ export default function BudgetPdf() {
               <FileText className="h-4 w-4" />
               Editar
             </Button>
-            <Button onClick={handleGeneratePdf} disabled={generating} className="gap-2">
-              <Download className="h-4 w-4" />
-              {generating ? "Gerando..." : "Baixar PDF"}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Baixar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleGeneratePdf} disabled={generating} className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  {generating ? "Gerando..." : "PDF"}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    exportToExcel(data!);
+                    toast({ title: "Excel exportado com sucesso" });
+                  }} 
+                  className="gap-2"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    exportToJSON(data!);
+                    toast({ title: "JSON exportado com sucesso" });
+                  }} 
+                  className="gap-2"
+                >
+                  <FileJson className="h-4 w-4" />
+                  JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
