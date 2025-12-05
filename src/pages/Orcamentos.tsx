@@ -24,6 +24,7 @@ import {
   Check,
   FileJson,
   FileSpreadsheet,
+  FileType,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ItemSelector } from "@/components/budget/ItemSelector";
 import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
-import { exportToJSON, exportToExcel } from "@/utils/exportBudget";
+import { exportToJSON, exportToExcel, exportToWord } from "@/utils/exportBudget";
 
 type BudgetType = "filme" | "audio" | "imagem" | "cc";
 
@@ -789,7 +790,7 @@ export default function Orcamentos() {
     }
   };
 
-  const handleExport = async (budgetId: string, displayId: string, type: string, format: 'json' | 'excel') => {
+  const handleExport = async (budgetId: string, displayId: string, type: string, format: 'json' | 'excel' | 'word') => {
     try {
       // Buscar payload completo
       const { data: version, error } = await supabase
@@ -812,11 +813,14 @@ export default function Orcamentos() {
 
       if (format === 'json') {
         exportToJSON(budgetData);
+      } else if (format === 'word') {
+        await exportToWord(budgetData);
       } else {
         exportToExcel(budgetData);
       }
 
-      toast({ title: `${format === 'json' ? 'JSON' : 'Excel'} exportado com sucesso` });
+      const formatNames = { json: 'JSON', excel: 'Excel', word: 'Word' };
+      toast({ title: `${formatNames[format]} exportado com sucesso` });
     } catch (error) {
       console.error('Erro ao exportar:', error);
       toast({ 
@@ -1347,6 +1351,10 @@ export default function Orcamentos() {
                               <DropdownMenuItem onClick={() => navigate(`/budget/${budget.id}/pdf`)} className="gap-2">
                                 <FileText className="h-4 w-4" />
                                 PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExport(budget.id, budget.display_id, budget.type, 'word')} className="gap-2">
+                                <FileType className="h-4 w-4" />
+                                Word (.docx)
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleExport(budget.id, budget.display_id, budget.type, 'excel')} className="gap-2">
                                 <FileSpreadsheet className="h-4 w-4" />

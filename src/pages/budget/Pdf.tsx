@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users, Plus, FileJson, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Download, Star, CheckCircle, FileText, Building2, Music, Film, Layers, Users, Plus, FileJson, FileSpreadsheet, FileType } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
@@ -11,7 +11,7 @@ import jsPDF from "jspdf";
 import logoWE from "@/assets/LOGO-WE-2.png";
 import { addMiaguiToOrcamento } from "@/utils/addMiaguiToBudget";
 import { FornecedorDisplayDialog } from "@/components/budget/FornecedorDisplayDialog";
-import { exportToJSON, exportToExcel } from "@/utils/exportBudget";
+import { exportToJSON, exportToExcel, exportToWord } from "@/utils/exportBudget";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -605,6 +605,16 @@ export default function BudgetPdf() {
                 <DropdownMenuItem onClick={handleGeneratePdf} disabled={generating} className="gap-2">
                   <FileText className="h-4 w-4" />
                   {generating ? "Gerando..." : "PDF"}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={async () => {
+                    await exportToWord(data!);
+                    toast({ title: "Word exportado com sucesso" });
+                  }} 
+                  className="gap-2"
+                >
+                  <FileType className="h-4 w-4" />
+                  Word (.docx)
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => {
