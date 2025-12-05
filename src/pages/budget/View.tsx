@@ -3,10 +3,17 @@ import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Edit, FileText, Star } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Star, Download, FileJson, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
+import { exportToJSON, exportToExcel } from "@/utils/exportBudget";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface BudgetData {
   id: string;
@@ -173,6 +180,34 @@ export default function BudgetView() {
           </div>
 
           <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Baixar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate(`/budget/${id}/pdf`)} className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => exportToExcel(data!)} 
+                  className="gap-2"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => exportToJSON(data!)} 
+                  className="gap-2"
+                >
+                  <FileJson className="h-4 w-4" />
+                  JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" onClick={() => navigate(`/budget/${id}/edit`)} className="gap-2">
               <Edit className="h-4 w-4" />
               Editar

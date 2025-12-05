@@ -444,25 +444,36 @@ export default function OrcamentoLivre() {
   };
 
   const handleSave = async () => {
+    console.log("🔄 Iniciando salvamento do orçamento livre...");
+    console.log("📋 Dados:", { cliente, produto, fornecedores: fornecedores.length });
+
+    // Validação com feedback visual
     if (!cliente.trim()) {
+      console.log("❌ Validação falhou: cliente vazio");
       toast({
         title: "Campo obrigatório",
         description: "Por favor, informe o cliente.",
         variant: "destructive",
       });
+      // Focar no campo
+      document.getElementById("cliente")?.focus();
       return;
     }
 
     if (!produto.trim()) {
+      console.log("❌ Validação falhou: produto vazio");
       toast({
         title: "Campo obrigatório",
         description: "Por favor, informe o produto/projeto.",
         variant: "destructive",
       });
+      document.getElementById("produto")?.focus();
       return;
     }
 
     setSaving(true);
+    console.log("💾 Salvando...");
+
     try {
       const honorarioData = getHonorarioData();
       const total_geral = honorarioData.totalComHonorario;
@@ -483,16 +494,25 @@ export default function OrcamentoLivre() {
         },
       };
 
+      console.log("📦 Payload preparado:", JSON.stringify(payload).substring(0, 500));
+
       if (isEditing && budgetId) {
-        // Update existing budget - create new version
-        const { data: versions } = await supabase
+        console.log("✏️ Modo edição - criando nova versão para budget:", budgetId);
+        
+        const { data: versions, error: versionsError } = await supabase
           .from('versions')
           .select('versao')
           .eq('budget_id', budgetId)
           .order('versao', { ascending: false })
           .limit(1);
 
+        if (versionsError) {
+          console.error("❌ Erro ao buscar versões:", versionsError);
+          throw versionsError;
+        }
+
         const nextVersao = versions && versions.length > 0 ? versions[0].versao + 1 : 1;
+        console.log("📝 Próxima versão:", nextVersao);
 
         const { error } = await supabase.from('versions').insert({
           budget_id: budgetId,
@@ -501,8 +521,12 @@ export default function OrcamentoLivre() {
           total_geral
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("❌ Erro ao inserir versão:", error);
+          throw error;
+        }
 
+        console.log("✅ Versão criada com sucesso!");
         toast({
           title: "Sucesso!",
           description: `Orçamento atualizado. Nova versão ${nextVersao} criada.`,
@@ -510,17 +534,26 @@ export default function OrcamentoLivre() {
 
         navigate(`/budget/${budgetId}/pdf`);
       } else {
-        // Create new budget
+        console.log("🆕 Modo criação - criando novo orçamento");
+        
         const { data, error } = await supabase.rpc("create_budget_full_rpc", {
           p_type_text: "livre",
           p_payload: payload as any,
           p_total: total_geral,
         });
 
-        if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Falha ao criar orçamento");
+        if (error) {
+          console.error("❌ Erro RPC:", error);
+          throw error;
+        }
+        
+        if (!data || data.length === 0) {
+          console.error("❌ RPC retornou dados vazios");
+          throw new Error("Falha ao criar orçamento - nenhum dado retornado");
+        }
 
         const newBudgetId = data[0].id;
+        console.log("✅ Orçamento criado com ID:", newBudgetId);
         setBudgetId(newBudgetId);
 
         toast({
@@ -531,14 +564,15 @@ export default function OrcamentoLivre() {
         navigate(`/budget/${newBudgetId}/pdf`);
       }
     } catch (error: any) {
-      console.error("Erro ao salvar orçamento:", error);
+      console.error("❌ Erro ao salvar orçamento:", error);
       toast({
         title: "Erro ao salvar",
-        description: error.message || "Ocorreu um erro ao salvar o orçamento.",
+        description: error.message || "Ocorreu um erro ao salvar o orçamento. Verifique o console para detalhes.",
         variant: "destructive",
       });
     } finally {
       setSaving(false);
+      console.log("🔄 Fim do processo de salvamento");
     }
   };
 
