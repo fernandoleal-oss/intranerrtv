@@ -3,11 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Edit, FileText, Star, Download, FileJson, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Star, Download, FileJson, FileSpreadsheet, FileType } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { LoadingState } from "@/components/ui/loading-spinner";
-import { exportToJSON, exportToExcel } from "@/utils/exportBudget";
+import { exportToJSON, exportToExcel, exportToWord } from "@/utils/exportBudget";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -191,6 +191,16 @@ export default function BudgetView() {
                 <DropdownMenuItem onClick={() => navigate(`/budget/${id}/pdf`)} className="gap-2">
                   <FileText className="h-4 w-4" />
                   PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={async () => {
+                    await exportToWord(data!);
+                    toast({ title: "Word exportado com sucesso" });
+                  }} 
+                  className="gap-2"
+                >
+                  <FileType className="h-4 w-4" />
+                  Word (.docx)
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => exportToExcel(data!)} 
