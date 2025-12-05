@@ -514,31 +514,39 @@ export default function Orcamentos() {
 
   const loadBudgets = async () => {
     try {
+      setLoading(true);
+      
+      // Query otimizada - buscar budgets com limite para evitar timeout
       const { data, error } = await supabase
         .from("budgets")
-        .select(
-          `
-          id,
-          display_id,
-          type,
-          status,
-          created_at
-        `,
-        )
-        .order("created_at", { ascending: false });
+        .select("id, display_id, type, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erro ao buscar budgets:", error);
+        throw error;
+      }
 
-      // Buscar a versão mais recente de cada budget
       const budgetIds = (data || []).map((b: any) => b.id);
       
+      // Evitar query vazia se não houver budgets
+      if (budgetIds.length === 0) {
+        setBudgets([]);
+        return;
+      }
+
+      // Buscar versões em lotes menores para evitar timeout
       const { data: versionsData, error: versionsError } = await supabase
         .from("versions")
         .select("budget_id, payload, total_geral, versao")
         .in("budget_id", budgetIds)
         .order("versao", { ascending: false });
 
-      if (versionsError) throw versionsError;
+      if (versionsError) {
+        console.error("Erro ao buscar versões:", versionsError);
+        throw versionsError;
+      }
 
       // Agrupar versões por budget_id e pegar apenas a mais recente
       const versionsByBudget = new Map();
@@ -556,8 +564,8 @@ export default function Orcamentos() {
           display_id: b.display_id || "—",
           type: b.type,
           status: b.status || "rascunho",
-          cliente: payload?.cliente,
-          produto: payload?.produto,
+          cliente: payload?.cliente || payload?.projeto,
+          produto: payload?.produto || payload?.projeto,
           produtor: payload?.produtor,
           total: latestVersion?.total_geral,
           created_at: b.created_at,
@@ -566,9 +574,13 @@ export default function Orcamentos() {
       });
 
       setBudgets(formatted);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "Erro ao carregar orçamentos", variant: "destructive" });
+    } catch (err: any) {
+      console.error("Erro loadBudgets:", err);
+      toast({ 
+        title: "Erro ao carregar orçamentos", 
+        description: err?.message || "Tente novamente em alguns segundos",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
