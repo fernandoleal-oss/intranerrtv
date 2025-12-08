@@ -537,10 +537,10 @@ export default function Orcamentos() {
         return;
       }
 
-      // Buscar versões em lotes menores para evitar timeout
+      // Buscar apenas metadados necessários para listagem (evita carregar payloads grandes)
       const { data: versionsData, error: versionsError } = await supabase
         .from("versions")
-        .select("budget_id, payload, total_geral, versao")
+        .select("budget_id, total_geral, versao")
         .in("budget_id", budgetIds)
         .order("versao", { ascending: false });
 
@@ -559,15 +559,11 @@ export default function Orcamentos() {
 
       const formatted: Budget[] = (data || []).map((b: any) => {
         const latestVersion = versionsByBudget.get(b.id);
-        const payload = latestVersion?.payload || {};
         return {
           id: b.id,
           display_id: b.display_id || "—",
           type: b.type,
           status: b.status || "rascunho",
-          cliente: payload?.cliente || payload?.projeto,
-          produto: payload?.produto || payload?.projeto,
-          produtor: payload?.produtor,
           total: latestVersion?.total_geral,
           created_at: b.created_at,
           versions: latestVersion ? [latestVersion] : [],
